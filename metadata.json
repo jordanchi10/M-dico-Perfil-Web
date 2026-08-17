@@ -1,0 +1,6 @@
+{
+  "name": "Creador de Landing Page Medica",
+  "description": "Herramienta interactiva de marca blanca para generar y personalizar landing pages de médicos especialistas, optimizadas para SEO local, PWA, accesibilidad WCAG y Google Business Profile.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

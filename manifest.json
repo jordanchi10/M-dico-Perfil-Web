@@ -1,0 +1,24 @@
+{
+  "short_name": "{{ESPECIALIDAD_CORTA}}",
+  "name": "{{NOMBRE_MEDICO}} | {{ESPECIALIDAD}}",
+  "description": "{{FILOSOFIA_CONSULTA}}",
+  "icons": [
+    {
+      "src": "{{FOTO_URL_O_ICONO_192}}",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "{{FOTO_URL_O_ICONO_512}}",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "theme_color": "#1e6fd9",
+  "orientation": "portrait-primary"
+}
