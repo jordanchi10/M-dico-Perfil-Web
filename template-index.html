@@ -36,6 +36,15 @@
               800: 'var(--clinical-800)',
               900: 'var(--clinical-900)'
             }
+          },
+          keyframes: {
+            fadeInUp: {
+              '0%': { opacity: '0', transform: 'translateY(24px)' },
+              '100%': { opacity: '1', transform: 'translateY(0)' },
+            }
+          },
+          animation: {
+            'fade-in-up': 'fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) both',
           }
         }
       }
@@ -78,6 +87,32 @@
     }
     .will-change-transform {
       will-change: transform;
+    }
+    /* Animación de entrada suave (Fade-In y Slide-Up) */
+    @keyframes fadeInUp {
+      0% {
+        opacity: 0;
+        transform: translateY(24px);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    .animate-fade-in-up {
+      animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    .animation-delay-100 {
+      animation-delay: 100ms;
+    }
+    .animation-delay-200 {
+      animation-delay: 200ms;
+    }
+    .animation-delay-300 {
+      animation-delay: 300ms;
+    }
+    .animation-delay-400 {
+      animation-delay: 400ms;
     }
   </style>
 
@@ -205,6 +240,7 @@
         <a href="#inicio" class="hover:text-clinical-600 transition-colors">Inicio</a>
         <a href="#nosotros" class="hover:text-clinical-600 transition-colors">Nosotros</a>
         <a href="#servicios" class="hover:text-clinical-600 transition-colors">Tratamientos</a>
+        <a href="#redes-sociales" class="hover:text-clinical-600 transition-colors">Redes & Reels</a>
         <a href="#faq" class="hover:text-clinical-600 transition-colors">Preguntas</a>
         <a href="#resenas" class="hover:text-clinical-600 transition-colors">Opiniones</a>
         <a href="#blog" class="hover:text-clinical-600 transition-colors">Blog</a>
@@ -219,48 +255,83 @@
   </header>
 
   <!-- HERO SECTION -->
-  <section id="inicio" class="relative py-12 md:py-24 overflow-hidden bg-gradient-to-br from-clinical-50 via-white to-[#fcfdfd]">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-center">
-      
-      <!-- Contenido de Texto -->
-      <div class="lg:col-span-7 flex flex-col items-start text-left">
-        <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-clinical-100 text-clinical-700 text-xs font-bold uppercase tracking-wider mb-6">
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 fill-current" viewBox="0 0 20 20" aria-hidden="true"><path fill-rule="evenodd" d="M6.267 3.455a.75.75 0 00-.708-.523H4.5a2 2 0 00-2 2v3a2 2 0 002 2h.1l2.222 3.333a2 2 0 001.666.889h5.137a2 2 0 001.665-.889L17.4 9.5a2 2 0 002-2v-3a2 2 0 00-2-2h-1.059a.75.75 0 00-.707.523l-1.045 3.398a.75.75 0 01-.707.523H6.974a.75.75 0 01-.707-.523L6.267 3.455z" clip-rule="evenodd" /></svg>
-          Consulta Médica Especializada Certificada
-        </div>
-        
-        <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-gray-900 leading-tight mb-6">
-          Atención de primer nivel en <span class="text-clinical-600 block sm:inline">{{ESPECIALIDAD}}</span> en la ciudad de <span class="underline decoration-clinical-600/30">{{CIUDAD}}</span>
-        </h1>
-        
-        <p class="text-lg text-gray-600 leading-relaxed mb-8 max-w-2xl">
-          {{FILOSOFIA_CONSULTA}} Recupera tu bienestar de la mano de un especialista con amplia trayectoria, ética intachable y técnicas clínicas certificadas.
-        </p>
+  <section id="inicio" class="relative py-12 md:py-20 lg:py-24 overflow-hidden bg-gradient-to-br from-clinical-50 via-white to-[#fcfdfd]">
+    
+    <!-- Contenedor del Logotipo (Visible únicamente en Mobile/Tablet, Oculto en Desktop con lg:hidden) -->
+    <div class="col-span-12 lg:hidden w-full flex justify-center mb-6 animate-fade-in-up">
+      <img src="{{LOGO_URL}}" alt="Logotipo {{NOMBRE_MEDICO}}" class="h-10 sm:h-12 w-auto object-contain filter drop-shadow-sm" />
+    </div>
 
-        <div class="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-          <a href="#agendar" class="bg-clinical-600 hover:bg-clinical-700 text-white px-8 py-4 rounded-full text-md font-bold shadow-lg hover:shadow-xl transition-all duration-300 text-center flex items-center justify-center gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-            Agendar Consulta
-          </a>
-          <a href="tel:{{TELEFONO_GBP}}" class="border-2 border-gray-200 hover:border-clinical-600 hover:text-clinical-600 text-gray-700 px-8 py-4 rounded-full text-md font-bold transition-all duration-300 text-center flex items-center justify-center gap-2 bg-white">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.94.725l.548 2.2a1 1 0 01-.321.988l-1.305.98a10.582 10.582 0 004.872 4.872l.98-1.305a1 1 0 01.988-.321l2.2.548a1 1 0 01.725.94V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-            Llamar al Consultorio
-          </a>
-        </div>
-      </div>
+    <!-- Contenedor solo visible en Desktop/Laptop (hidden lg:flex) -->
+    <div class="hidden lg:flex max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full">
+      <div class="grid grid-cols-12 gap-8 lg:gap-14 items-center w-full">
+        
+        <!-- DISEÑO 1 & 2: CONTENIDO DE TEXTO (Estándar/Invertido col-span-7; Centrado col-span-12 max-w-2xl mx-auto) -->
+        <div class="lg:col-span-7 flex flex-col items-start text-left space-y-4">
+          
+          <div class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-clinical-100 text-clinical-700 text-xs font-bold uppercase tracking-wider mb-2 animate-fade-in-up">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 fill-current shrink-0" viewBox="0 0 20 20" aria-hidden="true"><path fill-rule="evenodd" d="M6.267 3.455a.75.75 0 00-.708-.523H4.5a2 2 0 00-2 2v3a2 2 0 002 2h.1l2.222 3.333a2 2 0 001.666.889h5.137a2 2 0 001.665-.889L17.4 9.5a2 2 0 002-2v-3a2 2 0 00-2-2h-1.059a.75.75 0 00-.707.523l-1.045 3.398a.75.75 0 01-.707.523H6.974a.75.75 0 01-.707-.523L6.267 3.455z" clip-rule="evenodd" /></svg>
+            <span>Consulta Médica Especializada Certificada</span>
+          </div>
+          
+          <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-gray-900 leading-tight tracking-tight animate-fade-in-up animation-delay-100">
+            Atención de primer nivel en <span class="text-clinical-600 block sm:inline">{{ESPECIALIDAD}}</span> en la ciudad de <span class="underline decoration-clinical-600/30">{{CIUDAD}}</span>
+          </h1>
+          
+          <p class="text-base sm:text-lg text-gray-600 leading-relaxed max-w-2xl mb-4 animate-fade-in-up animation-delay-200">
+            {{FILOSOFIA_CONSULTA}} Recupera tu bienestar de la mano de un especialista con amplia trayectoria, ética intachable y técnicas clínicas certificadas.
+          </p>
 
-      <!-- Imagen Destacada Profesional -->
-      <div class="lg:col-span-5 relative flex justify-center">
-        <div class="absolute inset-0 bg-clinical-600/10 rounded-[3rem] rotate-3 scale-95 blur-lg" aria-hidden="true"></div>
-        <div class="relative rounded-[2.5rem] overflow-hidden border-4 border-white shadow-2xl max-w-sm sm:max-w-md">
-          <img src="{{FOTO_URL_PROFESIONAL}}" alt="{{NOMBRE_MEDICO}} - Especialista Certificado" class="w-full aspect-[4/5] object-cover" loading="eager" referrerPolicy="no-referrer" />
-          <div class="absolute bottom-0 inset-x-0 p-6 bg-gradient-to-t from-gray-900/90 via-gray-900/40 to-transparent text-white">
-            <p class="text-sm font-bold uppercase tracking-widest text-clinical-100">Cédula Profesional</p>
-            <p class="text-md font-bold text-white">{{CEDULA_PROFESIONAL}}</p>
+          <div class="flex flex-col sm:flex-row gap-3.5 w-full sm:w-auto max-w-2xl pt-1 animate-fade-in-up animation-delay-300">
+            <a href="#agendar" class="bg-clinical-600 hover:bg-clinical-700 text-white px-7 py-3.5 rounded-full text-base font-bold shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 text-center flex items-center justify-center gap-2 border border-clinical-500/30">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              <span>Agendar Consulta</span>
+            </a>
+            <a href="tel:{{TELEFONO_GBP}}" class="border-2 border-gray-200 hover:border-clinical-600 hover:text-clinical-600 text-gray-700 px-7 py-3.5 rounded-full text-base font-bold transition-all duration-300 text-center flex items-center justify-center gap-2 bg-white shadow-xs">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.94.725l.548 2.2a1 1 0 01-.321.988l-1.305.98a10.582 10.582 0 004.872 4.872l.98-1.305a1 1 0 01.988-.321l2.2.548a1 1 0 01.725.94V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+              <span>Llamar al Consultorio</span>
+            </a>
+          </div>
+
+          <!-- Badge de Horario en Vivo (Max-w-2xl centrado cuando aplica) -->
+          <div class="pt-2 w-full flex justify-start max-w-2xl animate-fade-in-up animation-delay-400">
+            <a href="#contacto" title="Click para ver horario completo de atención" id="hero-live-status-pill" class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-900/85 hover:bg-slate-800 active:bg-slate-950 backdrop-blur-md border border-white/20 shadow-md text-xs sm:text-sm font-semibold text-white transition-all cursor-pointer group/badge max-w-full overflow-hidden">
+              <span class="relative inline-flex h-2.5 w-2.5 sm:h-3 sm:w-3 shrink-0">
+                <span id="hero-status-ping" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span id="hero-status-dot" class="inline-flex rounded-full h-2.5 w-2.5 sm:h-3 sm:w-3 bg-emerald-500"></span>
+              </span>
+              <!-- En Mobile (< md): Solo texto corto simplificado (ej. "Abre hoy") -->
+              <span id="hero-status-mobile" class="md:hidden group-hover/badge:text-cyan-300 transition-colors font-bold text-xs whitespace-nowrap truncate">
+                Abre hoy
+              </span>
+              <!-- En Tablet y Desktop (>= md): Status completo + Detalle -->
+              <span class="hidden md:inline-flex items-center gap-2 group-hover/badge:text-cyan-300 transition-colors text-xs lg:text-sm whitespace-nowrap">
+                <span id="hero-status-text" class="font-bold">Abre hoy</span>
+                <span class="text-slate-400">•</span>
+                <span id="hero-status-detail" class="text-slate-300 font-medium text-xs lg:text-sm">Atención a partir de las 09:00</span>
+              </span>
+              <span class="text-[10px] sm:text-xs text-cyan-400 font-normal group-hover/badge:underline inline-flex items-center gap-0.5 ml-1 shrink-0 whitespace-nowrap">
+                <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <span>Ver horario</span>
+              </span>
+            </a>
+          </div>
+
+        </div>
+
+        <!-- Imagen Destacada Profesional (Estándar: Derecha col-span-5; Invertido: Izquierda col-span-5; Centrado: Oculto en Desktop con lg:hidden) -->
+        <div class="lg:col-span-5 relative flex justify-center animate-fade-in-up animation-delay-200">
+          <div class="absolute inset-0 bg-clinical-600/10 rounded-[3rem] rotate-3 scale-95 blur-lg" aria-hidden="true"></div>
+          <div class="relative rounded-[2.5rem] overflow-hidden border-4 border-white shadow-2xl max-w-sm sm:max-w-md w-full">
+            <img src="{{FOTO_URL_PROFESIONAL}}" alt="{{NOMBRE_MEDICO}} - Especialista Certificado" class="w-full aspect-[4/5] object-cover" loading="eager" referrerPolicy="no-referrer" />
+            <div class="absolute bottom-0 inset-x-0 p-5 bg-gradient-to-t from-gray-900/90 via-gray-900/40 to-transparent text-white">
+              <p class="text-xs font-bold uppercase tracking-widest text-clinical-100">Cédula Profesional</p>
+              <p class="text-sm font-bold text-white">{{CEDULA_PROFESIONAL}}</p>
+            </div>
           </div>
         </div>
-      </div>
 
+      </div>
     </div>
   </section>
 
@@ -387,6 +458,121 @@
         <p class="text-gray-600 text-sm leading-relaxed">{{DESCRIPCION_SERVICIO_3}}</p>
       </div>
 
+    </div>
+  </section>
+
+  <!-- SECCIÓN REDES SOCIALES Y REELS DESTACADOS (HASTA 6 VIDEOS CON REPRODUCCIÓN EN SITIO) -->
+  <section id="redes-sociales" class="py-16 md:py-24 bg-white border-t border-slate-100">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center mb-12">
+      <span class="text-xs font-bold text-pink-600 uppercase tracking-widest bg-pink-50 px-3 py-1 rounded-full mb-3 inline-block border border-pink-100">
+        Redes Sociales & Contenido Digital
+      </span>
+      <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-2">Síguenos en Redes Sociales & Mira Nuestros Videos</h2>
+      <p class="text-gray-500 max-w-2xl mx-auto mt-3 text-sm md:text-base">
+        Explicación de tratamientos, recomendaciones clínicas y respuestas a dudas frecuentes directamente en video sin salir de nuestra web.
+      </p>
+
+      <!-- Botones Rápidos de Perfiles Oficiales -->
+      <div class="flex flex-wrap items-center justify-center gap-2.5 mt-5">
+        <a href="{{INSTAGRAM_URL}}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 text-white text-xs font-extrabold shadow-sm hover:scale-105 transition-transform">
+          <span>Instagram</span>
+        </a>
+        <a href="{{TIKTOK_URL}}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-extrabold shadow-sm hover:scale-105 transition-transform">
+          <span class="text-cyan-400">♪</span>
+          <span>TikTok</span>
+        </a>
+        <a href="{{FACEBOOK_URL}}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-extrabold shadow-sm hover:scale-105 transition-transform">
+          <span>Facebook</span>
+        </a>
+        <a href="{{YOUTUBE_URL}}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 text-white text-xs font-extrabold shadow-sm hover:scale-105 transition-transform">
+          <span>YouTube</span>
+        </a>
+      </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <!-- Grid Responsivo (Hasta 6 Videos) -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        
+        <!-- Video 1 -->
+        <div class="group relative bg-slate-50 border border-slate-200/90 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
+          <div class="relative aspect-[4/5] sm:aspect-[9/16] max-h-[320px] w-full bg-slate-900 overflow-hidden">
+            <img src="https://images.unsplash.com/photo-1576091160550-2173dba999ef?q=80&w=600&auto=format&fit=crop" alt="Reel: ¿Cuándo consultar a un especialista?" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90" loading="lazy" />
+            <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/30"></div>
+            <span class="absolute top-3 left-3 text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 text-white shadow-md">
+              📸 Instagram Reel
+            </span>
+            <button onclick="openSocialVideoModal('https://www.instagram.com/reel/C3x90123456', '¿Cuándo consultar a un especialista?', 'instagram', 'Explicación médica rápida sobre síntomas de alerta y prevención en consulta.')" class="absolute inset-0 flex items-center justify-center cursor-pointer group/play" title="Ver video en el sitio">
+              <div class="w-14 h-14 rounded-full bg-white/90 group-hover/play:bg-white text-slate-900 flex items-center justify-center shadow-xl transform group-hover/play:scale-110 transition-all duration-300 pl-1">
+                <svg class="w-6 h-6 text-pink-600 fill-current" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/></svg>
+              </div>
+            </button>
+            <div class="absolute bottom-3 left-3 right-3 text-white pointer-events-none">
+              <h3 class="text-sm font-extrabold leading-snug line-clamp-2 text-white drop-shadow-md">¿Cuándo consultar a un especialista?</h3>
+            </div>
+          </div>
+          <div class="p-3.5 bg-white border-t border-slate-100 flex flex-col gap-2">
+            <p class="text-xs text-slate-600 line-clamp-2 leading-relaxed">Explicación médica rápida sobre síntomas de alerta y prevención en consulta.</p>
+            <button onclick="openSocialVideoModal('https://www.instagram.com/reel/C3x90123456', '¿Cuándo consultar a un especialista?', 'instagram', 'Explicación médica rápida sobre síntomas de alerta y prevención en consulta.')" class="inline-flex items-center justify-between text-xs font-extrabold text-pink-600 hover:text-pink-700 pt-1 cursor-pointer transition-colors">
+              <span>▶️ Reproducir en la Web</span>
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Video 2 -->
+        <div class="group relative bg-slate-50 border border-slate-200/90 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
+          <div class="relative aspect-[4/5] sm:aspect-[9/16] max-h-[320px] w-full bg-slate-900 overflow-hidden">
+            <img src="https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?q=80&w=600&auto=format&fit=crop" alt="TikTok: 3 Mitos sobre Tratamientos Médicos" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90" loading="lazy" />
+            <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/30"></div>
+            <span class="absolute top-3 left-3 text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-slate-900 text-cyan-300 shadow-md">
+              🎵 TikTok Video
+            </span>
+            <button onclick="openSocialVideoModal('https://www.tiktok.com/@drmedicoecuador/video/723456789012', '3 Mitos Comunes sobre los Tratamientos Médicos', 'tiktok', 'Aprende a diferenciar información falsa de recomendaciones basadas en evidencia científica.')" class="absolute inset-0 flex items-center justify-center cursor-pointer group/play" title="Ver video en el sitio">
+              <div class="w-14 h-14 rounded-full bg-white/90 group-hover/play:bg-white text-slate-900 flex items-center justify-center shadow-xl transform group-hover/play:scale-110 transition-all duration-300 pl-1">
+                <svg class="w-6 h-6 text-pink-600 fill-current" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/></svg>
+              </div>
+            </button>
+            <div class="absolute bottom-3 left-3 right-3 text-white pointer-events-none">
+              <h3 class="text-sm font-extrabold leading-snug line-clamp-2 text-white drop-shadow-md">3 Mitos sobre Tratamientos Médicos</h3>
+            </div>
+          </div>
+          <div class="p-3.5 bg-white border-t border-slate-100 flex flex-col gap-2">
+            <p class="text-xs text-slate-600 line-clamp-2 leading-relaxed">Aprende a diferenciar información falsa de recomendaciones basadas en evidencia científica.</p>
+            <button onclick="openSocialVideoModal('https://www.tiktok.com/@drmedicoecuador/video/723456789012', '3 Mitos Comunes sobre los Tratamientos Médicos', 'tiktok', 'Aprende a diferenciar información falsa de recomendaciones basadas en evidencia científica.')" class="inline-flex items-center justify-between text-xs font-extrabold text-pink-600 hover:text-pink-700 pt-1 cursor-pointer transition-colors">
+              <span>▶️ Reproducir en la Web</span>
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Video 3 -->
+        <div class="group relative bg-slate-50 border border-slate-200/90 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
+          <div class="relative aspect-[4/5] sm:aspect-[9/16] max-h-[320px] w-full bg-slate-900 overflow-hidden">
+            <img src="https://images.unsplash.com/photo-1629909613654-28e377c37b09?q=80&w=600&auto=format&fit=crop" alt="Facebook: Protocolos de Consulta Médica" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90" loading="lazy" />
+            <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/30"></div>
+            <span class="absolute top-3 left-3 text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-blue-600 text-white shadow-md">
+              📘 Facebook Video
+            </span>
+            <button onclick="openSocialVideoModal('https://www.facebook.com/watch/?v=1234567890', 'Cuidado Preventivo y Protocolos de Consulta', 'facebook', 'Recorrido por las instalaciones de nuestro consultorio y atención con calidez médica.')" class="absolute inset-0 flex items-center justify-center cursor-pointer group/play" title="Ver video en el sitio">
+              <div class="w-14 h-14 rounded-full bg-white/90 group-hover/play:bg-white text-slate-900 flex items-center justify-center shadow-xl transform group-hover/play:scale-110 transition-all duration-300 pl-1">
+                <svg class="w-6 h-6 text-pink-600 fill-current" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/></svg>
+              </div>
+            </button>
+            <div class="absolute bottom-3 left-3 right-3 text-white pointer-events-none">
+              <h3 class="text-sm font-extrabold leading-snug line-clamp-2 text-white drop-shadow-md">Cuidado Preventivo y Protocolos de Consulta</h3>
+            </div>
+          </div>
+          <div class="p-3.5 bg-white border-t border-slate-100 flex flex-col gap-2">
+            <p class="text-xs text-slate-600 line-clamp-2 leading-relaxed">Recorrido por las instalaciones de nuestro consultorio y atención con calidez médica.</p>
+            <button onclick="openSocialVideoModal('https://www.facebook.com/watch/?v=1234567890', 'Cuidado Preventivo y Protocolos de Consulta', 'facebook', 'Recorrido por las instalaciones de nuestro consultorio y atención con calidez médica.')" class="inline-flex items-center justify-between text-xs font-extrabold text-pink-600 hover:text-pink-700 pt-1 cursor-pointer transition-colors">
+              <span>▶️ Reproducir en la Web</span>
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/></svg>
+            </button>
+          </div>
+        </div>
+
+      </div>
     </div>
   </section>
 
@@ -1014,6 +1200,42 @@
     </div>
   </div>
 
+  <!-- MODAL DE REPRODUCTOR DE VIDEO DE REDES SOCIALES SIN SALIR DE LA WEB -->
+  <div id="social-video-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/85 backdrop-blur-sm">
+    <div class="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh] border border-slate-100">
+      <!-- Modal Header -->
+      <div class="p-3.5 bg-slate-900 text-white flex items-center justify-between gap-3 shrink-0">
+        <div class="flex items-center gap-2 overflow-hidden">
+          <span id="social-video-modal-badge" class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-pink-600 text-white shrink-0">Reel</span>
+          <h3 id="social-video-modal-title" class="text-xs sm:text-sm font-bold truncate text-white">Reproductor de Video</h3>
+        </div>
+        <button onclick="closeSocialVideoModal()" class="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer shrink-0" title="Cerrar reproductor">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- Video Player Container -->
+      <div class="relative bg-black w-full aspect-[9/16] max-h-[460px] sm:max-h-[500px] flex items-center justify-center overflow-hidden shrink-0">
+        <iframe id="social-video-modal-iframe" class="w-full h-full border-0" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" allowfullscreen></iframe>
+        <video id="social-video-modal-player" controls class="hidden w-full h-full object-contain" autoplay></video>
+      </div>
+
+      <!-- Footer Info -->
+      <div class="p-3.5 bg-white border-t border-slate-100 flex flex-col gap-2 overflow-y-auto">
+        <p id="social-video-modal-desc" class="text-xs text-slate-600 leading-relaxed"></p>
+        <div class="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
+          <a id="social-video-modal-external-link" href="#" target="_blank" rel="noopener noreferrer" class="text-[11px] font-bold text-pink-600 hover:underline flex items-center gap-1">
+            <span>Abrir en aplicación oficial</span>
+            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+          </a>
+          <button onclick="closeSocialVideoModal()" class="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-colors cursor-pointer">
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- SCRIPTING (Interacciones Fluidas, Acordeón y Slider Comparador) -->
   <script>
     // 1. Registro del Service Worker para soporte offline (PWA)
@@ -1023,6 +1245,102 @@
           .then(reg => console.log('Service Worker registrado con éxito.', reg.scope))
           .catch(err => console.error('Error al registrar el Service Worker:', err));
       });
+    }
+
+    // Reproductor de Video / Reels de Redes Sociales sin Salir de la Web
+    function openSocialVideoModal(rawUrl, title, platform, description) {
+      const modal = document.getElementById('social-video-modal');
+      const iframe = document.getElementById('social-video-modal-iframe');
+      const player = document.getElementById('social-video-modal-player');
+      const titleEl = document.getElementById('social-video-modal-title');
+      const badgeEl = document.getElementById('social-video-modal-badge');
+      const descEl = document.getElementById('social-video-modal-desc');
+      const linkEl = document.getElementById('social-video-modal-external-link');
+
+      if (!modal) return;
+
+      if (titleEl) titleEl.innerText = title || 'Video de Redes Sociales';
+      if (descEl) descEl.innerText = description || '';
+      if (linkEl) linkEl.href = rawUrl || '#';
+
+      const plat = (platform || '').toLowerCase();
+      if (badgeEl) {
+        if (plat === 'tiktok') {
+          badgeEl.innerText = 'TikTok Video';
+          badgeEl.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-slate-900 text-cyan-300 shrink-0';
+        } else if (plat === 'facebook') {
+          badgeEl.innerText = 'Facebook Watch';
+          badgeEl.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-blue-600 text-white shrink-0';
+        } else if (plat === 'youtube') {
+          badgeEl.innerText = 'YouTube Video';
+          badgeEl.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-red-600 text-white shrink-0';
+        } else {
+          badgeEl.innerText = 'Instagram Reel';
+          badgeEl.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-gradient-to-r from-purple-600 to-pink-600 text-white shrink-0';
+        }
+      }
+
+      let embedUrl = '';
+      const isDirectVideo = rawUrl && rawUrl.match(/\.(mp4|webm|ogg)$/i);
+
+      if (isDirectVideo) {
+        if (iframe) { iframe.classList.add('hidden'); iframe.src = ''; }
+        if (player) { player.classList.remove('hidden'); player.src = rawUrl; }
+      } else {
+        if (player) { player.classList.add('hidden'); player.src = ''; }
+        if (iframe) {
+          iframe.classList.remove('hidden');
+
+          if (plat === 'youtube' || rawUrl.includes('youtube.com') || rawUrl.includes('youtu.be')) {
+            let videoId = '';
+            if (rawUrl.includes('youtu.be/')) {
+              videoId = rawUrl.split('youtu.be/')[1]?.split('?')[0]?.split('/')[0];
+            } else if (rawUrl.includes('shorts/')) {
+              videoId = rawUrl.split('shorts/')[1]?.split('?')[0]?.split('/')[0];
+            } else if (rawUrl.includes('v=')) {
+              videoId = rawUrl.split('v=')[1]?.split('&')[0];
+            }
+            embedUrl = videoId ? `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0` : rawUrl;
+          } else if (plat === 'instagram' || rawUrl.includes('instagram.com')) {
+            const match = rawUrl.match(/instagram\.com\/(reel|p|reels)\/([^/?#&]+)/i);
+            if (match && match[2]) {
+              embedUrl = `https://www.instagram.com/p/${match[2]}/embed/captioned/`;
+            } else {
+              embedUrl = rawUrl;
+            }
+          } else if (plat === 'tiktok' || rawUrl.includes('tiktok.com')) {
+            const match = rawUrl.match(/tiktok\.com\/.*\/video\/(\d+)/i) || rawUrl.match(/v=(\d+)/i);
+            if (match && match[1]) {
+              embedUrl = `https://www.tiktok.com/embed/v2/${match[1]}`;
+            } else {
+              embedUrl = rawUrl;
+            }
+          } else if (plat === 'facebook' || rawUrl.includes('facebook.com')) {
+            embedUrl = `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(rawUrl)}&show_text=false&autoplay=true`;
+          } else {
+            embedUrl = rawUrl;
+          }
+
+          iframe.src = embedUrl;
+        }
+      }
+
+      modal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeSocialVideoModal() {
+      const modal = document.getElementById('social-video-modal');
+      const iframe = document.getElementById('social-video-modal-iframe');
+      const player = document.getElementById('social-video-modal-player');
+
+      if (iframe) iframe.src = '';
+      if (player) {
+        player.pause();
+        player.src = '';
+      }
+      if (modal) modal.classList.add('hidden');
+      document.body.style.overflow = '';
     }
 
     // 2. Acordeón Interactivo de FAQs con Accesibilidad ARIA

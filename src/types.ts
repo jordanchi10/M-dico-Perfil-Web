@@ -5,6 +5,43 @@
 
 export type LandingStyleType = "profesional" | "minimalista" | "vibrante" | "elegante";
 
+export type CtaStyleType = "flotante" | "estatico_pulso" | "barra_fija_dual";
+
+export type DesktopHeaderStyleType = "capsula" | "minimalista" | "ejecutivo" | "modern_dock" | "split_centrado" | "institucional";
+
+export type MedicalSectionId = 
+  | "hero"
+  | "eeat"
+  | "servicios"
+  | "redes_sociales"
+  | "casos"
+  | "opiniones"
+  | "galeria"
+  | "faqs"
+  | "tarifas"
+  | "horarios_ubicacion"
+  | "blog";
+
+export interface SectionOrderItem {
+  id: MedicalSectionId;
+  label: string;
+  visible: boolean;
+}
+
+export const DEFAULT_SECTION_ORDER: SectionOrderItem[] = [
+  { id: "hero", label: "Cabecera & Presentación (Hero)", visible: true },
+  { id: "eeat", label: "Autoridad E-E-A-T (Aseguradoras, Hospitales, Colegios)", visible: true },
+  { id: "servicios", label: "Servicios & Procedimientos Clínicos", visible: true },
+  { id: "redes_sociales", label: "Redes Sociales & Reels / Videos (Instagram, TikTok, Facebook)", visible: true },
+  { id: "casos", label: "Casos Clínicos & Evolución Médica", visible: true },
+  { id: "opiniones", label: "Opiniones de Pacientes & Google Reviews", visible: true },
+  { id: "galeria", label: "Galería de Instalaciones & Consultorio", visible: true },
+  { id: "faqs", label: "Preguntas Frecuentes (FAQs)", visible: true },
+  { id: "tarifas", label: "Valor de Consulta & Métodos de Pago", visible: true },
+  { id: "horarios_ubicacion", label: "Horarios de Atención & Ubicación NAP", visible: true },
+  { id: "blog", label: "Blog Médico & Artículos de Salud", visible: true },
+];
+
 export interface FAQItem {
   id: string;
   pregunta: string;
@@ -16,6 +53,13 @@ export interface ServiceItem {
   titulo: string;
   descripcion: string;
   icono: string; // Nombre del icono de Lucide
+  imagenUrl?: string; // URL o fotografía clínica de alta resolución
+  mostrarImagen?: boolean; // Habilitar o deshabilitar imagen para este servicio
+  slug?: string; // Slug amigable para SEO (ej. "consulta-diagnostica-especialidad")
+  precio?: string; // ej. "$50 USD" o "Desde $450"
+  duracion?: string; // ej. "45 - 60 min"
+  recuperacion?: string; // ej. "Ambulatoria (24-48 horas)"
+  destacado?: boolean; // Marcar como servicio destacado
 }
 
 export interface ReviewItem {
@@ -46,6 +90,22 @@ export interface BlogPostItem {
   tiempoLectura: string;
 }
 
+export interface ClinicGalleryImage {
+  id: string;
+  url: string;
+  titulo: string; // ej. "Recepción y Sala de Espera"
+  descripcion?: string; // ej. "Instalaciones climatizadas y diseñadas para el confort del paciente."
+}
+
+export interface SocialVideoItem {
+  id: string;
+  plataforma: "instagram" | "tiktok" | "facebook" | "youtube";
+  titulo: string; // ej. "Reel: Explicación de Síntomas y Diagnóstico"
+  videoUrl: string; // URL del Reel, Post, Video o Embed
+  thumbnailUrl?: string; // Imagen opcional de portada
+  descripcion?: string; // Breve descripción
+}
+
 export interface MedicalLandingData {
   // 1. Datos Personales / Clínicos
   nombreMedico: string; // ej. "Dr. Alejandro Ruiz"
@@ -53,12 +113,27 @@ export interface MedicalLandingData {
   cedulaProfesional: string; // ej. "12345678"
   universidad: string; // ej. "Universidad Nacional Autónoma de México"
   anosExperiencia: number; // ej. 15
-  fotoUrl: string; // URL de la foto profesional (1:1)
+  fotoUrl: string; // URL de la foto profesional
+  fotoFormaHero?: "circular" | "rectangular" | "sin_borde"; // Forma visual en Hero: circular (1:1), rectangular (3:4), o sin_borde (recorte flotante 3:4)
+  fotoTamanoMobile?: number; // Tamaño en px para vista móvil (ej. 176, min 100, max 300)
+  fotoTamanoTablet?: number; // Tamaño en px para vista tablet (ej. 240, min 150, max 450)
+  fotoTamanoDesktop?: number; // Tamaño en px para vista desktop (ej. 320, min 200, max 600)
+  disenoHeroDesktop?: "estandar" | "invertido" | "centrado"; // Estructura de Hero únicamente en versión Desktop (estandar = info izq / foto der, invertido = foto izq / info der, centrado = sin foto / centrado)
+  tipoFondoHero?: "gradiente" | "solido" | "imagen"; // Tipo de fondo del Hero
+  colorFondoHero?: string; // Color sólido hexadecimal (ej. "#0f172a")
+  gradienteFondoHero?: string; // CSS Gradiente o preset (ej. "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)")
+  imagenFondoHero?: string; // URL o Base64 de la imagen de fondo personalizada para el Hero (100% ancho, 80% alto)
+  overlayOscuroHero?: number; // Opacidad del overlay (0.4 a 0.9, default 0.8)
+  tipoOverlayHero?: "oscuro" | "claro"; // Tipo de overlay de contraste (oscuro = fondo oscuro / texto blanco, claro = fondo claro / texto oscuro)
   logoUrl?: string; // URL o Base64 del logotipo con fondo transparente
+  logoTamanoMobile?: number; // Alto en px del logotipo para vista móvil (ej. 36, min 20, max 120)
+  logoTamanoTablet?: number; // Alto en px del logotipo para vista tablet (ej. 48, min 24, max 160)
+  logoTamanoDesktop?: number; // Alto en px del logotipo para vista desktop (ej. 60, min 28, max 200)
   filosofia: string; // Filosofía de atención al paciente
   biografiaCurta: string; // Biografía resumida
 
   // 2. SEO Local & Google Business Profile (GBP)
+  dominioWeb?: string; // Dominio personalizado oficial (ej. "https://dralejandroruiz.ec" o "dralejandroruiz.com")
   nombreClinicaGBP: string; // ej. "Pediatría Integral Monterrey"
   direccionFisica: string; // ej. "Av. Universidad 123, Colonia Centro"
   ciudad: string; // ej. "Monterrey"
@@ -73,8 +148,11 @@ export interface MedicalLandingData {
   facebookUrl: string; // Enlace de Facebook
   instagramUrl: string; // Enlace de Instagram
   tiktokUrl: string; // Enlace de TikTok
+  youtubeUrl?: string; // Enlace de YouTube / Canal
+  linkedinUrl?: string; // Enlace de LinkedIn
+  redesSocialesVideos?: SocialVideoItem[]; // Lista de hasta 6 reels o videos destacados
   emailContacto: string; // Correo electrónico de contacto
-  doctoraliaUrl: string; // Enlace de agenda (Doctoralia, Saluspot, etc.)
+  doctoraliaUrl: string; // Enlace de agenda previa (opcional)
   metaTitulo?: string; // Título SEO para Google
   metaDescripcion?: string; // Descripción SEO para Google
   horarios: {
@@ -109,12 +187,26 @@ export interface MedicalLandingData {
 
   // 8. Identidad Visual, Estilo de Landing & Paleta Cromática
   estiloLanding?: LandingStyleType; // ej. "profesional" | "minimalista" | "vibrante" | "elegante"
+  estiloMenuDesktop?: DesktopHeaderStyleType; // ej. "capsula" | "minimalista" | "ejecutivo"
   paletaColor: "azul" | "verde" | "morado" | "teal" | "indigo" | "rojo" | "ambar" | "personalizado";
   colorPrimarioHex?: string; // Código hexadecimal personalizado (ej. "#1e6fd9")
+  faviconUrl?: string; // URL del favicon personalizado
 
   // 9. Tarifas & Formas de Pago
   precioConsulta?: string; // ej. "$50 USD"
   metodosPago?: string[]; // ej. ["Efectivo", "Transferencia bancaria", "Tarjetas de crédito"]
+
+  // 10. Galería de Fotos del Consultorio / Instalaciones (Hasta 5 fotos)
+  fotosConsultorio?: ClinicGalleryImage[];
+
+  // 11. Estilo de Llamado a la Acción (CTA Móvil & Agendamiento)
+  estiloCta?: CtaStyleType; // ej. "flotante" | "estatico_pulso" | "barra_fija_dual"
+
+  // 12. Organización y Orden de Secciones (Layout Dinámico)
+  ordenSecciones?: SectionOrderItem[];
+
+  // 13. Versión de Diseño (Para forzar re-renderizado reactivo global)
+  designVersion?: number;
 }
 
 export interface SavedClientProfile {
@@ -315,9 +407,17 @@ export const defaultMedicalData: MedicalLandingData = {
   universidad: "Universidad Central del Ecuador (UCE) / Posgrado USFQ",
   anosExperiencia: 15,
   fotoUrl: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=600&auto=format&fit=crop",
+  fotoFormaHero: "circular",
+  fotoTamanoMobile: 176,
+  fotoTamanoTablet: 240,
+  fotoTamanoDesktop: 320,
+  disenoHeroDesktop: "estandar",
+  estiloLanding: "profesional",
+  estiloMenuDesktop: "capsula",
   filosofia: "Brindar una atención médica cálida, humana y basada en la más estricta evidencia científica para mejorar la calidad de vida de cada paciente en el Ecuador.",
   biografiaCurta: "Médico especialista con más de 15 años de trayectoria en el Ecuador. Registrado y avalado por el Ministerio de Salud Pública (MSP) y el SENESCYT, con posgrado y alta especialidad médica en hospitales de tercer nivel.",
   
+  dominioWeb: "https://dralejandroruiz.ec",
   nombreClinicaGBP: "Centro Médico de Especialidades {{CIUDAD}}",
   direccionFisica: "Av. Mariana de Jesús y Calle Nicolás Arteta, Edificio Meditrópoli, Piso 4, Cons. 402",
   ciudad: "Quito",
@@ -332,8 +432,44 @@ export const defaultMedicalData: MedicalLandingData = {
   facebookUrl: "https://facebook.com/drmedicoecuador",
   instagramUrl: "https://instagram.com/dr.medico.ecuador",
   tiktokUrl: "https://tiktok.com/@drmedicoecuador",
+  youtubeUrl: "https://youtube.com/@drmedicoecuador",
+  linkedinUrl: "https://linkedin.com/company/drmedicoecuador",
+  redesSocialesVideos: [
+    {
+      id: "video-1",
+      plataforma: "instagram",
+      titulo: "Reel: ¿Cuándo consultar a un especialista de salud?",
+      videoUrl: "https://www.instagram.com/reel/C3x90123456",
+      thumbnailUrl: "https://images.unsplash.com/photo-1576091160550-2173dba999ef?q=80&w=600&auto=format&fit=crop",
+      descripcion: "Explicación médica rápida sobre síntomas de alerta y prevención oportuna en consulta."
+    },
+    {
+      id: "video-2",
+      plataforma: "tiktok",
+      titulo: "TikTok: 3 Mitos Comunes sobre los Tratamientos Médicos",
+      videoUrl: "https://www.tiktok.com/@drmedicoecuador/video/723456789012",
+      thumbnailUrl: "https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?q=80&w=600&auto=format&fit=crop",
+      descripcion: "Aprende a diferenciar información falsa de recomendaciones basadas en evidencia científica."
+    },
+    {
+      id: "video-3",
+      plataforma: "facebook",
+      titulo: "Facebook: Cuidado Preventivo y Protocolos de Consulta",
+      videoUrl: "https://www.facebook.com/watch/?v=1234567890",
+      thumbnailUrl: "https://images.unsplash.com/photo-1629909613654-28e377c37b09?q=80&w=600&auto=format&fit=crop",
+      descripcion: "Recorrido por las instalaciones de nuestro consultorio y atención con calidez médica."
+    },
+    {
+      id: "video-4",
+      plataforma: "instagram",
+      titulo: "Reel: Preguntas Frecuentes sobre Intervenciones y Recuperación",
+      videoUrl: "https://www.instagram.com/reel/C4y89012345",
+      thumbnailUrl: "https://images.unsplash.com/photo-1551076805-e1869033e561?q=80&w=600&auto=format&fit=crop",
+      descripcion: "Respuestas directas a las dudas más recurrentes de nuestros pacientes."
+    }
+  ],
   emailContacto: "contacto@consultoriomedico.ec",
-  doctoraliaUrl: "https://www.doctoralia.com.ec/{{PERFIL_MEDICO}}",
+  doctoraliaUrl: "",
   horarios: {
     semana: "Lunes a Viernes: 09:00 AM - 07:00 PM",
     sabado: "Sábados: 09:00 AM - 02:00 PM",
@@ -348,74 +484,149 @@ export const defaultMedicalData: MedicalLandingData = {
     {
       id: "srv-1",
       titulo: "Consulta Médica de Especialidad & Diagnóstico Digital",
+      slug: "consulta-medica-especialidad-diagnostico-digital",
       descripcion: "Valoración clínica minuciosa apoyada en tecnología diagnóstica avanzada para detección temprana y diseño de plan terapéutico a la medida.",
-      icono: "Stethoscope"
+      icono: "Stethoscope",
+      imagenUrl: "https://images.unsplash.com/photo-1579684385127-1ef15d508118?q=80&w=800&auto=format&fit=crop",
+      mostrarImagen: true,
+      precio: "$50 USD",
+      duracion: "45 a 60 min",
+      recuperacion: "Inmediata",
+      destacado: true
     },
     {
       id: "srv-2",
       titulo: "Procedimientos Quirúrgicos Mínimamente Invasivos",
+      slug: "procedimientos-quirurgicos-minimamente-invasivos",
       descripcion: "Intervenciones de alta precisión con incisiones milimétricas, menor dolor postoperatorio y rápida reincorporación a tus actividades diarias.",
-      icono: "Activity"
+      icono: "Activity",
+      imagenUrl: "https://images.unsplash.com/photo-1551076805-e1869033e561?q=80&w=800&auto=format&fit=crop",
+      mostrarImagen: true,
+      precio: "Desde $450 USD",
+      duracion: "60 a 90 min",
+      recuperacion: "24 a 48 horas",
+      destacado: true
     },
     {
       id: "srv-3",
       titulo: "Control Preventivo y Chequeo Clínico Integral",
+      slug: "control-preventivo-chequeo-clinico-integral",
       descripcion: "Protocolos preventivos exhaustivos para identificar factores de riesgo y patologías asintomáticas antes de que progresen.",
-      icono: "HeartPulse"
+      icono: "HeartPulse",
+      imagenUrl: "https://images.unsplash.com/photo-1505751172876-fa1923c5c528?q=80&w=800&auto=format&fit=crop",
+      mostrarImagen: true,
+      precio: "$70 USD",
+      duracion: "45 min",
+      recuperacion: "Inmediata",
+      destacado: true
     },
     {
       id: "srv-4",
       titulo: "Tratamientos de Rejuvenecimiento & Medicina Estética",
+      slug: "tratamientos-rejuvenecimiento-medicina-estetica",
       descripcion: "Técnicas seguras y avaladas por la evidencia científica para restauración de armonía facial, volumen y calidad dérmica.",
-      icono: "Sparkles"
+      icono: "Sparkles",
+      imagenUrl: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?q=80&w=800&auto=format&fit=crop",
+      mostrarImagen: true,
+      precio: "Desde $120 USD",
+      duracion: "30 a 60 min",
+      recuperacion: "Ambulatoria (12-24h)",
+      destacado: true
     },
     {
       id: "srv-5",
       titulo: "Terapia de Rehabilitación y Recuperación Acelerada",
+      slug: "terapia-rehabilitacion-recuperacion-acelerada",
       descripcion: "Planes guiados de fisioterapia médica y seguimiento funcional especializado para optimizar la movilidad y calidad de vida.",
-      icono: "ShieldCheck"
+      icono: "ShieldCheck",
+      imagenUrl: "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?q=80&w=800&auto=format&fit=crop",
+      mostrarImagen: true,
+      precio: "$40 USD por sesión",
+      duracion: "50 min",
+      recuperacion: "Progresiva",
+      destacado: true
     },
     {
       id: "srv-6",
       titulo: "Procedimientos Ambulatorios de Alta Resolución",
+      slug: "procedimientos-ambulatorios-alta-resolucion",
       descripcion: "Solución ágil y segura para patologías menores en quirófano ambulatorio certificado con monitoreo continuo y anestesia local.",
-      icono: "Syringe"
+      icono: "Syringe",
+      imagenUrl: "https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?q=80&w=800&auto=format&fit=crop",
+      mostrarImagen: true,
+      precio: "Desde $180 USD",
+      duracion: "40 min",
+      recuperacion: "24 horas"
     },
     {
       id: "srv-7",
       titulo: "Evaluación y Diagnóstico por Ultrasonido Avanzado",
+      slug: "evaluacion-diagnostico-ultrasonido-avanzado",
       descripcion: "Estudios de imagen de alta definición en tiempo real directamente en consultorio para corroborar diagnósticos con certeza.",
-      icono: "Eye"
+      icono: "Eye",
+      imagenUrl: "https://images.unsplash.com/photo-1516549655169-df83a0774514?q=80&w=800&auto=format&fit=crop",
+      mostrarImagen: true,
+      precio: "$60 USD",
+      duracion: "30 min",
+      recuperacion: "Inmediata"
     },
     {
       id: "srv-8",
       titulo: "Manejo Integral del Dolor Crónico y Articular",
+      slug: "manejo-integral-dolor-cronico-articular",
       descripcion: "Terapias multimodales y bloqueos analgésicos dirigidos al alivio sostenido de molestias osteomusculares y neuropáticas severas.",
-      icono: "Thermometer"
+      icono: "Thermometer",
+      imagenUrl: "https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?q=80&w=800&auto=format&fit=crop",
+      mostrarImagen: true,
+      precio: "$65 USD",
+      duracion: "45 min",
+      recuperacion: "Inmediata"
     },
     {
       id: "srv-9",
       titulo: "Telemedicina y Consulta de Segunda Opinión",
+      slug: "telemedicina-consulta-segunda-opinion",
       descripcion: "Atención médica remota con receta digital verificada y análisis riguroso de expedientes clínicos desde la comodidad de tu hogar.",
-      icono: "FileText"
+      icono: "FileText",
+      imagenUrl: "https://images.unsplash.com/photo-1588776813677-77aaf5595b83?q=80&w=800&auto=format&fit=crop",
+      mostrarImagen: true,
+      precio: "$40 USD",
+      duracion: "30 min",
+      recuperacion: "Online / Inmediata"
     },
     {
       id: "srv-10",
       titulo: "Farmacoterapia Personalizada y Seguimiento Clínico",
+      slug: "farmacoterapia-personalizada-seguimiento-clinico",
       descripcion: "Ajuste y monitoreo continuo de tratamientos médicos para maximizar la eficacia terapéutica y prevenir interacciones farmacológicas.",
-      icono: "Pill"
+      icono: "Pill",
+      imagenUrl: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?q=80&w=800&auto=format&fit=crop",
+      mostrarImagen: true,
+      precio: "$50 USD",
+      duracion: "30 min",
+      recuperacion: "Inmediata"
     },
     {
       id: "srv-11",
       titulo: "Cirugía Reconstructiva y Corrección Funcional",
+      slug: "cirugia-reconstructiva-correccion-funcional",
       descripcion: "Procedimientos especializados para restaurar la anatomía natural, simetría y funciones vitales comprometidas por traumatismos o patologías.",
-      icono: "Scissors"
+      icono: "Scissors",
+      imagenUrl: "https://images.unsplash.com/photo-1579684453423-f84349ef60b0?q=80&w=800&auto=format&fit=crop",
+      precio: "Evaluación previa",
+      duracion: "90 a 180 min",
+      recuperacion: "5 a 10 días"
     },
     {
       id: "srv-12",
       titulo: "Atención Prioritaria y Coordinación Hospitalaria 24/7",
+      slug: "atencion-prioritaria-coordinacion-hospitalaria",
       descripcion: "Protocolo de respuesta médica prioritaria y enlace directo con centros hospitalarios de tercer nivel ante urgencias médicas.",
-      icono: "Cross"
+      icono: "Cross",
+      imagenUrl: "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=800&auto=format&fit=crop",
+      precio: "Urgencias",
+      duracion: "Disponibilidad 24h",
+      recuperacion: "Según valoración"
     }
   ],
 
@@ -481,18 +692,43 @@ export const defaultMedicalData: MedicalLandingData = {
   faqs: [
     {
       id: "faq-1",
-      pregunta: "{{PREGUNTA_1}}",
-      respuesta: "La primera consulta médica incluye valoración física integral, revisión minuciosa de exámenes previos y diseño del protocolo de tratamiento individualizado en {{CIUDAD}}. Emitimos factura electrónica autorizada por el SRI para deducción de gastos de salud."
+      pregunta: "¿Cómo agendo mi primera consulta médica?",
+      respuesta: "Puedes agendar tu cita en segundos a través de nuestro botón de WhatsApp o llamando a recepción. Te confirmaremos la disponibilidad de fecha y horario de inmediato."
     },
     {
       id: "faq-2",
-      pregunta: "{{PREGUNTA_2}}",
-      respuesta: "Sí, emitimos formularios oficiales de reclamo médico y facturación electrónica válida para el reembolso con las principales aseguradoras privadas en Ecuador (Saludsa, Humana, Ecuasanitas, Confiamed, Latina Seguros, Equinoccial, Best Doctors, BMI, etc.) y derivaciones。"
+      pregunta: "¿Aceptan seguros médicos privados y trámites de reembolso?",
+      respuesta: "Sí, emitimos la Factura Electrónica SRI oficial y entregamos el informe médico firmado para que tramites tu reembolso sin inconvenientes en Saludsa, Humana, Ecuasanitas, BMI, Confiamed y demás aseguradoras."
     },
     {
       id: "faq-3",
-      pregunta: "{{PREGUNTA_3}}",
-      respuesta: "Aceptamos pagos en dólares (USD) en efectivo, transferencias bancarias directas (Banco Pichincha, Banco Guayaquil, Produbanco, DeUna) y todas las tarjetas de crédito o débito (Visa, Mastercard, Diners Club, American Express) con opción de diferido."
+      pregunta: "¿Cuáles son los métodos de pago disponibles en el consultorio?",
+      respuesta: "Aceptamos efectivo, transferencias bancarias directas (Banco Pichincha, Produbanco, Banco Guayaquil, DeUna) y tarjetas de crédito o débito con opción de diferidos."
+    },
+    {
+      id: "faq-4",
+      pregunta: "¿Qué documentos o exámenes debo llevar a mi primera cita?",
+      respuesta: "Te sugerimos traer tu documento de identidad, exámenes de laboratorio o imágenes previas relacionadas con tu motivo de consulta, y la lista de medicamentos que estés tomando actualmente."
+    },
+    {
+      id: "faq-5",
+      pregunta: "¿Dónde está ubicado el consultorio y cuenta con parqueadero?",
+      respuesta: "Nos encontramos en una zona médica de fácil acceso en {{CIUDAD}}, con instalaciones modernas y parqueadero seguro para la comodidad de nuestros pacientes."
+    },
+    {
+      id: "faq-6",
+      pregunta: "¿Emiten factura electrónica autorizada por el SRI?",
+      respuesta: "Absolutamente. Todas nuestras atenciones incluyen factura electrónica enviada automáticamente a tu correo electrónico para la deducción de tus gastos personales de salud."
+    },
+    {
+      id: "faq-7",
+      pregunta: "¿Atienden urgencias médicas o consultas fuera de horario habitual?",
+      respuesta: "Coordinamos atenciones prioritarias previa consulta y confirmación de disponibilidad por WhatsApp. En situaciones de emergencia vital, te recomendamos acudir de inmediato a la sala de urgencias hospitalarias más cercana."
+    },
+    {
+      id: "faq-8",
+      pregunta: "¿Con cuánta anticipación puedo reprogramar o cancelar una cita?",
+      respuesta: "Te solicitamos notificar cualquier cambio o cancelación con al menos 24 horas de anticipación a través de WhatsApp para habilitar el turno a otro paciente que lo requiera."
     }
   ],
 
@@ -579,9 +815,39 @@ export const defaultMedicalData: MedicalLandingData = {
       tiempoLectura: "6 min de lectura"
     }
   ],
-  estiloLanding: "profesional",
   paletaColor: "azul",
   logoUrl: "",
+  imagenFondoHero: "https://images.unsplash.com/photo-1629909613654-28e377c37b09?q=80&w=1600&auto=format&fit=crop",
+  faviconUrl: "",
   precioConsulta: "$50 USD",
-  metodosPago: ["Efectivo", "Transferencia bancaria", "Tarjetas de crédito"]
+  metodosPago: ["Efectivo", "Transferencia bancaria", "Tarjetas de crédito"],
+  fotosConsultorio: [
+    {
+      id: "foto-cons-1",
+      url: "https://images.unsplash.com/photo-1629909613654-28e377c37b09?q=80&w=800&auto=format&fit=crop",
+      titulo: "Recepción y Sala de Espera",
+      descripcion: "Espacio moderno, climatizado y diseñado para la comodidad de los pacientes."
+    },
+    {
+      id: "foto-cons-2",
+      url: "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=800&auto=format&fit=crop",
+      titulo: "Consultorio de Atención Privada",
+      descripcion: "Ambiente confidencial y confortable para valoraciones médicas detalladas."
+    },
+    {
+      id: "foto-cons-3",
+      url: "https://images.unsplash.com/photo-1516549655169-df83a0774514?q=80&w=800&auto=format&fit=crop",
+      titulo: "Área de Evaluación Diagnóstica",
+      descripcion: "Tecnología médica avanzada e instrumental clínico de máxima precisión."
+    },
+    {
+      id: "foto-cons-4",
+      url: "https://images.unsplash.com/photo-1586773860418-d37222d8fce3?q=80&w=800&auto=format&fit=crop",
+      titulo: "Sala de Procedimientos Menores",
+      descripcion: "Cumplimiento de los más rigurosos estándares de esterilización y bioseguridad."
+    }
+  ],
+  estiloCta: "flotante",
+  ordenSecciones: DEFAULT_SECTION_ORDER,
+  designVersion: 1
 };

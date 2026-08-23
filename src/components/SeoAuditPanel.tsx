@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import * as d3 from "d3";
 import { MedicalLandingData } from "../types";
 import { 
   Sparkles, 
@@ -19,12 +20,19 @@ import {
   BookmarkCheck,
   FileCode,
   Copy,
-  Terminal
+  Terminal,
+  History,
+  Plus,
+  RotateCcw,
+  Clock,
+  LineChart,
+  TrendingDown
 } from "lucide-react";
 import { generateJsonLd } from "../utils/generators";
 
 interface SeoAuditPanelProps {
   data: MedicalLandingData;
+  key?: React.Key;
 }
 
 interface AuditRule {
@@ -36,9 +44,62 @@ interface AuditRule {
   feedback: string;
 }
 
+interface HistoryPoint {
+  timestamp: string;
+  versionName: string;
+  seo: number;
+  eeat: number;
+  local: number;
+  accessibility: number;
+  global: number;
+}
+
 export default function SeoAuditPanel({ data }: SeoAuditPanelProps) {
   const [activeTab, setActiveTab] = useState<"rules" | "jsonld">("rules");
   const [copied, setCopied] = useState(false);
+  const [history, setHistory] = useState<HistoryPoint[]>([]);
+  const [newMilestoneName, setNewMilestoneName] = useState("");
+  const [chartView, setChartView] = useState<"global" | "all">("global");
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
+  const doctorKey = data.nombreMedico && !data.nombreMedico.includes("{{") 
+    ? data.nombreMedico 
+    : "Dr_Especialista_Borrador";
+  const historyStorageKey = `medical_seo_history_v2_${doctorKey.replace(/\s+/g, "_")}`;
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(historyStorageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setHistory(parsed);
+          return;
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    
+    // Seed default history
+    const now = new Date();
+    const d1 = new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000).toLocaleDateString("es-EC", { day: "numeric", month: "short" });
+    const d2 = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toLocaleDateString("es-EC", { day: "numeric", month: "short" });
+    const d3 = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toLocaleDateString("es-EC", { day: "numeric", month: "short" });
+    const d4 = new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toLocaleDateString("es-EC", { day: "numeric", month: "short" });
+    const d5 = now.toLocaleDateString("es-EC", { day: "numeric", month: "short" }) + " (Ayer)";
+
+    const seeded = [
+      { timestamp: d1, versionName: "1. Borrador Inicial", eeat: 20, local: 0, seo: 10, accessibility: 0, global: 10 },
+      { timestamp: d2, versionName: "2. Datos NAP de Ficha", eeat: 20, local: 100, seo: 25, accessibility: 0, global: 35 },
+      { timestamp: d3, versionName: "3. Registro E-E-A-T", eeat: 80, local: 100, seo: 40, accessibility: 50, global: 65 },
+      { timestamp: d4, versionName: "4. Artículos & SEO Local", eeat: 90, local: 100, seo: 90, accessibility: 50, global: 80 },
+      { timestamp: d5, versionName: "5. Optimización Completa", eeat: 100, local: 100, seo: 100, accessibility: 100, global: 100 }
+    ];
+    setHistory(seeded);
+    localStorage.setItem(historyStorageKey, JSON.stringify(seeded));
+  }, [historyStorageKey]);
+
   const rules: AuditRule[] = [];
 
   // --- 1. AUDITORÍA DE E-E-A-T (Medical Trust) ---
@@ -249,6 +310,22 @@ export default function SeoAuditPanel({ data }: SeoAuditPanelProps) {
         : "No cuentas con ningún artículo de blog. Usa la pestaña 'Blog Médico' para generar 3 artículos por IA y activar esta sección."
   });
 
+  // Dominio Propio & SSL HTTPS (Canónico, Sitemap & PWA)
+  const hasCustomDomain = data.dominioWeb && data.dominioWeb.trim() !== "" && !data.dominioWeb.includes("{{");
+  const isHttpsDomain = hasCustomDomain && (data.dominioWeb || "").toLowerCase().startsWith("https://");
+  rules.push({
+    id: "seo-custom-domain",
+    category: "seo",
+    title: "Dominio Web Oficial & Protocolo HTTPS",
+    description: "Vincula las etiquetas canónicas, sitemap XML, robots.txt y habilita la instalación de la PWA en teléfonos móviles.",
+    status: isHttpsDomain ? "pass" : (hasCustomDomain ? "warning" : "error"),
+    feedback: isHttpsDomain
+      ? `Dominio oficial "${data.dominioWeb}" configurado con protocolo seguro HTTPS y etiquetas canónicas sincronizadas.`
+      : hasCustomDomain
+        ? `Dominio configurado pero sin protocolo HTTPS (inicia con http://). Se requiere https:// para la PWA e indexación segura.`
+        : "No has configurado tu dominio personalizado. Usa la sección 'Dominio Web Personalizado' en la pestaña SEO para vincularlo."
+  });
+
   // Cálculo de Puntuación Global (Fórmula matemática)
   const passedCount = rules.filter(r => r.status === "pass").length;
   const warningCount = rules.filter(r => r.status === "warning").length;
@@ -275,7 +352,7 @@ export default function SeoAuditPanel({ data }: SeoAuditPanelProps) {
   };
 
   // --- VALIDACIÓN DE MARCADO JSON-LD (Schema.org / Google) ---
-  const jsonLdString = generateJsonLd(data, "https://consulta-medica.example.com");
+  const jsonLdString = generateJsonLd(data, data.dominioWeb || "https://tu-consultorio-medico.ec");
 
   const validationResults: {
     id: string;
@@ -359,6 +436,135 @@ export default function SeoAuditPanel({ data }: SeoAuditPanelProps) {
 
   const passedValidationCount = validationResults.filter(v => v.status === "pass").length;
 
+  // --- CALCULAR PUNTUACIONES POR CATEGORÍA EN TIEMPO REAL ---
+  const eeatRulesCount = rules.filter(r => r.category === "eeat").length || 1;
+  const eeatPassedCount = rules.filter(r => r.category === "eeat" && r.status === "pass").length;
+  const eeatWarningCount = rules.filter(r => r.category === "eeat" && r.status === "warning").length;
+  const currentEeatScore = Math.round(((eeatPassedCount + (eeatWarningCount * 0.5)) / eeatRulesCount) * 100);
+
+  const localRulesCount = rules.filter(r => r.category === "local").length || 1;
+  const localPassedCount = rules.filter(r => r.category === "local" && r.status === "pass").length;
+  const localWarningCount = rules.filter(r => r.category === "local" && r.status === "warning").length;
+  const currentLocalScore = Math.round(((localPassedCount + (localWarningCount * 0.5)) / localRulesCount) * 100);
+
+  const seoRulesCount = rules.filter(r => r.category === "seo").length || 1;
+  const seoPassedCount = rules.filter(r => r.category === "seo" && r.status === "pass").length;
+  const seoWarningCount = rules.filter(r => r.category === "seo" && r.status === "warning").length;
+  const currentSeoScore = Math.round(((seoPassedCount + (seoWarningCount * 0.5)) / seoRulesCount) * 100);
+
+  const accRulesCount = rules.filter(r => r.category === "accessibility").length || 1;
+  const accPassedCount = rules.filter(r => r.category === "accessibility" && r.status === "pass").length;
+  const accWarningCount = rules.filter(r => r.category === "accessibility" && r.status === "warning").length;
+  const currentAccScore = Math.round(((accPassedCount + (accWarningCount * 0.5)) / accRulesCount) * 100);
+
+  const liveScores = {
+    eeat: currentEeatScore,
+    local: currentLocalScore,
+    seo: currentSeoScore,
+    accessibility: currentAccScore,
+    global: score
+  };
+
+  const formattedToday = new Date().toLocaleDateString("es-EC", { day: "numeric", month: "short" }) + " (En vivo)";
+  const livePoint: HistoryPoint = {
+    timestamp: formattedToday,
+    versionName: "Estado Actual (En Vivo)",
+    eeat: liveScores.eeat,
+    local: liveScores.local,
+    seo: liveScores.seo,
+    accessibility: liveScores.accessibility,
+    global: liveScores.global
+  };
+
+  const chartData = [...history, livePoint];
+
+  // --- D3 GEOMETRÍA DEL GRÁFICO ---
+  const width = 600;
+  const height = 240;
+  const padding = { top: 25, right: 30, bottom: 40, left: 45 };
+
+  const xScale = d3.scaleLinear()
+    .domain([0, chartData.length - 1])
+    .range([padding.left, width - padding.right]);
+
+  const yScale = d3.scaleLinear()
+    .domain([0, 100])
+    .range([height - padding.bottom, padding.top]);
+
+  const yTicks = [0, 20, 40, 60, 80, 100];
+
+  const globalLinePath = d3.line<HistoryPoint>()
+    .x((_, i) => xScale(i))
+    .y(d => yScale(d.global))
+    .curve(d3.curveMonotoneX)(chartData) || "";
+
+  const globalAreaPath = d3.area<HistoryPoint>()
+    .x((_, i) => xScale(i))
+    .y0(height - padding.bottom)
+    .y1(d => yScale(d.global))
+    .curve(d3.curveMonotoneX)(chartData) || "";
+
+  const eeatLinePath = d3.line<HistoryPoint>()
+    .x((_, i) => xScale(i))
+    .y(d => yScale(d.eeat))
+    .curve(d3.curveMonotoneX)(chartData) || "";
+
+  const localLinePath = d3.line<HistoryPoint>()
+    .x((_, i) => xScale(i))
+    .y(d => yScale(d.local))
+    .curve(d3.curveMonotoneX)(chartData) || "";
+
+  const seoLinePath = d3.line<HistoryPoint>()
+    .x((_, i) => xScale(i))
+    .y(d => yScale(d.seo))
+    .curve(d3.curveMonotoneX)(chartData) || "";
+
+  const accLinePath = d3.line<HistoryPoint>()
+    .x((_, i) => xScale(i))
+    .y(d => yScale(d.accessibility))
+    .curve(d3.curveMonotoneX)(chartData) || "";
+
+  const handleAddMilestone = () => {
+    if (!newMilestoneName.trim()) return;
+    const now = new Date();
+    const formattedDate = now.toLocaleDateString("es-EC", { day: "numeric", month: "short" });
+    const newPoint: HistoryPoint = {
+      timestamp: formattedDate,
+      versionName: `${history.length + 1}. ${newMilestoneName.trim()}`,
+      eeat: liveScores.eeat,
+      local: liveScores.local,
+      seo: liveScores.seo,
+      accessibility: liveScores.accessibility,
+      global: liveScores.global
+    };
+    const updated = [...history, newPoint];
+    setHistory(updated);
+    localStorage.setItem(historyStorageKey, JSON.stringify(updated));
+    setNewMilestoneName("");
+  };
+
+  const handleResetHistory = () => {
+    if (confirm("¿Estás seguro de restablecer el progreso a los valores predeterminados?")) {
+      localStorage.removeItem(historyStorageKey);
+      const now = new Date();
+      const d1 = new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000).toLocaleDateString("es-EC", { day: "numeric", month: "short" });
+      const d2 = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toLocaleDateString("es-EC", { day: "numeric", month: "short" });
+      const d3 = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toLocaleDateString("es-EC", { day: "numeric", month: "short" });
+      const d4 = new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toLocaleDateString("es-EC", { day: "numeric", month: "short" });
+      const d5 = now.toLocaleDateString("es-EC", { day: "numeric", month: "short" }) + " (Ayer)";
+
+      const seeded = [
+        { timestamp: d1, versionName: "1. Borrador Inicial", eeat: 20, local: 0, seo: 10, accessibility: 0, global: 10 },
+        { timestamp: d2, versionName: "2. Datos NAP de Ficha", eeat: 20, local: 100, seo: 25, accessibility: 0, global: 35 },
+        { timestamp: d3, versionName: "3. Registro E-E-A-T", eeat: 80, local: 100, seo: 40, accessibility: 50, global: 65 },
+        { timestamp: d4, versionName: "4. Artículos & SEO Local", eeat: 90, local: 100, seo: 90, accessibility: 50, global: 80 },
+        { timestamp: d5, versionName: "5. Optimización Completa", eeat: 100, local: 100, seo: 100, accessibility: 100, global: 100 }
+      ];
+      setHistory(seeded);
+      localStorage.setItem(historyStorageKey, JSON.stringify(seeded));
+    }
+  };
+
   const handleCopy = () => {
     navigator.clipboard.writeText(jsonLdString);
     setCopied(true);
@@ -395,11 +601,319 @@ export default function SeoAuditPanel({ data }: SeoAuditPanelProps) {
         </div>
       </div>
 
+      {/* Sección de Progreso Histórico de Optimización (D3.js Line/Area Chart) */}
+      <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-5 space-y-4 text-left">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-3">
+          <div className="text-left space-y-0.5">
+            <h4 className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
+              <TrendingUp className="w-4 h-4 text-blue-600" />
+              Progreso Histórico de Requisitos (SEO Local & E-E-A-T)
+            </h4>
+            <p className="text-[11px] text-slate-500">
+              Visualiza el progreso de cumplimiento a lo largo de las ediciones del perfil.
+            </p>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0 self-start sm:self-center">
+            <button
+              onClick={() => setChartView("global")}
+              className={`text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                chartView === "global"
+                  ? "bg-blue-600 text-white shadow-xs"
+                  : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+              }`}
+            >
+              Puntaje Global
+            </button>
+            <button
+              onClick={() => setChartView("all")}
+              className={`text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                chartView === "all"
+                  ? "bg-blue-600 text-white shadow-xs"
+                  : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+              }`}
+            >
+              Desglose por Categoría
+            </button>
+          </div>
+        </div>
+
+        {/* El Gráfico SVG de D3 */}
+        <div className="relative w-full overflow-hidden bg-white border border-slate-100 rounded-xl p-4 shadow-3xs">
+          <svg
+            viewBox={`0 0 ${width} ${height}`}
+            width="100%"
+            height="100%"
+            className="overflow-visible select-none"
+          >
+            <defs>
+              <linearGradient id="globalAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#2563eb" stopOpacity="0.2" />
+                <stop offset="100%" stopColor="#2563eb" stopOpacity="0.0" />
+              </linearGradient>
+            </defs>
+
+            {/* Grid Lines Horizontales */}
+            {yTicks.map(tick => (
+              <g key={tick}>
+                <line
+                  x1={padding.left}
+                  y1={yScale(tick)}
+                  x2={width - padding.right}
+                  y2={yScale(tick)}
+                  stroke="#f1f5f9"
+                  strokeWidth={1}
+                />
+                <text
+                  x={padding.left - 10}
+                  y={yScale(tick) + 3}
+                  textAnchor="end"
+                  className="text-[10px] font-extrabold text-slate-400 font-mono"
+                >
+                  {tick}%
+                </text>
+              </g>
+            ))}
+
+            {/* Líneas de Tendencia */}
+            {chartView === "global" ? (
+              <>
+                {/* Area bajo la curva global */}
+                <path
+                  d={globalAreaPath}
+                  fill="url(#globalAreaGradient)"
+                  pointerEvents="none"
+                />
+                {/* Línea global */}
+                <path
+                  d={globalLinePath}
+                  fill="none"
+                  stroke="#2563eb"
+                  strokeWidth={3}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  pointerEvents="none"
+                />
+              </>
+            ) : (
+              <>
+                {/* E-E-A-T */}
+                <path
+                  d={eeatLinePath}
+                  fill="none"
+                  stroke="#3b82f6"
+                  strokeWidth={2.5}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  pointerEvents="none"
+                />
+                {/* Local */}
+                <path
+                  d={localLinePath}
+                  fill="none"
+                  stroke="#10b981"
+                  strokeWidth={2.5}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  pointerEvents="none"
+                />
+                {/* SEO */}
+                <path
+                  d={seoLinePath}
+                  fill="none"
+                  stroke="#f59e0b"
+                  strokeWidth={2.5}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  pointerEvents="none"
+                />
+                {/* Accesibilidad */}
+                <path
+                  d={accLinePath}
+                  fill="none"
+                  stroke="#ec4899"
+                  strokeWidth={2.5}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  pointerEvents="none"
+                />
+              </>
+            )}
+
+            {/* Marcadores de puntos de la línea */}
+            {chartData.map((d, i) => {
+              const isLive = i === chartData.length - 1;
+              return (
+                <g key={i}>
+                  {chartView === "global" ? (
+                    <circle
+                      cx={xScale(i)}
+                      cy={yScale(d.global)}
+                      r={isLive ? 5.5 : 4}
+                      fill="#2563eb"
+                      stroke="#ffffff"
+                      strokeWidth={2}
+                      className="cursor-pointer"
+                    />
+                  ) : (
+                    <>
+                      <circle cx={xScale(i)} cy={yScale(d.eeat)} r={3.5} fill="#3b82f6" stroke="#ffffff" strokeWidth={1} />
+                      <circle cx={xScale(i)} cy={yScale(d.local)} r={3.5} fill="#10b981" stroke="#ffffff" strokeWidth={1} />
+                      <circle cx={xScale(i)} cy={yScale(d.seo)} r={3.5} fill="#f59e0b" stroke="#ffffff" strokeWidth={1} />
+                      <circle cx={xScale(i)} cy={yScale(d.accessibility)} r={3.5} fill="#ec4899" stroke="#ffffff" strokeWidth={1} />
+                    </>
+                  )}
+                </g>
+              );
+            })}
+
+            {/* Vertical Guide en Hover */}
+            {hoveredIndex !== null && (
+              <line
+                x1={xScale(hoveredIndex)}
+                y1={padding.top}
+                x2={xScale(hoveredIndex)}
+                y2={height - padding.bottom}
+                stroke="#64748b"
+                strokeWidth={1.5}
+                strokeDasharray="4,4"
+                pointerEvents="none"
+              />
+            )}
+
+            {/* Círculos Highlight en Hover */}
+            {hoveredIndex !== null && (
+              <g pointerEvents="none">
+                {chartView === "global" ? (
+                  <circle
+                    cx={xScale(hoveredIndex)}
+                    cy={yScale(chartData[hoveredIndex].global)}
+                    r={7}
+                    fill="#2563eb"
+                    stroke="#ffffff"
+                    strokeWidth={2.5}
+                  />
+                ) : (
+                  <>
+                    <circle cx={xScale(hoveredIndex)} cy={yScale(chartData[hoveredIndex].eeat)} r={5.5} fill="#3b82f6" stroke="#ffffff" strokeWidth={2} />
+                    <circle cx={xScale(hoveredIndex)} cy={yScale(chartData[hoveredIndex].local)} r={5.5} fill="#10b981" stroke="#ffffff" strokeWidth={2} />
+                    <circle cx={xScale(hoveredIndex)} cy={yScale(chartData[hoveredIndex].seo)} r={5.5} fill="#f59e0b" stroke="#ffffff" strokeWidth={2} />
+                    <circle cx={xScale(hoveredIndex)} cy={yScale(chartData[hoveredIndex].accessibility)} r={5.5} fill="#ec4899" stroke="#ffffff" strokeWidth={2} />
+                  </>
+                )}
+              </g>
+            )}
+
+            {/* Overlay interactivo para hover */}
+            <rect
+              x={padding.left}
+              y={padding.top}
+              width={width - padding.left - padding.right}
+              height={height - padding.top - padding.bottom}
+              fill="transparent"
+              className="cursor-crosshair"
+              onMouseMove={(e) => {
+                const svgRect = e.currentTarget.getBoundingClientRect();
+                const mouseX = e.clientX - svgRect.left;
+                const pointsCount = chartData.length;
+                const step = (width - padding.left - padding.right) / (pointsCount - 1 || 1);
+                const index = Math.round((mouseX - padding.left) / step);
+                const safeIndex = Math.max(0, Math.min(pointsCount - 1, index));
+                setHoveredIndex(safeIndex);
+              }}
+              onMouseLeave={() => setHoveredIndex(null)}
+            />
+
+            {/* Etiquetas del eje X (Ediciones) */}
+            {chartData.map((d, i) => (
+              <text
+                key={i}
+                x={xScale(i)}
+                y={height - padding.bottom + 18}
+                textAnchor="middle"
+                className="text-[9px] font-bold text-slate-400 font-mono"
+              >
+                {d.timestamp.length > 8 ? d.timestamp.substring(0, 8) + ".." : d.timestamp}
+              </text>
+            ))}
+          </svg>
+        </div>
+
+        {/* Legend block under the chart in "all" view */}
+        {chartView === "all" && (
+          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[10px] font-extrabold text-slate-500 pt-1">
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>E-E-A-T Autoridad</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>SEO Local (NAP)</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>Palabras Clave (SEO)</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-pink-500"></span>Accesibilidad</span>
+          </div>
+        )}
+
+        {/* Caja de Detalles del Punto Seleccionado / Actual */}
+        <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-4 p-4 rounded-xl border border-slate-100 bg-white shadow-3xs">
+          <div className="text-left md:col-span-1 border-r border-slate-100 pr-4 space-y-1">
+            <div className="flex items-center gap-1.5 text-slate-400">
+              <History className="w-3.5 h-3.5" />
+              <span className="text-[10px] font-extrabold uppercase tracking-wider">Hito de Edición</span>
+            </div>
+            <h5 className="text-xs font-extrabold text-slate-900 truncate">
+              {hoveredIndex !== null ? chartData[hoveredIndex].versionName : "Estado en Vivo (Formulario)"}
+            </h5>
+            <p className="text-[10px] text-slate-400 font-medium">
+              Registrado: {hoveredIndex !== null ? chartData[hoveredIndex].timestamp : "Actualizado en tiempo real"}
+            </p>
+          </div>
+
+          <div className="md:col-span-2 grid grid-cols-2 sm:grid-cols-5 gap-3">
+            {[
+              { label: "Global", score: hoveredIndex !== null ? chartData[hoveredIndex].global : score, color: "text-indigo-600 bg-indigo-50 border-indigo-100" },
+              { label: "E-E-A-T", score: hoveredIndex !== null ? chartData[hoveredIndex].eeat : liveScores.eeat, color: "text-blue-600 bg-blue-50 border-blue-100" },
+              { label: "SEO Local", score: hoveredIndex !== null ? chartData[hoveredIndex].local : liveScores.local, color: "text-emerald-600 bg-emerald-50 border-emerald-100" },
+              { label: "SEO Textual", score: hoveredIndex !== null ? chartData[hoveredIndex].seo : liveScores.seo, color: "text-amber-600 bg-amber-50 border-amber-100" },
+              { label: "Accesibilidad", score: hoveredIndex !== null ? chartData[hoveredIndex].accessibility : liveScores.accessibility, color: "text-pink-600 bg-pink-50 border-pink-100" }
+            ].map((stat, sIdx) => (
+              <div key={sIdx} className={`p-2 rounded-lg border text-center ${stat.color} flex flex-col justify-center`}>
+                <span className="text-[8px] font-extrabold uppercase tracking-wider text-opacity-80 leading-none">{stat.label}</span>
+                <span className="text-sm font-black font-mono mt-0.5">{stat.score}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Controles para añadir hitos o restablecer */}
+        <div className="flex flex-col sm:flex-row items-center gap-3 pt-1">
+          <div className="flex items-center gap-2 w-full sm:w-auto flex-1">
+            <input
+              type="text"
+              placeholder="Ej. Añadí foto de perfil, mejoré NAP..."
+              value={newMilestoneName}
+              onChange={(e) => setNewMilestoneName(e.target.value)}
+              maxLength={40}
+              className="text-xs font-medium border border-slate-200 rounded-lg px-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-hidden focus:border-blue-500 flex-1 bg-white"
+            />
+            <button
+              onClick={handleAddMilestone}
+              disabled={!newMilestoneName.trim()}
+              className="text-xs font-extrabold bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 text-white disabled:text-slate-400 px-3.5 py-2 rounded-lg transition-all flex items-center gap-1.5 shrink-0 shadow-xs cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Grabar Hito
+            </button>
+          </div>
+          <button
+            onClick={handleResetHistory}
+            className="text-xs font-extrabold text-slate-500 hover:text-slate-700 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 bg-white px-3.5 py-2 rounded-lg transition-all flex items-center gap-1.5 shrink-0 cursor-pointer w-full sm:w-auto justify-center"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Restablecer Historial
+          </button>
+        </div>
+      </div>
+
       {/* Selector de Pestañas */}
       <div className="flex border-b border-slate-200">
         <button
           onClick={() => setActiveTab("rules")}
-          className={`flex-1 pb-3 text-xs font-bold uppercase tracking-wider border-b-2 text-center transition-all ${
+          className={`flex-1 pb-3 text-xs font-bold uppercase tracking-wider border-b-2 text-center transition-all cursor-pointer ${
             activeTab === "rules"
               ? "border-blue-600 text-blue-600"
               : "border-transparent text-slate-400 hover:text-slate-600"
@@ -409,7 +923,7 @@ export default function SeoAuditPanel({ data }: SeoAuditPanelProps) {
         </button>
         <button
           onClick={() => setActiveTab("jsonld")}
-          className={`flex-1 pb-3 text-xs font-bold uppercase tracking-wider border-b-2 text-center transition-all ${
+          className={`flex-1 pb-3 text-xs font-bold uppercase tracking-wider border-b-2 text-center transition-all cursor-pointer ${
             activeTab === "jsonld"
               ? "border-blue-600 text-blue-600"
               : "border-transparent text-slate-400 hover:text-slate-600"

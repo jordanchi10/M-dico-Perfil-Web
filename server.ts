@@ -27,6 +27,32 @@ async function startServer() {
     }
   });
 
+  // Helper function to call generateContent with automatic model fallback
+  async function generateContentWithFallback(params: {
+    contents: any;
+    config?: any;
+  }) {
+    const modelsToTry = ["gemini-3.7-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"];
+    let lastError: any = null;
+
+    for (const modelName of modelsToTry) {
+      try {
+        console.log(`Intentando generar contenido con el modelo: ${modelName}`);
+        const response = await ai.models.generateContent({
+          ...params,
+          model: modelName,
+        });
+        return response;
+      } catch (error: any) {
+        console.error(`Error con el modelo ${modelName}:`, error.message || error);
+        lastError = error;
+        // Proceed to retry on another model
+        continue;
+      }
+    }
+    throw lastError || new Error("Todos los modelos de Gemini fallaron al generar contenido.");
+  }
+
   // API route to generate 3 blog posts via Gemini 3.7 Flash
   app.post("/api/generate-blog", async (req: express.Request, res: express.Response) => {
     try {
@@ -66,8 +92,7 @@ Para las imágenes de Unsplash, por favor usa URLs reales de imágenes médicas 
 
 Asegúrate de que los artículos estén enfocados en la especialidad de "${especialidad}" en "${ciudad}, Ecuador" para maximizar la conversión local. Redacta en un tono empático, con rigor científico (E-E-A-T) y de máxima utilidad para pacientes ecuatorianos.`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.7-flash",
+      const response = await generateContentWithFallback({
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -102,6 +127,84 @@ Asegúrate de que los artículos estén enfocados en la especialidad de "${espec
     } catch (error: any) {
       console.error("Gemini API Error:", error);
       res.status(500).json({ success: false, error: error.message || "Error interno del servidor de IA" });
+    }
+  });
+
+  // API route to research local high-intent keywords and optimize meta tags/headlines
+  app.post("/api/ai/keyword-research", async (req: express.Request, res: express.Response) => {
+    try {
+      const { especialidad, ciudad, servicios } = req.body;
+
+      const prompt = `Actúa como un experto consultor de SEO Local y copywriting médico para el mercado de ECUADOR.
+Tu misión es investigar y sugerir exactamente 5 palabras clave de alta intención de búsqueda local (transaccionales/informativas) para la especialidad de "${especialidad || 'Pediatría'}" en la ciudad de "${ciudad || 'Quito'}", Ecuador.
+
+Además de sugerir las palabras clave, debes realizar una OPTIMIZACIÓN COMPLETA que las integre en la landing page del doctor de forma natural pero sumamente persuasiva:
+1. Genera un "metaTitulo" (Meta Title) optimizado para Google (máximo 60 caracteres) que incluya el nombre del doctor (o un marcador como "Dr. Especialista"), la especialidad y la ciudad en Ecuador.
+2. Genera una "metaDescripcion" (Meta Description) sumamente atractiva para incentivar el clic (CTR), de entre 110 y 160 caracteres, que incluya palabras clave, la ciudad y un llamado a la acción local (ej. agenda por WhatsApp, facilidades de pago o reembolso de aseguradoras en Ecuador).
+3. Optimiza la "filosofia" (que funciona como la descripción/sub-titular de la Hero Section) para que fluya de manera hermosa y profesional pero integre sutilmente una palabra clave local.
+4. Toma la siguiente lista de servicios actuales y optimiza el "titulo" y la "descripcion" de al menos los primeros 3 para integrar de forma orgánica y fluida las palabras clave locales recomendadas sin perder el rigor clínico (E-E-A-T).
+
+Servicios actuales proporcionados:
+${JSON.stringify(servicios || [], null, 2)}
+
+Devuelve un objeto JSON estructurado que siga estrictamente el esquema de respuesta solicitado:
+- "keywords": una lista de 5 palabras clave de SEO local de alta intención. Cada una con "keyword", su nivel de "volumen" estimado ("Alto", "Medio" o "Bajo" para Ecuador), y su "intencion" de búsqueda ("Transaccional" o "Informacional").
+- "metaTitulo": El Meta Title sugerido.
+- "metaDescripcion": La Meta Description sugerida.
+- "filosofia": La filosofía médica optimizada para SEO Local.
+- "servicios": La lista completa de servicios actualizada (con los primeros 3 optimizados para incluir keywords locales de forma natural, conservando el resto igual con sus respectivos IDs).`;
+
+      const response = await generateContentWithFallback({
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              keywords: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    keyword: { type: Type.STRING },
+                    volumen: { type: Type.STRING },
+                    intencion: { type: Type.STRING }
+                  },
+                  required: ["keyword", "volumen", "intencion"]
+                }
+              },
+              metaTitulo: { type: Type.STRING },
+              metaDescripcion: { type: Type.STRING },
+              filosofia: { type: Type.STRING },
+              servicios: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    id: { type: Type.STRING },
+                    titulo: { type: Type.STRING },
+                    descripcion: { type: Type.STRING },
+                    icono: { type: Type.STRING }
+                  },
+                  required: ["id", "titulo", "descripcion", "icono"]
+                }
+              }
+            },
+            required: ["keywords", "metaTitulo", "metaDescripcion", "filosofia", "servicios"]
+          }
+        }
+      });
+
+      const responseText = response.text;
+      if (!responseText) {
+        throw new Error("No se obtuvo respuesta de Gemini para la investigación de palabras clave.");
+      }
+
+      const results = JSON.parse(responseText.trim());
+      res.json({ success: true, ...results });
+    } catch (error: any) {
+      console.error("Error in keyword research AI:", error);
+      res.status(500).json({ success: false, error: error.message || "Error al procesar la investigación de palabras clave locales." });
     }
   });
 
@@ -184,8 +287,7 @@ INSTRUCCIONES DE EXTRACCIÓN Y REGLAS DE NEGOCIO:
   "resumenExtraccion": "Breve resumen en 2 frases de lo que se extrajo con éxito del texto"
 }`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.7-flash",
+    const response = await generateContentWithFallback({
       contents: prompt,
       config: {
         responseMimeType: "application/json",

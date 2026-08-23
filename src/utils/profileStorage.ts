@@ -43,6 +43,21 @@ export function validateAndNormalizeMedicalData(raw: any): MedicalLandingData {
   const facebookUrl = typeof raw.facebookUrl === "string" ? raw.facebookUrl : base.facebookUrl;
   const instagramUrl = typeof raw.instagramUrl === "string" ? raw.instagramUrl : base.instagramUrl;
   const tiktokUrl = typeof raw.tiktokUrl === "string" ? raw.tiktokUrl : base.tiktokUrl;
+  const youtubeUrl = typeof raw.youtubeUrl === "string" ? raw.youtubeUrl : (base.youtubeUrl || "");
+  const linkedinUrl = typeof raw.linkedinUrl === "string" ? raw.linkedinUrl : (base.linkedinUrl || "");
+
+  let redesSocialesVideos = base.redesSocialesVideos || [];
+  if (Array.isArray(raw.redesSocialesVideos) && raw.redesSocialesVideos.length > 0) {
+    redesSocialesVideos = raw.redesSocialesVideos.slice(0, 6).map((vid: any, idx: number) => ({
+      id: typeof vid.id === "string" && vid.id.trim() ? vid.id : `video-${Date.now()}-${idx}`,
+      plataforma: (vid.plataforma === "tiktok" || vid.plataforma === "facebook" || vid.plataforma === "youtube") ? vid.plataforma : "instagram",
+      titulo: typeof vid.titulo === "string" && vid.titulo.trim() ? vid.titulo : `Reel / Video ${idx + 1}`,
+      videoUrl: typeof vid.videoUrl === "string" ? vid.videoUrl : "",
+      thumbnailUrl: typeof vid.thumbnailUrl === "string" ? vid.thumbnailUrl : "",
+      descripcion: typeof vid.descripcion === "string" ? vid.descripcion : ""
+    }));
+  }
+
   const emailContacto = typeof raw.emailContacto === "string" ? raw.emailContacto : base.emailContacto;
   const doctoraliaUrl = typeof raw.doctoraliaUrl === "string" ? raw.doctoraliaUrl : base.doctoraliaUrl;
 
@@ -133,10 +148,39 @@ export function validateAndNormalizeMedicalData(raw: any): MedicalLandingData {
     }));
   }
 
-  // 9. Paleta
+  // 9. Paleta y Personalización Visual
   const paletaColor = (raw.paletaColor === "verde" || raw.paletaColor === "morado" || raw.paletaColor === "azul") 
     ? raw.paletaColor 
     : "azul";
+  const estiloLanding = typeof raw.estiloLanding === "string" ? raw.estiloLanding : base.estiloLanding;
+  const estiloCta = typeof raw.estiloCta === "string" ? raw.estiloCta : base.estiloCta;
+  const logoUrl = typeof raw.logoUrl === "string" ? raw.logoUrl : (base.logoUrl || "");
+  const faviconUrl = typeof raw.faviconUrl === "string" ? raw.faviconUrl : (base.faviconUrl || "");
+  const imagenFondoHero = typeof raw.imagenFondoHero === "string" ? raw.imagenFondoHero : (base.imagenFondoHero || "");
+  
+  const tipoFondoHero = (raw.tipoFondoHero === "gradiente" || raw.tipoFondoHero === "solido" || raw.tipoFondoHero === "imagen")
+    ? raw.tipoFondoHero
+    : (base.tipoFondoHero || "gradiente");
+  const gradienteFondoHero = typeof raw.gradienteFondoHero === "string" ? raw.gradienteFondoHero : (base.gradienteFondoHero || "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)");
+  const colorFondoHero = typeof raw.colorFondoHero === "string" ? raw.colorFondoHero : (base.colorFondoHero || "#0f172a");
+  const tipoOverlayHero = (raw.tipoOverlayHero === "claro" || raw.tipoOverlayHero === "oscuro") ? raw.tipoOverlayHero : (base.tipoOverlayHero || "oscuro");
+  const overlayOscuroHero = typeof raw.overlayOscuroHero === "number" ? raw.overlayOscuroHero : (base.overlayOscuroHero ?? 0.8);
+  const fotoFormaHero = (raw.fotoFormaHero === "circular" || raw.fotoFormaHero === "rectangular" || raw.fotoFormaHero === "sin_borde") ? raw.fotoFormaHero : (base.fotoFormaHero || "circular");
+  const fotoTamanoMobile = typeof raw.fotoTamanoMobile === "number" ? raw.fotoTamanoMobile : (base.fotoTamanoMobile || 176);
+  const fotoTamanoTablet = typeof raw.fotoTamanoTablet === "number" ? raw.fotoTamanoTablet : (base.fotoTamanoTablet || 240);
+  const fotoTamanoDesktop = typeof raw.fotoTamanoDesktop === "number" ? raw.fotoTamanoDesktop : (base.fotoTamanoDesktop || 320);
+  const disenoHeroDesktop = (raw.disenoHeroDesktop === "estandar" || raw.disenoHeroDesktop === "invertido" || raw.disenoHeroDesktop === "centrado")
+    ? raw.disenoHeroDesktop
+    : (base.disenoHeroDesktop || "estandar");
+  const logoTamanoMobile = typeof raw.logoTamanoMobile === "number" ? raw.logoTamanoMobile : (base.logoTamanoMobile || 36);
+  const logoTamanoTablet = typeof raw.logoTamanoTablet === "number" ? raw.logoTamanoTablet : (base.logoTamanoTablet || 48);
+  const logoTamanoDesktop = typeof raw.logoTamanoDesktop === "number" ? raw.logoTamanoDesktop : (base.logoTamanoDesktop || 60);
+
+  const precioConsulta = typeof raw.precioConsulta === "string" ? raw.precioConsulta : base.precioConsulta;
+  const metodosPago = Array.isArray(raw.metodosPago) ? raw.metodosPago : base.metodosPago;
+  const fotosConsultorio = Array.isArray(raw.fotosConsultorio) ? raw.fotosConsultorio : base.fotosConsultorio;
+  const ordenSecciones = Array.isArray(raw.ordenSecciones) ? raw.ordenSecciones : base.ordenSecciones;
+  const designVersion = typeof raw.designVersion === "number" ? raw.designVersion : 1;
 
   return {
     nombreMedico,
@@ -145,6 +189,22 @@ export function validateAndNormalizeMedicalData(raw: any): MedicalLandingData {
     universidad,
     anosExperiencia,
     fotoUrl,
+    imagenFondoHero,
+    tipoFondoHero,
+    gradienteFondoHero,
+    colorFondoHero,
+    tipoOverlayHero,
+    overlayOscuroHero,
+    fotoFormaHero,
+    fotoTamanoMobile,
+    fotoTamanoTablet,
+    fotoTamanoDesktop,
+    disenoHeroDesktop,
+    logoUrl,
+    logoTamanoMobile,
+    logoTamanoTablet,
+    logoTamanoDesktop,
+    faviconUrl,
     filosofia,
     biografiaCurta,
     nombreClinicaGBP,
@@ -160,6 +220,9 @@ export function validateAndNormalizeMedicalData(raw: any): MedicalLandingData {
     facebookUrl,
     instagramUrl,
     tiktokUrl,
+    youtubeUrl,
+    linkedinUrl,
+    redesSocialesVideos,
     emailContacto,
     doctoraliaUrl,
     horarios,
@@ -178,6 +241,13 @@ export function validateAndNormalizeMedicalData(raw: any): MedicalLandingData {
     googleMapsReviewsUrl,
     blogPosts,
     paletaColor,
+    estiloLanding,
+    estiloCta,
+    precioConsulta,
+    metodosPago,
+    fotosConsultorio,
+    ordenSecciones,
+    designVersion
   };
 }
 

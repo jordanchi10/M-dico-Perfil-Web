@@ -22,7 +22,8 @@ import {
   HelpCircle,
   Share2,
   Copy,
-  ExternalLink
+  ExternalLink,
+  ClipboardList
 } from "lucide-react";
 import { MedicalLandingData } from "../types";
 
@@ -31,6 +32,7 @@ interface AiIngestionModalProps {
   onClose: () => void;
   currentData: MedicalLandingData;
   onApplyData: (newData: Partial<MedicalLandingData>, mergeMode: boolean) => void;
+  onOpenIntakeForm?: () => void;
 }
 
 const SAMPLE_RAW_TEXT = `Dra. Valentina Proaño Salgado
@@ -64,13 +66,14 @@ Horarios de atención:
 Lunes a Viernes: 08:30 a 18:30. Sábados: 09:00 a 13:00 previa cita.
 Aceptamos efectivo, transferencias Banco Pichincha / Produbanco / DeUna y tarjetas de crédito con factura electrónica SRI.`;
 
-const SAMPLE_URL = "https://www.doctoralia.com.ec/especialistas/pediatria/quito";
+const SAMPLE_URL = "https://www.consultoriomedico.ec/dr-especialista-quito";
 
 export const AiIngestionModal: React.FC<AiIngestionModalProps> = ({
   isOpen,
   onClose,
   currentData,
   onApplyData,
+  onOpenIntakeForm,
 }) => {
   const [activeTab, setActiveTab] = useState<"text" | "url">("text");
   const [rawText, setRawText] = useState("");
@@ -326,6 +329,31 @@ export const AiIngestionModal: React.FC<AiIngestionModalProps> = ({
           ) : (
             /* FORMULARIO DE INGESTA */
             <div className="space-y-4">
+
+              {/* BANNER ACCESO A FORMULARIO DE CLIENTE */}
+              {onOpenIntakeForm && (
+                <div className="p-3 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-200/90 rounded-2xl flex items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="p-1.5 bg-emerald-600 text-white rounded-lg shrink-0">
+                      <ClipboardList className="w-4 h-4" />
+                    </span>
+                    <span className="text-emerald-950 font-bold truncate">
+                      ¿Aún no tienes la información de tu médico? Descarga el Formulario de Preguntas.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onOpenIntakeForm();
+                    }}
+                    className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[11px] rounded-xl shadow-xs transition-all cursor-pointer shrink-0 flex items-center gap-1 hover:scale-102"
+                  >
+                    <span>Ver Formulario Médico</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
               
               {/* SELECTOR DE PESTAÑAS (TEXTO vs URL) */}
               <div className="flex p-1 bg-slate-100 rounded-2xl gap-1">
@@ -438,7 +466,7 @@ Seguros: Saludsa y Humana. Horarios de 9am a 6pm..."
                   <div className="flex items-center justify-between">
                     <label htmlFor="url-input" className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5">
                       <LinkIcon className="w-3.5 h-3.5 text-blue-600" />
-                      Enlace o URL del Médico (Doctoralia, Clínica, Sitio Web)
+                      Enlace o URL del Sitio Web / Perfil del Médico
                     </label>
                     <button
                       type="button"
@@ -456,7 +484,7 @@ Seguros: Saludsa y Humana. Horarios de 9am a 6pm..."
                       type="url"
                       value={urlInput}
                       onChange={(e) => setUrlInput(e.target.value)}
-                      placeholder="https://www.doctoralia.com.ec/..."
+                      placeholder="https://www.consultoriomedico.ec/..."
                       className="w-full pl-10 pr-4 py-3 rounded-2xl border border-slate-200 text-xs sm:text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all font-medium"
                     />
                     <ExternalLink className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />

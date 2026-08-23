@@ -84,6 +84,7 @@ export function ClientManagerModal({
   const [saveClientNotes, setSaveClientNotes] = useState("");
   const [saveSuccessMsg, setSaveSuccessMsg] = useState("");
   const [copiedJson, setCopiedJson] = useState(false);
+  const [profileToDelete, setProfileToDelete] = useState<{ id: string; name: string } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const batchFileInputRef = useRef<HTMLInputElement>(null);
@@ -207,12 +208,17 @@ export function ClientManagerModal({
 
   // Eliminar perfil
   const handleDeleteProfile = (id: string, name: string) => {
-    if (window.confirm(`¿Estás seguro de eliminar el perfil de "${name}"? Esta acción no se puede deshacer.`)) {
-      deleteProfile(id);
+    setProfileToDelete({ id, name });
+  };
+
+  const handleConfirmDeleteProfile = () => {
+    if (profileToDelete) {
+      deleteProfile(profileToDelete.id);
       refreshProfiles();
-      if (activeProfileIdState === id) {
+      if (activeProfileIdState === profileToDelete.id) {
         setActiveProfileIdState(null);
       }
+      setProfileToDelete(null);
     }
   };
 
@@ -847,6 +853,43 @@ export function ClientManagerModal({
             Cerrar
           </button>
         </div>
+
+        {/* Modal de Confirmación para Eliminar Perfil */}
+        {profileToDelete && (
+          <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
+            <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-extrabold text-slate-900">¿Eliminar perfil de cliente?</h4>
+                  <p className="text-xs text-slate-500 font-medium truncate max-w-[200px]">"{profileToDelete.name}"</p>
+                </div>
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Esta acción eliminará el perfil del almacenamiento local de tu navegador. No se podrá recuperar.
+              </p>
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setProfileToDelete(null)}
+                  className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteProfile}
+                  className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm shadow-rose-600/20 flex items-center gap-1"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Sí, Eliminar</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>
