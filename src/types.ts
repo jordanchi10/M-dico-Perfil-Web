@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export type LandingStyleType = "profesional" | "minimalista" | "vibrante" | "elegante";
+export type LandingStyleType = "profesional" | "minimalista" | "vibrante" | "elegante" | "academico" | "tecnologico" | "humanitario";
 
 export type CtaStyleType = "flotante" | "estatico_pulso" | "barra_fija_dual";
 
@@ -190,6 +190,10 @@ export interface MedicalLandingData {
   estiloMenuDesktop?: DesktopHeaderStyleType; // ej. "capsula" | "minimalista" | "ejecutivo"
   paletaColor: "azul" | "verde" | "morado" | "teal" | "indigo" | "rojo" | "ambar" | "personalizado";
   colorPrimarioHex?: string; // Código hexadecimal personalizado (ej. "#1e6fd9")
+  colorSecundarioHex?: string; // Código hexadecimal secundario personalizado (ej. "#10b981")
+  colorAcentoHex?: string; // Código hexadecimal de acentos personalizado (ej. "#f59e0b")
+  fuenteTitulos?: string; // Tipografía personalizada para títulos (h1, h2)
+  fuenteParrafos?: string; // Tipografía personalizada para párrafos (p, body)
   faviconUrl?: string; // URL del favicon personalizado
 
   // 9. Tarifas & Formas de Pago

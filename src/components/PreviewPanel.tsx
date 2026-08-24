@@ -65,10 +65,10 @@ import {
   Youtube,
   Linkedin
 } from "lucide-react";
-import { getActiveColorScale } from "../utils/colorUtils";
+import { getActiveColorScale, generateScaleFromHex } from "../utils/colorUtils";
 import { MedicalIconRenderer } from "./MedicalIconRenderer";
 import { getLiveConsultationStatus } from "../utils/scheduleUtils";
-import { getActiveLandingStyle } from "../utils/stylePresets";
+import { getActiveLandingStyle, getDynamicGoogleFontsUrl } from "../utils/stylePresets";
 import { slugifyMedicalService, normalizeDomainUrl, generateHtmlFile } from "../utils/generators";
 
 const TypewriterText = ({ text, className }: { text: string; className?: string }) => {
@@ -166,12 +166,7 @@ const ClinicalBeforeAfterSliderItem: React.FC<ClinicalBeforeAfterSliderItemProps
   return (
     <div className="bg-slate-50/90 p-4 sm:p-5 rounded-2xl border border-slate-200/80 space-y-3.5 flex flex-col justify-between shadow-xs">
       <div className="space-y-1.5">
-        <div className="flex items-center gap-2">
-          <span className="w-5 h-5 rounded-full bg-emerald-600 text-white text-[11px] font-extrabold flex items-center justify-center shrink-0 shadow-xs">
-            {idx + 1}
-          </span>
-          <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-snug">{caso.titulo}</h3>
-        </div>
+        <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-snug">{caso.titulo}</h3>
         <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">{caso.descripcion}</p>
       </div>
 
@@ -315,29 +310,14 @@ const ClinicGalleryPreviewCarousel: React.FC<ClinicGalleryPreviewCarouselProps> 
           </div>
         </div>
 
-        {/* Tarjeta Principal del Carrusel (Formato 5:4) */}
-        <div className="relative max-w-2xl mx-auto w-full aspect-[5/4] rounded-2xl overflow-hidden shadow-lg border border-slate-200/90 bg-slate-950 group">
+        {/* Tarjeta Principal del Carrusel (Formato 5:4) - Imagen Limpia */}
+        <div className="relative max-w-2xl mx-auto w-full aspect-[5/4] rounded-2xl overflow-hidden shadow-md border border-slate-200/90 bg-slate-900 group">
           <img
             src={currentPhoto.url}
             alt={currentPhoto.titulo || `Instalación ${currentIndex + 1}`}
             className="absolute inset-0 w-full h-full object-cover object-center transition-all duration-500"
             referrerPolicy="no-referrer"
           />
-          
-          {/* Gradiente y Textos sin deformación con fondo legible */}
-          <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-slate-950/95 via-slate-950/75 to-transparent pt-16 pb-5 px-5 sm:px-7 text-white flex flex-col justify-end">
-            <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-md bg-white/20 backdrop-blur-md border border-white/20 inline-block mb-1.5 self-start">
-              Foto {currentIndex + 1} de {total} • Consultorio Clínico
-            </span>
-            <h3 className="text-base sm:text-lg md:text-xl font-extrabold text-white leading-snug">
-              {currentPhoto.titulo || `Área Clínica ${currentIndex + 1}`}
-            </h3>
-            {currentPhoto.descripcion && (
-              <p className="text-xs sm:text-sm text-slate-200 line-clamp-2 mt-1 font-normal leading-relaxed">
-                {currentPhoto.descripcion}
-              </p>
-            )}
-          </div>
 
           {/* Botones Flotantes Superpuestos */}
           <button
@@ -358,7 +338,7 @@ const ClinicGalleryPreviewCarousel: React.FC<ClinicGalleryPreviewCarouselProps> 
           </button>
 
           {/* Dots de Navegación */}
-          <div className="absolute bottom-4 right-4 z-20 flex items-center gap-1.5 bg-slate-950/60 backdrop-blur-xs px-3 py-1 rounded-full border border-white/10">
+          <div className="absolute bottom-3 right-3 z-20 flex items-center gap-1.5 bg-slate-950/60 backdrop-blur-xs px-2.5 py-1 rounded-full border border-white/10">
             {activePhotos.map((_, idx) => (
               <button
                 key={idx}
@@ -371,45 +351,21 @@ const ClinicGalleryPreviewCarousel: React.FC<ClinicGalleryPreviewCarouselProps> 
           </div>
         </div>
 
-        {/* Miniaturas de Selección con Espaciado y Cabecera Dedicada */}
-        <div className="max-w-2xl mx-auto pt-2">
-          <div className="flex items-center justify-between mb-2.5 px-1">
-            <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
-              Galería de Espacios ({activePhotos.length} fotos)
-            </span>
-            <span className="text-[10px] text-slate-400 font-medium">
-              Haz clic para previsualizar
+        {/* Título y Descripción FUERA de la Imagen */}
+        <div className="max-w-2xl mx-auto pt-1 px-1 text-left space-y-1">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-base sm:text-lg font-extrabold text-slate-900 leading-snug">
+              {currentPhoto.titulo || `Área Clínica ${currentIndex + 1}`}
+            </h3>
+            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-full shrink-0">
+              {currentIndex + 1} de {total}
             </span>
           </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            {activePhotos.map((photo, idx) => (
-              <button
-                key={photo.id || idx}
-                type="button"
-                onClick={() => setCurrentIndex(idx)}
-                className={`p-2 rounded-xl border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
-                  idx === currentIndex
-                    ? `bg-white border-${getC("500")} shadow-xs ring-2 ring-${getC("500")}/25`
-                    : "bg-white/80 border-slate-200 hover:bg-white hover:border-slate-300 shadow-2xs"
-                }`}
-              >
-                <div className="w-10 h-8 aspect-[5/4] rounded-lg overflow-hidden shrink-0 border border-slate-200 bg-slate-100">
-                  <img
-                    src={photo.url}
-                    alt={photo.titulo}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className={`text-[11px] font-bold truncate leading-tight ${idx === currentIndex ? `text-${getC("700")}` : 'text-slate-800'}`}>
-                    {photo.titulo || `Foto ${idx + 1}`}
-                  </p>
-                  <span className="text-[9px] text-slate-400 block mt-0.5">Espacio {idx + 1}</span>
-                </div>
-              </button>
-            ))}
-          </div>
+          {currentPhoto.descripcion && (
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-normal">
+              {currentPhoto.descripcion}
+            </p>
+          )}
         </div>
 
       </div>
@@ -582,6 +538,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
   const [activeSection, setActiveSection] = useState<string>("inicio");
   const [isScrolled, setIsScrolled] = useState<boolean>(false);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const heroParallaxRef = useRef<HTMLDivElement>(null);
 
   const handleOpenExternal = () => {
     if (onOpenExternalPreview) {
@@ -687,6 +644,19 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
         }
       }
       setActiveSection(currentActive);
+
+      // Parallax sutil en desktop
+      if (heroParallaxRef.current) {
+        if (viewport.offsetWidth >= 1024) {
+          const scrolled = viewport.scrollTop;
+          if (scrolled < 1200) {
+            // El factor 0.08px por cada 1px de scroll da un efecto elegante y premium de profundidad
+            heroParallaxRef.current.style.transform = `translateY(${scrolled * 0.08}px)`;
+          }
+        } else {
+          heroParallaxRef.current.style.transform = "";
+        }
+      }
     };
 
     viewport.addEventListener("scroll", handleScroll, { passive: true });
@@ -712,7 +682,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
     else if (sectionId === "servicios") elementId = "preview-landing-servicios";
     else if (sectionId === "instalaciones") elementId = "preview-landing-instalaciones";
     else if (sectionId === "faqs") elementId = "preview-landing-faq";
-    else if (sectionId === "opiniones") elementId = "resenas";
+    else if (sectionId === "opiniones" || sectionId === "resenas") elementId = "resenas";
     else if (sectionId === "blog") elementId = "preview-landing-blog";
     else if (sectionId === "contacto") elementId = "agendar-preview";
 
@@ -1009,10 +979,17 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
   const liveStatus = getLiveConsultationStatus(data.horarios);
   const activeLandingStyle = getActiveLandingStyle(data.estiloLanding);
   const activeColorScale = getActiveColorScale(data.paletaColor, data.colorPrimarioHex);
+  const activeSecondaryScale = data.colorSecundarioHex 
+    ? generateScaleFromHex(data.colorSecundarioHex)
+    : activeColorScale;
+  const activeAccentScale = data.colorAcentoHex
+    ? generateScaleFromHex(data.colorAcentoHex)
+    : generateScaleFromHex("#f59e0b");
 
   // Inyección dinámica de Google Fonts en el DOM para vista previa en tiempo real
   useEffect(() => {
-    if (activeLandingStyle?.googleFontsUrl) {
+    if (activeLandingStyle) {
+      const dynamicFontsUrl = getDynamicGoogleFontsUrl(activeLandingStyle, data.fuenteTitulos, data.fuenteParrafos);
       let link = document.querySelector(`link[data-font-preset="medical-preview"]`) as HTMLLinkElement;
       if (!link) {
         link = document.createElement("link");
@@ -1020,9 +997,9 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
         link.setAttribute("data-font-preset", "medical-preview");
         document.head.appendChild(link);
       }
-      link.href = activeLandingStyle.googleFontsUrl;
+      link.href = dynamicFontsUrl;
     }
-  }, [activeLandingStyle]);
+  }, [activeLandingStyle, data.fuenteTitulos, data.fuenteParrafos]);
 
   return (
     <div id="preview-panel-container" className="bg-slate-100 rounded-2xl border border-slate-200 p-4 flex flex-col items-center h-full gap-4">
@@ -1111,6 +1088,15 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
         {/* Inyección de estilos de tipografía, bordes y sombras para el Preview */}
         <style>{`
           #preview-viewport-wrapper {
+            --color-primary-50: ${activeColorScale["50"]};
+            --color-primary-100: ${activeColorScale["100"]};
+            --color-primary-200: ${activeColorScale["200"]};
+            --color-primary-500: ${activeColorScale["500"]};
+            --color-primary-600: ${activeColorScale["600"]};
+            --color-primary-700: ${activeColorScale["700"]};
+            --color-primary-800: ${activeColorScale["800"]};
+            --color-primary-900: ${activeColorScale["900"]};
+
             --clinical-50: ${activeColorScale["50"]};
             --clinical-100: ${activeColorScale["100"]};
             --clinical-200: ${activeColorScale["200"]};
@@ -1119,8 +1105,45 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
             --clinical-700: ${activeColorScale["700"]};
             --clinical-800: ${activeColorScale["800"]};
             --clinical-900: ${activeColorScale["900"]};
-            --landing-font-display: ${activeLandingStyle.fontDisplay};
-            --landing-font-body: ${activeLandingStyle.fontBody};
+
+            --color-secondary-50: ${activeSecondaryScale["50"]};
+            --color-secondary-100: ${activeSecondaryScale["100"]};
+            --color-secondary-200: ${activeSecondaryScale["200"]};
+            --color-secondary-500: ${activeSecondaryScale["500"]};
+            --color-secondary-600: ${activeSecondaryScale["600"]};
+            --color-secondary-700: ${activeSecondaryScale["700"]};
+            --color-secondary-800: ${activeSecondaryScale["800"]};
+            --color-secondary-900: ${activeSecondaryScale["900"]};
+
+            --secondary-50: ${activeSecondaryScale["50"]};
+            --secondary-100: ${activeSecondaryScale["100"]};
+            --secondary-200: ${activeSecondaryScale["200"]};
+            --secondary-500: ${activeSecondaryScale["500"]};
+            --secondary-600: ${activeSecondaryScale["600"]};
+            --secondary-700: ${activeSecondaryScale["700"]};
+            --secondary-800: ${activeSecondaryScale["800"]};
+            --secondary-900: ${activeSecondaryScale["900"]};
+
+            --color-accent-50: ${activeAccentScale["50"]};
+            --color-accent-100: ${activeAccentScale["100"]};
+            --color-accent-200: ${activeAccentScale["200"]};
+            --color-accent-500: ${activeAccentScale["500"]};
+            --color-accent-600: ${activeAccentScale["600"]};
+            --color-accent-700: ${activeAccentScale["700"]};
+            --color-accent-800: ${activeAccentScale["800"]};
+            --color-accent-900: ${activeAccentScale["900"]};
+
+            --accent-50: ${activeAccentScale["50"]};
+            --accent-100: ${activeAccentScale["100"]};
+            --accent-200: ${activeAccentScale["200"]};
+            --accent-500: ${activeAccentScale["500"]};
+            --accent-600: ${activeAccentScale["600"]};
+            --accent-700: ${activeAccentScale["700"]};
+            --accent-800: ${activeAccentScale["800"]};
+            --accent-900: ${activeAccentScale["900"]};
+
+            --landing-font-display: ${data.fuenteTitulos || activeLandingStyle.fontDisplay};
+            --landing-font-body: ${data.fuenteParrafos || activeLandingStyle.fontBody};
             --landing-letter-spacing: ${activeLandingStyle.variables["--landing-letter-spacing"]};
             --landing-radius: ${activeLandingStyle.variables["--landing-radius"]};
             --landing-radius-sm: ${activeLandingStyle.variables["--landing-radius-sm"]};
@@ -1129,39 +1152,126 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
           }
 
           /* Mapeo universal de clases cromáticas clínicas y clases dinámicas de Tailwind */
-          #preview-viewport-wrapper .bg-clinical-50 {
+          #preview-viewport-wrapper .bg-clinical-50,
+          #preview-viewport-wrapper .bg-blue-50,
+          #preview-viewport-wrapper .bg-emerald-50,
+          #preview-viewport-wrapper .bg-purple-50,
+          #preview-viewport-wrapper .bg-teal-50,
+          #preview-viewport-wrapper .bg-indigo-50,
+          #preview-viewport-wrapper .bg-rose-50,
+          #preview-viewport-wrapper .bg-red-50 {
             background-color: var(--clinical-50) !important;
           }
-          #preview-viewport-wrapper .bg-clinical-100 {
+          #preview-viewport-wrapper .bg-clinical-100,
+          #preview-viewport-wrapper .bg-blue-100,
+          #preview-viewport-wrapper .bg-emerald-100,
+          #preview-viewport-wrapper .bg-purple-100,
+          #preview-viewport-wrapper .bg-teal-100,
+          #preview-viewport-wrapper .bg-indigo-100,
+          #preview-viewport-wrapper .bg-rose-100,
+          #preview-viewport-wrapper .bg-red-100 {
             background-color: var(--clinical-100) !important;
           }
-          #preview-viewport-wrapper .bg-clinical-200 {
+          #preview-viewport-wrapper .bg-clinical-200,
+          #preview-viewport-wrapper .bg-blue-200,
+          #preview-viewport-wrapper .bg-emerald-200 {
             background-color: var(--clinical-200) !important;
           }
-          #preview-viewport-wrapper .bg-clinical-600 {
+          #preview-viewport-wrapper .bg-clinical-500,
+          #preview-viewport-wrapper .bg-blue-500,
+          #preview-viewport-wrapper .bg-emerald-500,
+          #preview-viewport-wrapper .bg-purple-500,
+          #preview-viewport-wrapper .bg-teal-500,
+          #preview-viewport-wrapper .bg-indigo-500 {
+            background-color: var(--clinical-500) !important;
+          }
+          #preview-viewport-wrapper .bg-clinical-600,
+          #preview-viewport-wrapper .bg-blue-600,
+          #preview-viewport-wrapper .bg-emerald-600,
+          #preview-viewport-wrapper .bg-purple-600,
+          #preview-viewport-wrapper .bg-teal-600,
+          #preview-viewport-wrapper .bg-indigo-600,
+          #preview-viewport-wrapper .bg-rose-600,
+          #preview-viewport-wrapper .bg-red-600 {
             background-color: var(--clinical-600) !important;
           }
-          #preview-viewport-wrapper .bg-clinical-700 {
+          #preview-viewport-wrapper .bg-clinical-700,
+          #preview-viewport-wrapper .bg-blue-700,
+          #preview-viewport-wrapper .bg-emerald-700,
+          #preview-viewport-wrapper .bg-purple-700,
+          #preview-viewport-wrapper .bg-teal-700,
+          #preview-viewport-wrapper .bg-indigo-700,
+          #preview-viewport-wrapper .bg-rose-700,
+          #preview-viewport-wrapper .bg-red-700 {
             background-color: var(--clinical-700) !important;
           }
-          #preview-viewport-wrapper .text-clinical-500 {
+          #preview-viewport-wrapper .text-clinical-500,
+          #preview-viewport-wrapper .text-blue-500,
+          #preview-viewport-wrapper .text-emerald-500,
+          #preview-viewport-wrapper .text-purple-500,
+          #preview-viewport-wrapper .text-teal-500,
+          #preview-viewport-wrapper .text-indigo-500 {
             color: var(--clinical-500) !important;
           }
-          #preview-viewport-wrapper .text-clinical-600 {
+          #preview-viewport-wrapper .text-clinical-600,
+          #preview-viewport-wrapper .text-blue-600,
+          #preview-viewport-wrapper .text-emerald-600,
+          #preview-viewport-wrapper .text-purple-600,
+          #preview-viewport-wrapper .text-teal-600,
+          #preview-viewport-wrapper .text-indigo-600,
+          #preview-viewport-wrapper .text-rose-600,
+          #preview-viewport-wrapper .text-red-600 {
             color: var(--clinical-600) !important;
           }
-          #preview-viewport-wrapper .text-clinical-700 {
+          #preview-viewport-wrapper .text-clinical-700,
+          #preview-viewport-wrapper .text-blue-700,
+          #preview-viewport-wrapper .text-emerald-700,
+          #preview-viewport-wrapper .text-purple-700,
+          #preview-viewport-wrapper .text-teal-700,
+          #preview-viewport-wrapper .text-indigo-700,
+          #preview-viewport-wrapper .text-rose-700,
+          #preview-viewport-wrapper .text-red-700 {
             color: var(--clinical-700) !important;
           }
-          #preview-viewport-wrapper .border-clinical-100 {
+          #preview-viewport-wrapper .border-clinical-100,
+          #preview-viewport-wrapper .border-blue-100,
+          #preview-viewport-wrapper .border-emerald-100 {
             border-color: var(--clinical-100) !important;
           }
-          #preview-viewport-wrapper .border-clinical-200 {
+          #preview-viewport-wrapper .border-clinical-200,
+          #preview-viewport-wrapper .border-blue-200,
+          #preview-viewport-wrapper .border-emerald-200 {
             border-color: var(--clinical-200) !important;
           }
-          #preview-viewport-wrapper .border-clinical-600 {
+          #preview-viewport-wrapper .border-clinical-500,
+          #preview-viewport-wrapper .border-blue-500,
+          #preview-viewport-wrapper .border-emerald-500 {
+            border-color: var(--clinical-500) !important;
+          }
+          #preview-viewport-wrapper .border-clinical-600,
+          #preview-viewport-wrapper .border-blue-600,
+          #preview-viewport-wrapper .border-emerald-600,
+          #preview-viewport-wrapper .border-purple-600,
+          #preview-viewport-wrapper .border-teal-600,
+          #preview-viewport-wrapper .border-indigo-600 {
             border-color: var(--clinical-600) !important;
           }
+
+          /* Clases de Acento */
+          #preview-viewport-wrapper .bg-amber-500,
+          #preview-viewport-wrapper .bg-accent-500 {
+            background-color: var(--accent-500) !important;
+          }
+          #preview-viewport-wrapper .bg-amber-600,
+          #preview-viewport-wrapper .bg-accent-600 {
+            background-color: var(--accent-600) !important;
+          }
+          #preview-viewport-wrapper .text-amber-500,
+          #preview-viewport-wrapper .text-amber-600,
+          #preview-viewport-wrapper .text-accent-600 {
+            color: var(--accent-600) !important;
+          }
+
           #preview-viewport-wrapper [class*="from-blue-50"], 
           #preview-viewport-wrapper [class*="from-emerald-50"], 
           #preview-viewport-wrapper [class*="from-purple-50"], 
@@ -1172,6 +1282,21 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
             --tw-gradient-from: var(--clinical-50) !important;
             --tw-gradient-to: rgb(255 255 255 / 0) !important;
             --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+          }
+          #preview-viewport-wrapper [class*="from-blue-600"], 
+          #preview-viewport-wrapper [class*="from-emerald-600"], 
+          #preview-viewport-wrapper [class*="from-purple-600"], 
+          #preview-viewport-wrapper [class*="from-teal-600"], 
+          #preview-viewport-wrapper [class*="from-indigo-600"] {
+            --tw-gradient-from: var(--clinical-600) !important;
+            --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+          }
+          #preview-viewport-wrapper [class*="to-blue-700"], 
+          #preview-viewport-wrapper [class*="to-emerald-700"], 
+          #preview-viewport-wrapper [class*="to-purple-700"], 
+          #preview-viewport-wrapper [class*="to-teal-700"], 
+          #preview-viewport-wrapper [class*="to-indigo-700"] {
+            --tw-gradient-to: var(--clinical-700) !important;
           }
 
           #preview-viewport-wrapper h1, 
@@ -1813,43 +1938,45 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                       }
                     `}</style>
 
-                    {/* Halo / Glow Effect */}
-                    {!isSinBorde && (
+                    <div ref={heroParallaxRef} className="w-full h-full transition-transform duration-100 ease-out will-change-transform">
+                      {/* Halo / Glow Effect */}
+                      {!isSinBorde && (
+                        <div 
+                          className={`absolute -inset-2.5 sm:-inset-4 md:-inset-5 bg-gradient-to-r from-blue-400/50 via-cyan-400/50 to-emerald-400/50 blur-lg sm:blur-xl group-hover:blur-2xl transition-all duration-500 animate-pulse ${
+                            isCircular ? "rounded-full opacity-85 group-hover:opacity-100" : "rounded-3xl opacity-85 group-hover:opacity-100"
+                          }`} 
+                        />
+                      )}
+                      
+                      {/* Marco de la Fotografía */}
                       <div 
-                        className={`absolute -inset-2.5 sm:-inset-4 md:-inset-5 bg-gradient-to-r from-blue-400/50 via-cyan-400/50 to-emerald-400/50 blur-lg sm:blur-xl group-hover:blur-2xl transition-all duration-500 animate-pulse ${
-                          isCircular ? "rounded-full opacity-85 group-hover:opacity-100" : "rounded-3xl opacity-85 group-hover:opacity-100"
-                        }`} 
-                      />
-                    )}
-                    
-                    {/* Marco de la Fotografía */}
-                    <div 
-                      className={`relative doctor-hero-photo-container overflow-hidden transition-all duration-300 max-w-full mx-auto ${
-                        isCircular 
-                          ? "aspect-square rounded-full border-4 sm:border-[5px] md:border-[6px] border-white/95 shadow-[0_20px_50px_rgba(0,0,0,0.65)] ring-4 md:ring-8 ring-white/30 bg-slate-900" 
-                          : isRect 
-                            ? "aspect-[3/4] rounded-2xl sm:rounded-[2.5rem] border-4 sm:border-[5px] md:border-[6px] border-white/95 shadow-2xl ring-4 md:ring-8 ring-white/30 bg-slate-900" 
-                            : "aspect-[3/4] rounded-none border-0 ring-0 shadow-none bg-transparent"
-                      }`}
-                      style={
-                        isSinBorde
-                          ? {
-                              WebkitMaskImage: "linear-gradient(to bottom, black 90%, transparent 100%)",
-                              maskImage: "linear-gradient(to bottom, black 90%, transparent 100%)",
-                            }
-                          : undefined
-                      }
-                    >
-                      <img 
-                        src={data.fotoUrl} 
-                        alt={data.nombreMedico} 
-                        className={`w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-105 ${
-                          isCircular ? "rounded-full" : isRect ? "rounded-2xl sm:rounded-[2.5rem]" : "rounded-none"
-                        }`} 
-                        loading="eager"
-                        decoding="async"
-                        referrerPolicy="no-referrer"
-                      />
+                        className={`relative doctor-hero-photo-container overflow-hidden transition-all duration-300 max-w-full mx-auto ${
+                          isCircular 
+                            ? "aspect-square rounded-full border-4 sm:border-[5px] md:border-[6px] border-white/95 shadow-[0_20px_50px_rgba(0,0,0,0.65)] ring-4 md:ring-8 ring-white/30 bg-slate-900" 
+                            : isRect 
+                              ? "aspect-[3/4] rounded-2xl sm:rounded-[2.5rem] border-4 sm:border-[5px] md:border-[6px] border-white/95 shadow-2xl ring-4 md:ring-8 ring-white/30 bg-slate-900" 
+                              : "aspect-[3/4] rounded-none border-0 ring-0 shadow-none bg-transparent"
+                        }`}
+                        style={
+                          isSinBorde
+                            ? {
+                                WebkitMaskImage: "linear-gradient(to bottom, black 90%, transparent 100%)",
+                                maskImage: "linear-gradient(to bottom, black 90%, transparent 100%)",
+                              }
+                            : undefined
+                        }
+                      >
+                        <img 
+                          src={data.fotoUrl} 
+                          alt={data.nombreMedico} 
+                          className={`w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-105 ${
+                            isCircular ? "rounded-full" : isRect ? "rounded-2xl sm:rounded-[2.5rem]" : "rounded-none"
+                          }`} 
+                          loading="eager"
+                          decoding="async"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
                     </div>
                   </div>
                 );
@@ -1898,7 +2025,11 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                         e.preventDefault();
                         scrollToSection("contacto");
                       }}
-                      className={`${isDesktopAlignLeft ? "w-auto min-w-[260px] mx-0" : "w-[80%] sm:w-auto sm:min-w-[280px] max-w-md mx-auto"} inline-flex items-center justify-center gap-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-extrabold text-sm sm:text-base py-3.5 px-6 rounded-2xl shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] border border-emerald-500/30 transition-all cursor-pointer group text-center`}
+                      className={`${isDesktopAlignLeft ? "w-auto min-w-[260px] mx-0" : "w-[80%] sm:w-auto sm:min-w-[280px] max-w-md mx-auto"} inline-flex items-center justify-center gap-2.5 font-extrabold text-sm sm:text-base py-3.5 px-6 rounded-2xl shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group text-center bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white border border-emerald-500/30 ${
+                        data.estiloCta === "estatico_pulso"
+                          ? "ring-4 ring-emerald-400/40 shadow-xl animate-pulse hover:animate-none"
+                          : ""
+                      }`}
                     >
                       <Calendar className="w-5 h-5 shrink-0 text-emerald-100 group-hover:scale-110 transition-transform" />
                       <span className="uppercase tracking-wide font-bold">Agendar Cita</span>
@@ -2109,30 +2240,55 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
         {isSectionVisible("eeat") && (
           <section id="preview-landing-nosotros" className="p-6 sm:p-8 bg-white space-y-6 text-left">
           <div className="space-y-2.5">
-            <span className={`text-[11px] font-extrabold text-${getC("600")} uppercase tracking-widest bg-${getC("50")} border border-${getC("200")}/60 px-2.5 py-1 rounded-md inline-block`}>Sobre el Especialista</span>
-            <h2 className="text-xl sm:text-2xl font-extrabold text-slate-950 leading-tight">Trayectoria y formación</h2>
+            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-${getC("50")} text-${getC("700")} border border-${getC("200")}/80 shadow-2xs`}>
+              <ShieldCheck className={`w-3.5 h-3.5 text-${getC("600")} shrink-0`} />
+              <span>Sobre el Especialista</span>
+            </div>
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-slate-950 leading-tight">Trayectoria y formación</h2>
             <p className={`text-xs sm:text-sm font-semibold text-${getC("700")} tracking-wide`}>Experiencia, acreditaciones y compromiso con el paciente</p>
             <p className="text-sm sm:text-base text-slate-700 leading-relaxed">
               {data.biografiaCurta}
             </p>
           </div>
 
-          {/* Stats Rápidos - Colores Sólidos y Diseño Limpio */}
-          <div className="grid grid-cols-2 gap-4 py-5 border-y border-slate-200/80 text-center bg-slate-50/50 rounded-xl">
-            <div className="flex flex-col items-center justify-center p-3 rounded-xl bg-white border border-slate-100 shadow-2xs hover:shadow-xs transition-all">
-              <div className={`w-11 h-11 rounded-full bg-${getC("100")} text-${getC("600")} flex items-center justify-center mb-2 shrink-0`}>
-                <Award className="w-5.5 h-5.5 animate-pulse" />
+          {/* Badges y Stats Rápidos de Alto Impacto (Diseño Vertical Compacto Mobile-First) */}
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 py-2">
+            {/* CARD 1: EXPERIENCIA MÉDICA */}
+            <div className={`relative overflow-hidden p-3.5 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-50 via-white to-${getC("50")}/50 border border-slate-200/90 shadow-xs hover:shadow-md transition-all duration-300 group border-l-4 border-l-${getC("600")} flex flex-col items-start gap-2 sm:gap-3`}>
+              <div className={`w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-br from-${getC("600")} to-${getC("700")} text-white shadow-xs shadow-${getC("600")}/20 flex items-center justify-center shrink-0 ring-2 sm:ring-4 ring-${getC("100")}/80 group-hover:scale-105 transition-transform duration-300`}>
+                <Award className="w-4.5 h-4.5 sm:w-5.5 sm:h-5.5 text-white" />
               </div>
-              <p className={`text-2xl sm:text-3xl font-extrabold text-${getC("600")}`}>+{data.anosExperiencia}</p>
-              <p className="text-[10px] sm:text-xs font-bold text-slate-600 uppercase tracking-wide mt-1">Años Exp.</p>
+              <div className="flex-1 w-full min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className={`text-xl sm:text-3xl font-black text-${getC("600")} tracking-tight`}>+{data.anosExperiencia}</span>
+                  <span className={`text-[9px] sm:text-[10px] font-extrabold px-1.5 sm:px-2 py-0.5 rounded-md bg-${getC("100")} text-${getC("800")} uppercase tracking-wider`}>
+                    Años Exp.
+                  </span>
+                </div>
+                <p className="text-[11px] sm:text-xs font-bold text-slate-800 tracking-wide mt-1 leading-snug">Trayectoria Médica Acreditada</p>
+                <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium truncate mt-0.5 hidden sm:block">Experiencia clínica y actualización continua</p>
+              </div>
             </div>
 
-            <div className="flex flex-col items-center justify-center p-3 rounded-xl bg-white border border-slate-100 shadow-2xs hover:shadow-xs transition-all">
-              <div className="w-11 h-11 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mb-2 shrink-0">
-                <Star className="w-5.5 h-5.5 text-amber-600 fill-amber-500 animate-pulse" />
+            {/* CARD 2: PUNTUACIÓN DE PACIENTES */}
+            <div className="relative overflow-hidden p-3.5 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-50 via-white to-amber-50/50 border border-slate-200/90 shadow-xs hover:shadow-md transition-all duration-300 group border-l-4 border-l-amber-500 flex flex-col items-start gap-2 sm:gap-3">
+              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-xs shadow-amber-500/20 flex items-center justify-center shrink-0 ring-2 sm:ring-4 ring-amber-100/80 group-hover:scale-105 transition-transform duration-300">
+                <Star className="w-4.5 h-4.5 sm:w-5.5 sm:h-5.5 text-white fill-white" />
               </div>
-              <p className={`text-2xl sm:text-3xl font-extrabold text-${getC("600")}`}>4.9/5</p>
-              <p className="text-[10px] sm:text-xs font-bold text-slate-600 uppercase tracking-wide mt-1">Puntuación Pacientes</p>
+              <div className="flex-1 w-full min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-xl sm:text-3xl font-black text-slate-900 tracking-tight">4.9<span className="text-xs sm:text-lg text-slate-400 font-bold">/5</span></span>
+                  <div className="flex items-center gap-0.5 px-1.5 sm:px-2 py-0.5 rounded-md bg-amber-100 text-amber-800">
+                    <Star className="w-2.5 h-2.5 sm:w-3 sm:h-3 fill-amber-500 text-amber-500 shrink-0" />
+                    <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider">Reseñas</span>
+                  </div>
+                </div>
+                <p className="text-[11px] sm:text-xs font-bold text-slate-800 tracking-wide mt-1 leading-snug">Puntuación Pacientes</p>
+                <div className="flex items-center gap-1 mt-0.5">
+                  <div className="flex text-amber-400 text-[10px] sm:text-xs">★★★★★</div>
+                  <span className="text-[9px] sm:text-[11px] text-slate-500 font-semibold">(Excelente)</span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -2439,7 +2595,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
           <section id="preview-landing-casos" className="p-6 sm:p-8 bg-white space-y-5 text-left">
             <div className="text-center pb-2">
               <span className={`text-[11px] font-extrabold text-${getC("600")} uppercase tracking-widest bg-${getC("50")} border border-${getC("200")}/60 px-3 py-1 rounded-full inline-block`}>
-                {data.casosAntesDespues.length} Casos Clínicos
+                Casos Clínicos
               </span>
               <h2 className="text-xl sm:text-2xl font-extrabold text-slate-950 mt-2">Mis casos</h2>
               <p className={`text-xs sm:text-sm text-${getC("700")} font-medium mt-1`}>Arrastra o haz clic en el slider de cualquier caso para comparar resultados:</p>
@@ -2851,8 +3007,10 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                 setBookingModalService("whatsapp");
                 setShowBookingModal(true);
               }}
-              className={`w-[95%] max-w-md bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-sm sm:text-base font-extrabold py-4 px-6 rounded-2xl text-center flex items-center justify-center gap-2.5 shadow-md hover:shadow-lg hover:scale-[1.01] active:scale-[0.99] border border-emerald-500/30 transition-all cursor-pointer ${
-                data.estiloCta === "estatico_pulso" ? "ring-4 ring-emerald-400/30 shadow-xl animate-pulse hover:animate-none" : ""
+              className={`w-[95%] max-w-md text-sm sm:text-base font-extrabold py-4 px-6 rounded-2xl text-center flex items-center justify-center gap-2.5 shadow-md hover:shadow-lg hover:scale-[1.01] active:scale-[0.99] transition-all cursor-pointer bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white border border-emerald-500/30 ${
+                data.estiloCta === "estatico_pulso" 
+                  ? "ring-4 ring-emerald-400/40 shadow-xl animate-pulse hover:animate-none" 
+                  : ""
               }`}
             >
               <Calendar className="w-5 h-5 shrink-0 text-emerald-100" />
@@ -3569,21 +3727,20 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                 href={data.whatsappUrl || "#"} 
                 target="_blank" 
                 rel="noopener noreferrer" 
-                className="flex-1 bg-[#25D366] hover:bg-[#20ba5a] active:bg-[#1ca34f] text-white py-3 px-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 text-center"
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white py-3 px-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 text-center uppercase tracking-wide"
               >
-                <MessageCircle className="w-4 h-4 shrink-0" />
-                <span className="truncate font-black">WhatsApp Directo</span>
+                <MessageCircle className="w-4 h-4 shrink-0 fill-white text-white" />
+                <span className="truncate font-black">AGENDAR CITA</span>
               </a>
               <button 
                 type="button" 
                 onClick={() => {
-                  setBookingModalService("whatsapp");
-                  setShowBookingModal(true);
+                  scrollToSection("resenas");
                 }}
-                className={`flex-1 bg-${getC("600")} hover:bg-${getC("700")} active:bg-${getC("800")} text-white py-3 px-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 text-center cursor-pointer`}
+                className="flex-1 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-800 border border-slate-200/90 py-3 px-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition-all active:scale-95 text-center cursor-pointer"
               >
-                <Calendar className="w-4 h-4 shrink-0" />
-                <span className="truncate font-black">Agendar Cita</span>
+                <Star className="w-4 h-4 shrink-0 fill-amber-400 text-amber-500" />
+                <span className="truncate font-black">Reseñas</span>
               </button>
             </div>
           ) : (

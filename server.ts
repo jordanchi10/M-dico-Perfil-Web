@@ -27,27 +27,37 @@ async function startServer() {
     }
   });
 
-  // Helper function to call generateContent with automatic model fallback
+  // Helper function to call generateContent with automatic model fallback & retry
   async function generateContentWithFallback(params: {
     contents: any;
     config?: any;
   }) {
-    const modelsToTry = ["gemini-3.7-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"];
+    // Try primary models first, with fast failover on 503 high demand
+    const modelsToTry = [
+      "gemini-3.1-flash-lite",
+      "gemini-flash-latest",
+      "gemini-3.7-flash",
+      "gemini-3.1-pro-preview"
+    ];
     let lastError: any = null;
 
     for (const modelName of modelsToTry) {
       try {
-        console.log(`Intentando generar contenido con el modelo: ${modelName}`);
+        console.log(`[Gemini Request] Intentando con modelo: ${modelName}`);
         const response = await ai.models.generateContent({
           ...params,
           model: modelName,
         });
         return response;
       } catch (error: any) {
-        console.error(`Error con el modelo ${modelName}:`, error.message || error);
+        const errMsg = error?.message || String(error);
+        console.log(`[Gemini Fallback] Modelo ${modelName} no disponible: ${error?.status || error?.code || 'Error'}`);
         lastError = error;
-        // Proceed to retry on another model
-        continue;
+
+        // Si es 503 / UNAVAILABLE / 429, pasar de inmediato al siguiente modelo alternativo
+        if (errMsg.includes("503") || errMsg.includes("429") || errMsg.includes("UNAVAILABLE")) {
+          continue;
+        }
       }
     }
     throw lastError || new Error("Todos los modelos de Gemini fallaron al generar contenido.");
@@ -319,6 +329,114 @@ INSTRUCCIONES DE EXTRACCIÓN Y REGLAS DE NEGOCIO:
     } catch (error: any) {
       console.error("Error parsing raw text:", error);
       res.status(500).json({ success: false, error: error.message || "Error al procesar el texto con IA." });
+    }
+  });
+
+  // API route to extract real reviews from URL / raw text / Google Maps or generate realistic reviews
+  app.post("/api/ai/extract-reviews", async (req: express.Request, res: express.Response) => {
+    try {
+      const { rawSource, mode, doctorInfo } = req.body;
+      const { nombreMedico, especialidad, ciudad, nombreClinicaGBP } = doctorInfo || {};
+
+      let contentToAnalyze = rawSource || "";
+
+      // Si el origen parece una URL, intentar obtener su contenido HTML
+      if (rawSource && /^https?:\/\//i.test(rawSource.trim())) {
+        try {
+          const fetchUrl = rawSource.trim();
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 8000);
+          const urlRes = await fetch(fetchUrl, {
+            headers: {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/537.36",
+              "Accept-Language": "es-EC,es;q=0.9,en;q=0.8"
+            },
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+          if (urlRes.ok) {
+            const html = await urlRes.text();
+            const cleaned = html
+              .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, " ")
+              .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, " ")
+              .replace(/<[^>]+>/g, " ")
+              .replace(/\s+/g, " ")
+              .slice(0, 10000);
+            contentToAnalyze = `CONTENIDO WEB Y RESEÑAS EXTRAÍDAS DE LA URL ${fetchUrl}:\n${cleaned}`;
+          }
+        } catch (err: any) {
+          console.warn("No se pudo obtener URL directamente, usando contexto de URL con IA:", err.message);
+        }
+      }
+
+      const prompt = `Eres un sistema especializado en análisis, extracción y estructuración de reseñas reales de pacientes para páginas web médicas en Ecuador.
+
+DATOS DEL MÉDICO / CONSULTORIO:
+- Médico: "${nombreMedico || 'Dr. Especialista'}"
+- Especialidad: "${especialidad || 'Medicina General'}"
+- Ciudad / Ubicación: "${ciudad || 'Quito'}, Ecuador"
+- Nombre de la Clínica / GBP: "${nombreClinicaGBP || 'Consultorio Médico'}"
+
+MODO SOLICITADO: "${mode || 'extract_pasted'}"
+
+${mode === 'search_and_generate'
+  ? `Genera entre 4 y 6 reseñas REALES, sumamente creíbles y representativas de pacientes atendidos por ${nombreMedico} (${especialidad}) en ${ciudad}, Ecuador. Los testimonios deben resaltar aspectos clínicos reales (trato empático, explicación clara del diagnóstico, efectividad de tratamiento, seguimiento por WhatsApp, puntualidad, instalaciones limpias y facilidad con aseguradoras de Ecuador). Usa nombres ecuatorianos auténticos (ej: "Ing. Santiago Morales", "Dra. Carmen Benítez", "Sra. Lucía Villacís", "Carlos A. Mendoza", "María Augusta Viteri") y fechas realistas (ej. 'Hace 2 días', 'Hace 1 semana', 'Hace 2 semanas', 'Hace 1 mes').`
+  : `Analiza minuciosamente el siguiente texto (que puede contener enlaces de Google Maps/Doctoralia, capturas o chats de WhatsApp, publicaciones de Facebook, reseñas copiadas o texto libre) y EXTRAE TODAS LAS RESEÑAS O TESTIMONIOS DE PACIENTES:
+
+TEXTO FUENTE:
+"""
+${contentToAnalyze}
+"""
+
+Instrucciones:
+1. Divide el texto en cada testimonio individual encontrado.
+2. Extrae el nombre del paciente, su calificación en estrellas (de 1 a 5, por defecto 5 si es positivo), el comentario detallado y la fecha/tiempo estimado.
+3. Si el nombre no está explícito, asígnale un nombre respetuoso como "Paciente de ${ciudad}" o "Paciente Verificado".
+4. Si el texto contenía un enlace o resumen general, adáptalo en 3 a 5 reseñas estructuradas coherentes con el contenido.`
+}
+
+Retorna un array JSON con los objetos de reseña estructurados según el esquema exigido.`;
+
+      const response = await generateContentWithFallback({
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                id: { type: Type.STRING },
+                paciente: { type: Type.STRING },
+                estrellas: { type: Type.NUMBER },
+                comentario: { type: Type.STRING },
+                fecha: { type: Type.STRING },
+              },
+              required: ["id", "paciente", "estrellas", "comentario", "fecha"],
+            },
+          },
+        },
+      });
+
+      const responseText = response.text;
+      if (!responseText) {
+        throw new Error("No se obtuvo respuesta de texto de la IA para extraer reseñas.");
+      }
+
+      const rawReviews = JSON.parse(responseText.trim());
+      // Ensure unique IDs
+      const reviews = rawReviews.map((rev: any, index: number) => ({
+        id: `rev-extracted-${Date.now()}-${index}`,
+        paciente: rev.paciente || "Paciente Verificado",
+        estrellas: typeof rev.estrellas === "number" && rev.estrellas >= 1 && rev.estrellas <= 5 ? rev.estrellas : 5,
+        comentario: rev.comentario || "Excelente atención médica.",
+        fecha: rev.fecha || "Hace pocos días"
+      }));
+
+      res.json({ success: true, reviews });
+    } catch (error: any) {
+      console.error("Error al extraer reseñas con IA:", error);
+      res.status(500).json({ success: false, error: error.message || "Error interno al procesar la extracción de reseñas." });
     }
   });
 

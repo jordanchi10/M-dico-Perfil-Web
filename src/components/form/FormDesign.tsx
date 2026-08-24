@@ -45,10 +45,15 @@ import {
   AlignLeft,
   AlignRight,
   AlignCenter,
-  Building2
+  Building2,
+  Star,
+  Calendar,
+  Home,
+  Award,
+  Stethoscope
 } from "lucide-react";
-import { PRESET_PALETTES, generateScaleFromHex } from "../../utils/colorUtils";
-import { LANDING_STYLE_PRESETS } from "../../utils/stylePresets";
+import { PRESET_PALETTES, generateScaleFromHex, getActiveColorScale, ensureValid7CharHex } from "../../utils/colorUtils";
+import { LANDING_STYLE_PRESETS, SUPPORTED_FONTS, SYSTEM_FONTS, GOOGLE_FONTS } from "../../utils/stylePresets";
 import { compressAndConvertToWebP, formatBytes, CompressResult } from "../../utils/imageCompressor";
 
 interface LayoutPreset {
@@ -181,6 +186,7 @@ export function FormDesign({
 
   const [isCompressingHeroBg, setIsCompressingHeroBg] = React.useState(false);
   const [heroBgStats, setHeroBgStats] = React.useState<CompressResult | null>(null);
+
 
   const handleProfilePhotoUpload = async (file: File) => {
     try {
@@ -356,82 +362,312 @@ export function FormDesign({
         </div>
       </div>
 
-      {/* 1. PALETA DE COLOR & SELECTOR HEX */}
-      <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3.5">
-        <div className="flex items-center justify-between">
-          <label className="text-xs font-extrabold text-slate-900 uppercase tracking-wide flex items-center gap-1.5">
-            <Pipette className="w-4 h-4 text-blue-600" />
-            Color Primario & Paleta Cromática
-          </label>
-          <span className="text-[10px] font-bold text-slate-400">Escala de 50 a 950 en vivo</span>
-        </div>
-
-        {/* Botones de Paletas Predefinidas */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {Object.values(PRESET_PALETTES).map((preset) => {
-            const isSelected = data.paletaColor === preset.id;
-            return (
-              <button
-                key={preset.id}
-                type="button"
-                id={`preset-color-${preset.id}`}
-                onClick={() => {
-                  onChange({
-                    ...data,
-                    paletaColor: preset.id as any,
-                    colorPrimarioHex: preset.primaryHex
-                  });
-                }}
-                className={`flex items-center gap-2 p-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                  isSelected
-                    ? "border-blue-600 bg-blue-50/50 shadow-xs ring-1 ring-blue-500"
-                    : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
-                }`}
-              >
-                <div 
-                  className="w-5 h-5 rounded-lg shrink-0 shadow-2xs border border-black/10" 
-                  style={{ backgroundColor: preset.primaryHex }} 
-                />
-                <span className="text-slate-800 text-[11px] truncate">{preset.name}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Input HEX Personalizado */}
-        <div className="pt-2 border-t border-slate-100 flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <input
-              type="color"
-              id="custom-color-picker"
-              value={data.colorPrimarioHex || "#1e6fd9"}
-              onChange={(e) => {
-                onChange({
-                  ...data,
-                  paletaColor: "personalizado",
-                  colorPrimarioHex: e.target.value
-                });
-              }}
-              className="w-8 h-8 rounded-lg cursor-pointer border border-slate-200 p-0.5"
-            />
-            <span className="text-xs font-bold text-slate-700">HEX Personalizado:</span>
+      {/* 1. IDENTIDAD CROMÁTICA, PALETA DE COLORES & TIPOGRAFÍA DE MARCA */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-5">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div>
+            <label className="text-xs font-extrabold text-slate-900 uppercase tracking-wide flex items-center gap-2">
+              <Pipette className="w-4 h-4 text-blue-600" />
+              Identidad Cromática & Paleta de Colores
+            </label>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Selecciona una paleta médica o personaliza los códigos HEX de tu marca (primario, secundario y acento).
+            </p>
           </div>
-          <input
-            type="text"
-            id="custom-color-hex-input"
-            value={data.colorPrimarioHex || "#1e6fd9"}
-            onChange={(e) => {
-              const val = e.target.value;
-              onChange({
-                ...data,
-                paletaColor: "personalizado",
-                colorPrimarioHex: val
-              });
-            }}
-            placeholder="#1e6fd9"
-            className="w-28 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-mono font-bold uppercase focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-          />
-          <span className="text-[10px] text-slate-400 hidden sm:inline">Genera dinámicamente tonos 50-950 con contraste WCAG</span>
+          <span className="text-[10px] font-bold px-2 py-1 bg-blue-50 text-blue-700 rounded-md border border-blue-200/80 shrink-0 hidden sm:inline">
+            Cálculo Dinámico WCAG
+          </span>
+        </div>
+
+        {/* 1.1 PALETAS PREDEFINIDAS */}
+        <div className="space-y-2">
+          <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+            Paletas Médicas Predefinidas:
+          </label>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {Object.values(PRESET_PALETTES).map((preset) => {
+              const isSelected = data.paletaColor === preset.id && (!data.colorPrimarioHex || data.colorPrimarioHex.toLowerCase() === preset.primaryHex.toLowerCase());
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  id={`preset-color-${preset.id}`}
+                  onClick={() => {
+                    onChange({
+                      ...data,
+                      paletaColor: preset.id as any,
+                      colorPrimarioHex: preset.primaryHex
+                    });
+                  }}
+                  className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                    isSelected
+                      ? "border-blue-600 bg-blue-50/60 shadow-xs ring-1 ring-blue-500"
+                      : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                  }`}
+                >
+                  <div 
+                    className="w-5 h-5 rounded-lg shrink-0 shadow-2xs border border-black/10" 
+                    style={{ backgroundColor: preset.primaryHex }} 
+                  />
+                  <span className="text-slate-800 text-[11px] truncate">{preset.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 1.2 CONFIGURACIÓN AVANZADA DE COLORES HEX */}
+        <div className="space-y-3 pt-3 border-t border-slate-100">
+          <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+            <span>Ajuste Fino de Colores HEX Personalizados</span>
+            <span className="text-[10px] text-slate-400 normal-case">Tono Primario, Secundario y Acento</span>
+          </label>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {/* COLOR PRIMARIO */}
+            <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-200/80 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-extrabold text-slate-800">Color Primario</span>
+                <span className="text-[10px] text-slate-400 font-mono">Dominante</span>
+              </div>
+              <div className="flex items-center gap-2 bg-white p-1.5 rounded-lg border border-slate-200">
+                <input
+                  type="color"
+                  id="custom-primary-color-picker"
+                  value={ensureValid7CharHex(data.colorPrimarioHex, "#1e6fd9")}
+                  onChange={(e) => {
+                    const hexVal = e.target.value;
+                    onChange({
+                      ...data,
+                      paletaColor: "personalizado",
+                      colorPrimarioHex: hexVal
+                    });
+                  }}
+                  className="w-8 h-8 rounded-md cursor-pointer border border-slate-200 p-0.5 shrink-0"
+                />
+                <input
+                  type="text"
+                  id="custom-primary-color-hex-input"
+                  value={data.colorPrimarioHex || "#1e6fd9"}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    onChange({
+                      ...data,
+                      paletaColor: "personalizado",
+                      colorPrimarioHex: val
+                    });
+                  }}
+                  placeholder="#1e6fd9"
+                  className="w-full px-2 py-1 rounded-md text-xs font-mono font-bold uppercase outline-none text-slate-800 bg-transparent"
+                />
+              </div>
+              <p className="text-[10px] text-slate-500 leading-tight">
+                Utilizado en encabezados, botones de contacto e iconos principales.
+              </p>
+            </div>
+
+            {/* COLOR SECUNDARIO */}
+            <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-200/80 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-extrabold text-slate-800">Color Secundario</span>
+                {data.colorSecundarioHex && (
+                  <button
+                    type="button"
+                    onClick={() => updateField("colorSecundarioHex", undefined)}
+                    className="text-[10px] text-red-600 font-bold hover:underline cursor-pointer"
+                  >
+                    Auto
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-2 bg-white p-1.5 rounded-lg border border-slate-200">
+                <input
+                  type="color"
+                  id="custom-secondary-color-picker"
+                  value={ensureValid7CharHex(data.colorSecundarioHex, data.colorPrimarioHex || "#10b981")}
+                  onChange={(e) => updateField("colorSecundarioHex", e.target.value)}
+                  className="w-8 h-8 rounded-md cursor-pointer border border-slate-200 p-0.5 shrink-0"
+                />
+                <input
+                  type="text"
+                  id="custom-secondary-color-hex-input"
+                  value={data.colorSecundarioHex || ""}
+                  onChange={(e) => updateField("colorSecundarioHex", e.target.value)}
+                  placeholder="Automático"
+                  className="w-full px-2 py-1 rounded-md text-xs font-mono font-bold uppercase outline-none text-slate-800 bg-transparent"
+                />
+              </div>
+              <p className="text-[10px] text-slate-500 leading-tight">
+                Utilizado en tarjetas secundarias, badges de especialidades y fondos suaves.
+              </p>
+            </div>
+
+            {/* COLOR DE ACENTO */}
+            <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-200/80 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-extrabold text-slate-800">Color de Acento</span>
+                {data.colorAcentoHex && (
+                  <button
+                    type="button"
+                    onClick={() => updateField("colorAcentoHex", undefined)}
+                    className="text-[10px] text-red-600 font-bold hover:underline cursor-pointer"
+                  >
+                    Auto
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-2 bg-white p-1.5 rounded-lg border border-slate-200">
+                <input
+                  type="color"
+                  id="custom-accent-color-picker"
+                  value={ensureValid7CharHex(data.colorAcentoHex, "#f59e0b")}
+                  onChange={(e) => updateField("colorAcentoHex", e.target.value)}
+                  className="w-8 h-8 rounded-md cursor-pointer border border-slate-200 p-0.5 shrink-0"
+                />
+                <input
+                  type="text"
+                  id="custom-accent-color-hex-input"
+                  value={data.colorAcentoHex || ""}
+                  onChange={(e) => updateField("colorAcentoHex", e.target.value)}
+                  placeholder="#f59e0b"
+                  className="w-full px-2 py-1 rounded-md text-xs font-mono font-bold uppercase outline-none text-slate-800 bg-transparent"
+                />
+              </div>
+              <p className="text-[10px] text-slate-500 leading-tight">
+                Utilizado en llamadas a la acción flotantes, insignias y botones de conversión.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* 1.3 ESCALA CROMÁTICA EN VIVO */}
+        <div className="pt-2 border-t border-slate-100 space-y-2">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+            Escala cromática principal en vivo (Tonos 50 - 950):
+          </span>
+          <div className="grid grid-cols-10 gap-1 p-1.5 bg-slate-100/80 rounded-xl border border-slate-200/60">
+            {Object.entries(getActiveColorScale(data.paletaColor, data.colorPrimarioHex)).map(([shade, hex]) => (
+              <div key={shade} className="flex flex-col items-center gap-1 group relative">
+                <div 
+                  className="w-full h-6 sm:h-7 rounded-md border border-black/10 transition-transform group-hover:scale-105" 
+                  style={{ backgroundColor: hex }} 
+                  title={`${shade}: ${hex}`}
+                />
+                <span className="text-[8px] sm:text-[9px] font-mono text-slate-500">{shade}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 1.4 CONFIGURACIÓN TIPOGRÁFICA DE MARCA */}
+        <div className="pt-3 border-t border-slate-100 space-y-3">
+          <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+            <Sliders className="w-3.5 h-3.5 text-indigo-600" />
+            Tipografías de Marca (Títulos y Cuerpo)
+          </label>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Tipografía Títulos */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-extrabold text-slate-800">
+                  Tipografía para Títulos (h1, h2, h3)
+                </label>
+                {data.fuenteTitulos && (
+                  <button
+                    type="button"
+                    onClick={() => updateField("fuenteTitulos", undefined)}
+                    className="text-[10px] text-red-600 font-bold hover:underline cursor-pointer"
+                  >
+                    Usar por defecto
+                  </button>
+                )}
+              </div>
+              <select
+                id="select-custom-font-titles"
+                value={data.fuenteTitulos || ""}
+                onChange={(e) => updateField("fuenteTitulos", e.target.value || undefined)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none bg-white"
+              >
+                <option value="">— Heredar del Estilo de Landing —</option>
+                <optgroup label="Fuentes de Google">
+                  {GOOGLE_FONTS.map((font) => (
+                    <option key={font.id} value={font.value}>
+                      {font.name}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Fuentes del Sistema">
+                  {SYSTEM_FONTS.map((font) => (
+                    <option key={font.id} value={font.value}>
+                      {font.name}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+
+            {/* Tipografía Párrafos */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-extrabold text-slate-800">
+                  Tipografía para Párrafos y Cuerpo
+                </label>
+                {data.fuenteParrafos && (
+                  <button
+                    type="button"
+                    onClick={() => updateField("fuenteParrafos", undefined)}
+                    className="text-[10px] text-red-600 font-bold hover:underline cursor-pointer"
+                  >
+                    Usar por defecto
+                  </button>
+                )}
+              </div>
+              <select
+                id="select-custom-font-body"
+                value={data.fuenteParrafos || ""}
+                onChange={(e) => updateField("fuenteParrafos", e.target.value || undefined)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none bg-white"
+              >
+                <option value="">— Heredar del Estilo de Landing —</option>
+                <optgroup label="Fuentes de Google">
+                  {GOOGLE_FONTS.map((font) => (
+                    <option key={font.id} value={font.value}>
+                      {font.name}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Fuentes del Sistema">
+                  {SYSTEM_FONTS.map((font) => (
+                    <option key={font.id} value={font.value}>
+                      {font.name}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+          </div>
+
+          {/* Muestra Tipográfica */}
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
+            <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400">
+              Muestra Tipográfica Live:
+            </span>
+            <div className="space-y-0.5 bg-white p-2.5 rounded-lg border border-slate-100">
+              <h4 
+                className="text-xs sm:text-sm font-extrabold text-slate-900"
+                style={{ fontFamily: data.fuenteTitulos || "inherit" }}
+              >
+                Atención Médica Especializada con Calidez Humana
+              </h4>
+              <p 
+                className="text-[10px] sm:text-[11px] text-slate-500 leading-snug"
+                style={{ fontFamily: data.fuenteParrafos || "inherit" }}
+              >
+                Comprometidos con el bienestar integral de nuestros pacientes mediante tecnología de punta y excelencia profesional.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1508,11 +1744,62 @@ export function FormDesign({
           <MousePointerClick className="w-4 h-4 text-emerald-600" />
           Estilo del Botón de Llamado a la Acción (CTA)
         </label>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {[
-            { id: "flotante", label: "Burbuja Flotante", desc: "Burbujas directas de WhatsApp y llamada fija en pantalla móvil" },
-            { id: "estatico_pulso", label: "Botón con Pulso", desc: "Botón destacado con animación de pulso sutil de conversión" },
-            { id: "barra_fija_dual", label: "Barra Fija Dual", desc: "Barra inferior fija con botones divididos de WhatsApp y Agendar" },
+            { 
+              id: "flotante", 
+              label: "Burbuja Flotante", 
+              desc: "Navegación ergonómica móvil con iconos de colores independientes por sección.",
+              renderPreview: () => (
+                <div className="mt-2.5 p-1.5 rounded-xl bg-slate-50/90 border border-slate-200/80 flex items-center justify-around gap-1 w-full shadow-2xs">
+                  <div className="w-5 h-5 rounded-md bg-blue-100 text-blue-600 flex items-center justify-center">
+                    <Home className="w-3 h-3" />
+                  </div>
+                  <div className="w-5 h-5 rounded-md bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                    <Award className="w-3 h-3" />
+                  </div>
+                  <div className="w-5 h-5 rounded-md bg-teal-100 text-teal-600 flex items-center justify-center">
+                    <Stethoscope className="w-3 h-3" />
+                  </div>
+                  <div className="w-5 h-5 rounded-md bg-amber-100 text-amber-600 flex items-center justify-center">
+                    <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+                  </div>
+                  <div className="w-5 h-5 rounded-md bg-emerald-600 text-white flex items-center justify-center shadow-2xs">
+                    <Calendar className="w-3 h-3" />
+                  </div>
+                </div>
+              )
+            },
+            { 
+              id: "estatico_pulso", 
+              label: "Botón con Pulso", 
+              desc: "Botón en color primario con texto blanco y resplandor de pulso continuo.",
+              renderPreview: () => (
+                <div className="mt-2.5 p-2 rounded-xl bg-slate-50/90 border border-slate-200/80 flex items-center justify-center w-full">
+                  <div className="px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white text-[10px] font-black flex items-center gap-1.5 shadow-md ring-4 ring-emerald-400/40 animate-pulse">
+                    <Calendar className="w-3.5 h-3.5 text-white shrink-0" />
+                    <span>Confirmar Cita</span>
+                  </div>
+                </div>
+              )
+            },
+            { 
+              id: "barra_fija_dual", 
+              label: "Barra Fija Dual", 
+              desc: "Barra inferior: Botón esmeralda 'AGENDAR CITA' (WhatsApp) y botón 'Reseñas'.",
+              renderPreview: () => (
+                <div className="mt-2.5 p-1.5 rounded-xl bg-slate-50/90 border border-slate-200/80 flex items-center gap-1.5 w-full">
+                  <div className="flex-1 bg-emerald-600 text-white rounded-lg py-1 px-1 text-[9px] font-black flex items-center justify-center gap-0.5 truncate">
+                    <MessageCircle className="w-2.5 h-2.5 shrink-0 fill-white text-white" />
+                    <span>AGENDAR CITA</span>
+                  </div>
+                  <div className="flex-1 bg-white text-slate-800 border border-slate-200/90 rounded-lg py-1 px-1 text-[9px] font-extrabold flex items-center justify-center gap-0.5 truncate shadow-2xs">
+                    <Star className="w-2.5 h-2.5 shrink-0 fill-amber-400 text-amber-500" />
+                    <span>Reseñas</span>
+                  </div>
+                </div>
+              )
+            },
           ].map((cta) => {
             const isSelected = (data.estiloCta || "flotante") === cta.id;
             return (
@@ -1526,17 +1813,18 @@ export function FormDesign({
                     estiloCta: cta.id as CtaStyleType
                   });
                 }}
-                className={`flex flex-col text-left p-3 rounded-xl border transition-all cursor-pointer ${
+                className={`flex flex-col text-left p-3.5 rounded-xl border bg-white transition-all cursor-pointer ${
                   isSelected
-                    ? "border-emerald-600 bg-emerald-50/40 ring-1 ring-emerald-500 shadow-xs"
-                    : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                    ? "border-emerald-600 ring-2 ring-emerald-500/20 shadow-sm"
+                    : "border-slate-200/90 hover:border-slate-300 hover:bg-slate-50/50"
                 }`}
               >
                 <div className="flex items-center justify-between w-full">
                   <span className="text-xs font-extrabold text-slate-900">{cta.label}</span>
-                  {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
+                  {isSelected && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1 leading-snug">{cta.desc}</p>
+                {cta.renderPreview()}
               </button>
             );
           })}

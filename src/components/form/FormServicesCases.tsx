@@ -517,12 +517,7 @@ export function FormServicesCases({
             {data.casosAntesDespues.map((caso, idx) => (
               <div key={caso.id || idx} className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/60 hover:bg-slate-50 space-y-3 transition-colors">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-emerald-600 text-white text-[10px] font-bold flex items-center justify-center">
-                      {idx + 1}
-                    </span>
-                    <p className="text-[11px] font-extrabold text-slate-800 uppercase">Caso #{idx + 1}</p>
-                  </div>
+                  <p className="text-[11px] font-extrabold text-slate-800 uppercase">{caso.titulo || `Caso Clínico #${idx + 1}`}</p>
                   <button
                     type="button"
                     onClick={() => removeCase(idx)}

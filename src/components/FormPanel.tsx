@@ -31,7 +31,8 @@ import {
   ChevronRight,
   ClipboardList,
   QrCode,
-  FileText
+  FileText,
+  Camera
 } from "lucide-react";
 import { FormDoctorProfile } from "./form/FormDoctorProfile";
 import { FormClinicLocation } from "./form/FormClinicLocation";
@@ -42,6 +43,7 @@ import { FormSocialReviews } from "./form/FormSocialReviews";
 import { FormFaqs } from "./form/FormFaqs";
 import { FormBlog } from "./form/FormBlog";
 import { FormDesign } from "./form/FormDesign";
+import { ClinicGalleryManager } from "./ClinicGalleryManager";
 import { AiIngestionModal } from "./AiIngestionModal";
 import { DoctorIntakeFormModal } from "./DoctorIntakeFormModal";
 import { QrGeneratorModal } from "./QrGeneratorModal";
@@ -58,6 +60,7 @@ export type FormTabKey =
   | "clinica" 
   | "credenciales" 
   | "servicios" 
+  | "galeria"
   | "seo" 
   | "social" 
   | "faqs" 
@@ -100,11 +103,12 @@ const CATEGORY_GROUPS: CategoryGroup[] = [
     id: "contenido",
     name: "Contenido & Pacientes",
     shortName: "Contenido",
-    description: "Servicios, reseñas, blog y preguntas",
+    description: "Servicios, galería de instalaciones, reseñas, blog y preguntas",
     icon: Users,
     badgeColor: "bg-emerald-100 text-emerald-800 border-emerald-200",
     tabs: [
       { id: "servicios", label: "Servicios & Casos", shortLabel: "Servicios Clínicos", icon: Briefcase },
+      { id: "galeria", label: "Galería de Instalaciones & Consultorio", shortLabel: "Galería Consultorio", icon: Camera },
       { id: "social", label: "Reseñas & Redes", shortLabel: "Reseñas & Redes", icon: MessageSquare },
       { id: "faqs", label: "Preguntas Frecuentes", shortLabel: "Preguntas FAQs", icon: HelpCircle },
       { id: "blog", label: "Blog & Artículos", shortLabel: "Blog Médico", icon: BookOpen }
@@ -363,6 +367,16 @@ export default function FormPanel({
             onChange={onChange}
             updateField={updateField}
           />
+        )}
+
+        {activeTab === "galeria" && (
+          <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
+            <ClinicGalleryManager
+              photos={data.fotosConsultorio || []}
+              onChange={(newPhotos) => updateField("fotosConsultorio", newPhotos)}
+              primaryColorClass={data.paletaColor || "blue"}
+            />
+          </div>
         )}
 
         {activeTab === "seo" && (

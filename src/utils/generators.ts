@@ -5,9 +5,9 @@
 
 import { MedicalLandingData } from "../types";
 import { getMedicalIconSvg } from "./medicalIcons";
-import { getActiveColorScale } from "./colorUtils";
+import { getActiveColorScale, generateScaleFromHex } from "./colorUtils";
 import { generateOpeningHoursSchema, getLiveConsultationStatus } from "./scheduleUtils";
-import { getActiveLandingStyle, generateLandingStyleCssVariables } from "./stylePresets";
+import { getActiveLandingStyle, generateLandingStyleCssVariables, getDynamicGoogleFontsUrl } from "./stylePresets";
 
 /**
  * Normaliza y formatea la URL del dominio personalizado
@@ -253,6 +253,9 @@ export function generateServicePageHtml(
   const uniqueVersion = version || Date.now().toString();
   const selectedPalette = getActiveColorScale(data.paletaColor, data.colorPrimarioHex);
   const selectedStylePreset = getActiveLandingStyle(data.estiloLanding);
+  const selectedSecondaryPalette = data.colorSecundarioHex 
+    ? generateScaleFromHex(data.colorSecundarioHex)
+    : selectedPalette;
 
   return `<!DOCTYPE html>
 <html lang="es" class="scroll-smooth">
@@ -306,7 +309,7 @@ export function generateServicePageHtml(
 
   <!-- CSS Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="${selectedStylePreset.googleFontsUrl}" rel="stylesheet">
+  <link href="${getDynamicGoogleFontsUrl(selectedStylePreset, data.fuenteTitulos, data.fuenteParrafos)}" rel="stylesheet">
   <style>
     :root {
       --clinical-50: ${selectedPalette["50"]};
@@ -317,7 +320,19 @@ export function generateServicePageHtml(
       --clinical-700: ${selectedPalette["700"]};
       --clinical-800: ${selectedPalette["800"]};
       --clinical-900: ${selectedPalette["900"]};
+
+      --secondary-50: ${selectedSecondaryPalette["50"]};
+      --secondary-100: ${selectedSecondaryPalette["100"]};
+      --secondary-200: ${selectedSecondaryPalette["200"]};
+      --secondary-500: ${selectedSecondaryPalette["500"]};
+      --secondary-600: ${selectedSecondaryPalette["600"]};
+      --secondary-700: ${selectedSecondaryPalette["700"]};
+      --secondary-800: ${selectedSecondaryPalette["800"]};
+      --secondary-900: ${selectedSecondaryPalette["900"]};
+
 ${generateLandingStyleCssVariables(selectedStylePreset)}
+      --landing-font-display: ${data.fuenteTitulos || selectedStylePreset.fontDisplay};
+      --landing-font-body: ${data.fuenteParrafos || selectedStylePreset.fontBody};
     }
     body { font-family: var(--landing-font-body); }
     h1, h2, h3 { font-family: var(--landing-font-display); }
@@ -595,14 +610,23 @@ export function generateJsonLd(data: MedicalLandingData, appUrl: string = "https
 export function generateDynamicStylesCss(data: MedicalLandingData): string {
   const stylePreset = getActiveLandingStyle(data.estiloLanding);
   const colorScale = getActiveColorScale(data.paletaColor, data.colorPrimarioHex);
+  const secondaryScale = data.colorSecundarioHex
+    ? generateScaleFromHex(data.colorSecundarioHex)
+    : colorScale;
+  const accentScale = data.colorAcentoHex
+    ? generateScaleFromHex(data.colorAcentoHex)
+    : generateScaleFromHex("#f59e0b");
   const ctaStyle = data.estiloCta || "flotante";
+  const fontsUrl = getDynamicGoogleFontsUrl(stylePreset, data.fuenteTitulos, data.fuenteParrafos);
 
   return `/**
  * estilos-config.css - Hoja de Estilos Dinámica e Independiente
  * Generado para: ${data.nombreMedico || "Doctor/Especialista Médico"}
  * Especialidad: ${data.especialidad || "Especialidad Médica"}
  * Estilo Visual: ${stylePreset.name} (${data.estiloLanding || "profesional"})
- * Paleta Croma: ${data.paletaColor} (${colorScale["600"]})
+ * Paleta Croma Primaria: ${data.paletaColor} (${colorScale["600"]})
+ * Paleta Croma Secundaria: ${data.colorSecundarioHex || "Auto"}
+ * Paleta Croma Acento: ${data.colorAcentoHex || "Auto"}
  * Estilo CTA: ${ctaStyle}
  * Fecha de Generación: ${new Date().toLocaleDateString("es-EC")}
  *
@@ -613,17 +637,19 @@ export function generateDynamicStylesCss(data: MedicalLandingData): string {
 /* ==========================================================================
    1. IMPORTACIÓN DE FUENTES GOOGLE FONTS DINÁMICAS
    ========================================================================== */
-@import url('${stylePreset.googleFontsUrl}');
+@import url('${fontsUrl}');
 
 /* ==========================================================================
    2. VARIABLES CSS GLOBALES (:root)
    ========================================================================== */
 :root {
   /* --- TIPOGRAFÍAS DE LA LANDING --- */
-  --landing-font-display: ${stylePreset.variables["--landing-font-display"]};
-  --landing-font-body: ${stylePreset.variables["--landing-font-body"]};
+  --font-heading: ${data.fuenteTitulos || stylePreset.fontDisplay};
+  --font-body: ${data.fuenteParrafos || stylePreset.fontBody};
+  --landing-font-display: var(--font-heading);
+  --landing-font-body: var(--font-body);
 
-  /* --- PALETA CROMÁTICA OFICIAL (${data.paletaColor.toUpperCase()}) --- */
+  /* --- PALETA CROMÁTICA PRIMARIA (${data.paletaColor.toUpperCase()}) --- */
   --color-primary-50: ${colorScale["50"]};
   --color-primary-100: ${colorScale["100"]};
   --color-primary-200: ${colorScale["200"]};
@@ -636,10 +662,70 @@ export function generateDynamicStylesCss(data: MedicalLandingData): string {
   --color-primary-900: ${colorScale["900"]};
   --color-primary-950: ${colorScale["950"]};
 
-  /* Accesos Directos de Color */
+  --clinical-50: ${colorScale["50"]};
+  --clinical-100: ${colorScale["100"]};
+  --clinical-200: ${colorScale["200"]};
+  --clinical-500: ${colorScale["500"]};
+  --clinical-600: ${colorScale["600"]};
+  --clinical-700: ${colorScale["700"]};
+  --clinical-800: ${colorScale["800"]};
+  --clinical-900: ${colorScale["900"]};
+
+  /* Accesos Directos de Color Primario */
   --color-primary-base: ${colorScale["600"]};
   --color-primary-dark: ${colorScale["700"]};
   --color-primary-light: ${colorScale["500"]};
+
+  /* --- PALETA CROMÁTICA SECUNDARIA --- */
+  --color-secondary-50: ${secondaryScale["50"]};
+  --color-secondary-100: ${secondaryScale["100"]};
+  --color-secondary-200: ${secondaryScale["200"]};
+  --color-secondary-300: ${secondaryScale["300"]};
+  --color-secondary-400: ${secondaryScale["400"]};
+  --color-secondary-500: ${secondaryScale["500"]};
+  --color-secondary-600: ${secondaryScale["600"]};
+  --color-secondary-700: ${secondaryScale["700"]};
+  --color-secondary-800: ${secondaryScale["800"]};
+  --color-secondary-900: ${secondaryScale["900"]};
+
+  --secondary-50: ${secondaryScale["50"]};
+  --secondary-100: ${secondaryScale["100"]};
+  --secondary-200: ${secondaryScale["200"]};
+  --secondary-500: ${secondaryScale["500"]};
+  --secondary-600: ${secondaryScale["600"]};
+  --secondary-700: ${secondaryScale["700"]};
+  --secondary-800: ${secondaryScale["800"]};
+  --secondary-900: ${secondaryScale["900"]};
+
+  --color-secondary-base: ${secondaryScale["600"]};
+  --color-secondary-dark: ${secondaryScale["700"]};
+  --color-secondary-light: ${secondaryScale["500"]};
+
+  /* --- PALETA CROMÁTICA DE ACENTOS --- */
+  --color-accent-50: ${accentScale["50"]};
+  --color-accent-100: ${accentScale["100"]};
+  --color-accent-200: ${accentScale["200"]};
+  --color-accent-300: ${accentScale["300"]};
+  --color-accent-400: ${accentScale["400"]};
+  --color-accent-500: ${accentScale["500"]};
+  --color-accent-600: ${accentScale["600"]};
+  --color-accent-700: ${accentScale["700"]};
+  --color-accent-800: ${accentScale["800"]};
+  --color-accent-900: ${accentScale["900"]};
+
+  --accent-50: ${accentScale["50"]};
+  --accent-100: ${accentScale["100"]};
+  --accent-200: ${accentScale["200"]};
+  --accent-500: ${accentScale["500"]};
+  --accent-600: ${accentScale["600"]};
+  --accent-700: ${accentScale["700"]};
+  --accent-800: ${accentScale["800"]};
+  --accent-900: ${accentScale["900"]};
+
+  --color-accent-base: ${accentScale["600"]};
+  --color-accent-dark: ${accentScale["700"]};
+  --color-accent-light: ${accentScale["500"]};
+
   --color-slate-heading: #0f172a;
   --color-slate-body: #334155;
 
@@ -847,6 +933,12 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
 
   const selectedPalette = getActiveColorScale(data.paletaColor, data.colorPrimarioHex);
   const selectedStylePreset = getActiveLandingStyle(data.estiloLanding);
+  const selectedSecondaryPalette = data.colorSecundarioHex 
+    ? generateScaleFromHex(data.colorSecundarioHex)
+    : selectedPalette;
+  const selectedAccentPalette = data.colorAcentoHex
+    ? generateScaleFromHex(data.colorAcentoHex)
+    : generateScaleFromHex("#f59e0b");
 
   const isSectionVisible = (id: string) => {
     if (!data.ordenSecciones || data.ordenSecciones.length === 0) return true;
@@ -1131,10 +1223,7 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
   const casosHtml = (data.casosAntesDespues || []).map((caso, idx) => 
     `<div class="p-6 rounded-3xl bg-white shadow-lg border border-gray-100 flex flex-col justify-between">
       <div class="mb-4">
-        <div class="flex items-center gap-2 mb-2">
-          <span class="w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-bold flex items-center justify-center">${idx + 1}</span>
-          <h3 class="text-lg font-bold text-gray-900">${caso.titulo}</h3>
-        </div>
+        <h3 class="text-lg font-bold text-gray-900 mb-2">${caso.titulo}</h3>
         <p class="text-gray-600 text-xs leading-relaxed line-clamp-2">${caso.descripcion}</p>
       </div>
       
@@ -1373,6 +1462,26 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
               700: 'var(--clinical-700)',
               800: 'var(--clinical-800)',
               900: 'var(--clinical-900)'
+            },
+            secondary: {
+              50: 'var(--secondary-50)',
+              100: 'var(--secondary-100)',
+              200: 'var(--secondary-200)',
+              500: 'var(--secondary-500)',
+              600: 'var(--secondary-600)',
+              700: 'var(--secondary-700)',
+              800: 'var(--secondary-800)',
+              900: 'var(--secondary-900)'
+            },
+            accent: {
+              50: 'var(--accent-50)',
+              100: 'var(--accent-100)',
+              200: 'var(--accent-200)',
+              500: 'var(--accent-500)',
+              600: 'var(--accent-600)',
+              700: 'var(--accent-700)',
+              800: 'var(--accent-800)',
+              900: 'var(--accent-900)'
             }
           },
           borderRadius: {
@@ -1398,7 +1507,7 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
   <link rel="preload" as="image" href="${data.fotoUrl}" fetchpriority="high">
   
   <!-- Tipografía Google Fonts según Estilo Seleccionado (${selectedStylePreset.name}) -->
-  <link href="${selectedStylePreset.googleFontsUrl}" rel="stylesheet">
+  <link href="${getDynamicGoogleFontsUrl(selectedStylePreset, data.fuenteTitulos, data.fuenteParrafos)}" rel="stylesheet">
   
   <!-- Hoja de Estilos Dinámica e Independiente Personalizable -->
   <link rel="stylesheet" href="estilos-config.css?v=${uniqueVersion}">
@@ -1414,7 +1523,27 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
       --clinical-800: ${selectedPalette["800"]};
       --clinical-900: ${selectedPalette["900"]};
 
+      --secondary-50: ${selectedSecondaryPalette["50"]};
+      --secondary-100: ${selectedSecondaryPalette["100"]};
+      --secondary-200: ${selectedSecondaryPalette["200"]};
+      --secondary-500: ${selectedSecondaryPalette["500"]};
+      --secondary-600: ${selectedSecondaryPalette["600"]};
+      --secondary-700: ${selectedSecondaryPalette["700"]};
+      --secondary-800: ${selectedSecondaryPalette["800"]};
+      --secondary-900: ${selectedSecondaryPalette["900"]};
+
+      --accent-50: ${selectedAccentPalette["50"]};
+      --accent-100: ${selectedAccentPalette["100"]};
+      --accent-200: ${selectedAccentPalette["200"]};
+      --accent-500: ${selectedAccentPalette["500"]};
+      --accent-600: ${selectedAccentPalette["600"]};
+      --accent-700: ${selectedAccentPalette["700"]};
+      --accent-800: ${selectedAccentPalette["800"]};
+      --accent-900: ${selectedAccentPalette["900"]};
+
 ${generateLandingStyleCssVariables(selectedStylePreset)}
+      --landing-font-display: ${data.fuenteTitulos || selectedStylePreset.fontDisplay};
+      --landing-font-body: ${data.fuenteParrafos || selectedStylePreset.fontBody};
     }
     body {
       font-family: var(--landing-font-body);
@@ -1949,37 +2078,39 @@ ${jsonLd}
                 }
               </style>
               <div class="relative my-0.5 group mx-auto lg:mx-0 max-w-full hero-animate-image">
-                ${
-                  !isSinBorde
-                    ? `<div class="absolute -inset-2.5 sm:-inset-4 md:-inset-5 bg-gradient-to-r from-blue-400/50 via-cyan-400/50 to-emerald-400/50 blur-lg sm:blur-xl group-hover:blur-2xl animate-pulse transition duration-500 ${
-                        isCircular ? "rounded-full opacity-85 group-hover:opacity-100" : "rounded-3xl opacity-85 group-hover:opacity-100"
-                      }"></div>`
-                    : ""
-                }
-                <div class="relative gen-doctor-photo-box overflow-hidden transition-all duration-300 mx-auto max-w-full ${
-                  isCircular 
-                    ? "aspect-square rounded-full border-4 sm:border-[5px] md:border-[6px] border-white/95 shadow-[0_20px_50px_rgba(0,0,0,0.65)] ring-4 md:ring-8 ring-white/30 bg-slate-900" 
-                    : isRect 
-                      ? "aspect-[3/4] rounded-2xl sm:rounded-[2.5rem] border-4 sm:border-[5px] md:border-[6px] border-white/95 shadow-2xl ring-4 md:ring-8 ring-white/30 bg-slate-900" 
-                      : "aspect-[3/4] rounded-none border-0 ring-0 shadow-none bg-transparent"
-                }" ${
-                  isSinBorde
-                    ? 'style="-webkit-mask-image: linear-gradient(to bottom, black 90%, transparent 100%); mask-image: linear-gradient(to bottom, black 90%, transparent 100%);"'
-                    : ''
-                }>
-                  <img 
-                    src="${data.fotoUrl}" 
-                    alt="${data.nombreMedico} - ${data.especialidad}" 
-                    width="${deskW}" 
-                    height="${Math.round(deskW * 4 / 3)}" 
-                    class="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-105 ${
-                      isCircular ? "rounded-full" : isRect ? "rounded-2xl sm:rounded-[2.5rem]" : "rounded-none"
-                    }" 
-                    loading="eager" 
-                    fetchpriority="high" 
-                    decoding="async" 
-                    referrerPolicy="no-referrer" 
-                  />
+                <div id="hero-parallax-wrapper" class="w-full h-full transition-transform duration-100 ease-out will-change-transform">
+                  ${
+                    !isSinBorde
+                      ? `<div class="absolute -inset-2.5 sm:-inset-4 md:-inset-5 bg-gradient-to-r from-blue-400/50 via-cyan-400/50 to-emerald-400/50 blur-lg sm:blur-xl group-hover:blur-2xl animate-pulse transition duration-500 ${
+                          isCircular ? "rounded-full opacity-85 group-hover:opacity-100" : "rounded-3xl opacity-85 group-hover:opacity-100"
+                        }"></div>`
+                      : ""
+                  }
+                  <div class="relative gen-doctor-photo-box overflow-hidden transition-all duration-300 mx-auto max-w-full ${
+                    isCircular 
+                      ? "aspect-square rounded-full border-4 sm:border-[5px] md:border-[6px] border-white/95 shadow-[0_20px_50px_rgba(0,0,0,0.65)] ring-4 md:ring-8 ring-white/30 bg-slate-900" 
+                      : isRect 
+                        ? "aspect-[3/4] rounded-2xl sm:rounded-[2.5rem] border-4 sm:border-[5px] md:border-[6px] border-white/95 shadow-2xl ring-4 md:ring-8 ring-white/30 bg-slate-900" 
+                        : "aspect-[3/4] rounded-none border-0 ring-0 shadow-none bg-transparent"
+                  }" ${
+                    isSinBorde
+                      ? 'style="-webkit-mask-image: linear-gradient(to bottom, black 90%, transparent 100%); mask-image: linear-gradient(to bottom, black 90%, transparent 100%);"'
+                      : ''
+                  }>
+                    <img 
+                      src="${data.fotoUrl}" 
+                      alt="${data.nombreMedico} - ${data.especialidad}" 
+                      width="${deskW}" 
+                      height="${Math.round(deskW * 4 / 3)}" 
+                      class="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-105 ${
+                        isCircular ? "rounded-full" : isRect ? "rounded-2xl sm:rounded-[2.5rem]" : "rounded-none"
+                      }" 
+                      loading="eager" 
+                      fetchpriority="high" 
+                      decoding="async" 
+                      referrerPolicy="no-referrer" 
+                    />
+                  </div>
                 </div>
               </div>
             `;
@@ -2099,27 +2230,48 @@ ${jsonLd}
         </p>
       </div>
 
-      <!-- Stats Rápidos (2 contadores con colores sólidos y diseño limpio) -->
-      <div class="grid grid-cols-2 gap-4 py-5 border-y border-slate-200/80 text-center bg-slate-50/50 rounded-xl max-w-xl mx-auto">
-        <div class="flex flex-col items-center justify-center p-3 rounded-xl bg-white border border-slate-100 shadow-2xs hover:shadow-xs transition-all">
-          <div class="w-11 h-11 rounded-full bg-clinical-100 text-clinical-600 flex items-center justify-center mb-2 shrink-0">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-5.5 h-5.5 text-clinical-600 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <!-- Stats Rápidos (Cards Premium con Badges de Alto Impacto - Mobile Compact Top Icon) -->
+      <div class="grid grid-cols-2 gap-3 sm:gap-4 py-3 max-w-3xl mx-auto">
+        <!-- CARD 1: EXPERIENCIA MÉDICA -->
+        <div class="relative overflow-hidden p-3.5 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-50 via-white to-clinical-50/40 border border-slate-200/90 shadow-xs hover:shadow-md transition-all border-l-4 border-l-clinical-600 flex flex-col items-start gap-2 sm:gap-3 text-left">
+          <div class="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-br from-clinical-600 to-clinical-700 text-white shadow-xs shadow-clinical-600/20 flex items-center justify-center shrink-0 ring-2 sm:ring-4 ring-clinical-100/80">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 sm:w-5.5 sm:h-5.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5z" />
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 01-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
             </svg>
           </div>
-          <p class="text-2xl sm:text-3xl font-extrabold text-clinical-600">+${data.anosExperiencia}</p>
-          <p class="text-xs font-bold text-slate-600 uppercase tracking-wide mt-1">Años Exp.</p>
+          <div class="flex-1 w-full min-w-0">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="text-xl sm:text-3xl font-black text-clinical-600 tracking-tight">+${data.anosExperiencia}</span>
+              <span class="text-[9px] sm:text-[10px] font-extrabold px-1.5 sm:px-2 py-0.5 rounded-md bg-clinical-100 text-clinical-800 uppercase tracking-wider">
+                Años Exp.
+              </span>
+            </div>
+            <p class="text-[11px] sm:text-xs font-bold text-slate-800 tracking-wide mt-1 leading-snug">Trayectoria Médica Acreditada</p>
+            <p class="text-[10px] sm:text-[11px] text-slate-500 font-medium truncate mt-0.5 hidden sm:block">Experiencia clínica y actualización continua</p>
+          </div>
         </div>
 
-        <div class="flex flex-col items-center justify-center p-3 rounded-xl bg-white border border-slate-100 shadow-2xs hover:shadow-xs transition-all">
-          <div class="w-11 h-11 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mb-2 shrink-0">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-5.5 h-5.5 text-amber-600 fill-amber-500 animate-pulse" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+        <!-- CARD 2: PUNTUACIÓN DE PACIENTES -->
+        <div class="relative overflow-hidden p-3.5 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-50 via-white to-amber-50/40 border border-slate-200/90 shadow-xs hover:shadow-md transition-all border-l-4 border-l-amber-500 flex flex-col items-start gap-2 sm:gap-3 text-left">
+          <div class="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-xs shadow-amber-500/20 flex items-center justify-center shrink-0 ring-2 sm:ring-4 ring-amber-100/80">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 sm:w-5.5 sm:h-5.5 text-white fill-white" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
             </svg>
           </div>
-          <p class="text-2xl sm:text-3xl font-extrabold text-clinical-600">4.9/5</p>
-          <p class="text-xs font-bold text-slate-600 uppercase tracking-wide mt-1">Puntuación Pacientes</p>
+          <div class="flex-1 w-full min-w-0">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="text-xl sm:text-3xl font-black text-slate-900 tracking-tight">4.9<span class="text-xs sm:text-lg text-slate-400 font-bold">/5</span></span>
+              <span class="text-[9px] sm:text-[10px] font-extrabold px-1.5 sm:px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 uppercase tracking-wider">
+                Reseñas
+              </span>
+            </div>
+            <p class="text-[11px] sm:text-xs font-bold text-slate-800 tracking-wide mt-1 leading-snug">Puntuación Pacientes</p>
+            <div class="flex items-center gap-1 mt-0.5">
+              <div class="flex text-amber-400 text-[10px] sm:text-xs">★★★★★</div>
+              <span class="text-[9px] sm:text-[11px] text-slate-500 font-semibold">(Excelente)</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -2188,10 +2340,15 @@ ${jsonLd}
       <!-- Contenedor Principal del Carrusel con Formato 5:4 y Máscara de Desbordamiento -->
       <div class="relative max-w-3xl mx-auto w-full aspect-[5/4] rounded-3xl overflow-hidden shadow-xl border border-slate-200 bg-slate-950 group" id="clinic-carousel-container">
         
-        <!-- Pista Horizontal de Fotos (Track) -->
+        <!-- Pista Horizontal de Fotos (Track) - Imagen Limpia -->
         <div id="clinic-carousel-track" class="flex w-full h-full transition-transform duration-500 ease-out will-change-transform" style="transform: translateX(0%);">
           ${fotosConsultorioList.map((foto, idx) => `
-            <div class="w-full h-full shrink-0 relative aspect-[5/4] bg-slate-950 overflow-hidden" data-slide-index="${idx}">
+            <div 
+              class="w-full h-full shrink-0 relative aspect-[5/4] bg-slate-950 overflow-hidden" 
+              data-slide-index="${idx}"
+              data-titulo="${(foto.titulo || `Área de Atención Médica ${idx + 1}`).replace(/"/g, '&quot;')}"
+              data-descripcion="${(foto.descripcion || '').replace(/"/g, '&quot;')}"
+            >
               <img 
                 src="${foto.url}" 
                 alt="${foto.titulo || `Instalación médica ${idx + 1}`}" 
@@ -2200,22 +2357,6 @@ ${jsonLd}
                 decoding="async"
                 referrerPolicy="no-referrer"
               />
-              <!-- Gradiente y Detalles de la Foto (Legibilidad sin deformación) -->
-              <div class="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-slate-950/95 via-slate-950/75 to-transparent pt-16 pb-6 px-6 sm:px-8 text-white flex flex-col justify-end">
-                <div class="max-w-2xl">
-                  <span class="text-[10px] sm:text-xs font-black uppercase tracking-widest px-2.5 py-0.5 rounded-md bg-white/20 backdrop-blur-md text-white border border-white/20 inline-block mb-1.5">
-                    Foto ${idx + 1} de ${fotosConsultorioList.length} • Instalaciones Clínicas
-                  </span>
-                  <h3 class="text-lg sm:text-xl md:text-2xl font-black text-white leading-snug mb-1 drop-shadow-sm">
-                    ${foto.titulo || `Área de Atención Médica ${idx + 1}`}
-                  </h3>
-                  ${foto.descripcion ? `
-                    <p class="text-xs sm:text-sm text-slate-200 line-clamp-2 sm:line-clamp-3 leading-relaxed font-normal">
-                      ${foto.descripcion}
-                    </p>
-                  ` : ''}
-                </div>
-              </div>
             </div>
           `).join('')}
         </div>
@@ -2254,42 +2395,19 @@ ${jsonLd}
 
       </div>
 
-      <!-- Miniaturas Interactivas Inferiores con Cabecera y Espaciado -->
-      <div class="max-w-3xl mx-auto pt-2">
-        <div class="flex items-center justify-between mb-3 px-1">
-          <span class="text-xs font-extrabold uppercase tracking-wider text-slate-500">
-            Galería de Espacios (${fotosConsultorioList.length} fotos)
-          </span>
-          <span class="text-[11px] text-slate-400 font-medium">
-            Selecciona para explorar cada área
+      <!-- Título y Descripción FUERA de la Imagen -->
+      <div class="max-w-3xl mx-auto pt-3 px-2 text-left" id="clinic-carousel-caption">
+        <div class="flex items-center justify-between gap-3 mb-1">
+          <h3 class="text-base sm:text-lg md:text-xl font-extrabold text-slate-900" id="clinic-caption-title">
+            ${fotosConsultorioList[0]?.titulo || 'Área de Atención Médica 1'}
+          </h3>
+          <span class="text-xs font-bold text-slate-500 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-full shrink-0" id="clinic-caption-badge">
+            1 de ${fotosConsultorioList.length}
           </span>
         </div>
-
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-${Math.min(5, fotosConsultorioList.length)} gap-3">
-          ${fotosConsultorioList.map((foto, idx) => `
-            <button
-              type="button"
-              onclick="clinicCarouselGoTo(${idx})"
-              class="clinic-thumb-btn text-left p-2.5 rounded-2xl border transition-all flex items-center gap-2.5 group cursor-pointer ${idx === 0 ? 'bg-white border-clinical-500 shadow-xs ring-2 ring-clinical-500/25' : 'bg-white/80 border-slate-200 hover:border-slate-300 hover:bg-white shadow-2xs'}"
-              data-thumb-index="${idx}"
-            >
-              <div class="w-11 h-9 aspect-[5/4] rounded-xl overflow-hidden shrink-0 border border-slate-200 bg-slate-100">
-                <img 
-                  src="${foto.url}" 
-                  alt="${foto.titulo}" 
-                  class="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                  loading="lazy"
-                />
-              </div>
-              <div class="min-w-0 flex-1">
-                <p class="text-[11px] font-extrabold text-slate-900 truncate leading-tight group-hover:text-clinical-600 transition-colors">
-                  ${foto.titulo || `Foto ${idx + 1}`}
-                </p>
-                <span class="text-[10px] text-slate-400 font-medium block mt-0.5">Espacio ${idx + 1}</span>
-              </div>
-            </button>
-          `).join('')}
-        </div>
+        <p class="text-xs sm:text-sm text-slate-600 leading-relaxed" id="clinic-caption-desc">
+          ${fotosConsultorioList[0]?.descripcion || ''}
+        </p>
       </div>
 
     </div>
@@ -2676,7 +2794,7 @@ ${jsonLd}
               <span>¡Agenda tu Consulta con Respuesta Prioritaria!</span>
             </div>
           ` : ''}
-          <button id="agenda-whatsapp-btn" onclick="openAppointmentModal('whatsapp')" type="button" class="w-[80%] max-w-md bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white px-6 py-4 rounded-2xl font-extrabold text-sm sm:text-base text-center flex items-center justify-center gap-2.5 shadow-md hover:shadow-lg hover:scale-[1.01] active:scale-[0.99] border border-emerald-500/30 transition-all duration-300 cursor-pointer ${data.estiloCta === 'estatico_pulso' ? 'ring-4 ring-emerald-400/30 shadow-xl animate-pulse hover:animate-none' : ''}">
+          <button id="agenda-whatsapp-btn" onclick="openAppointmentModal('whatsapp')" type="button" class="w-[80%] max-w-md px-6 py-4 rounded-2xl font-extrabold text-sm sm:text-base text-center flex items-center justify-center gap-2.5 shadow-md hover:shadow-lg hover:scale-[1.01] active:scale-[0.99] transition-all duration-300 cursor-pointer bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white border border-emerald-500/30 ${data.estiloCta === 'estatico_pulso' ? 'ring-4 ring-emerald-400/40 shadow-xl animate-pulse hover:animate-none' : ''}">
             <svg class="w-5 h-5 shrink-0 text-emerald-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
             <span>Confirmar cita</span>
           </button>
@@ -2838,31 +2956,18 @@ ${jsonLd}
     </div>
   </footer>
 
-  <!-- BOTÓN FLOTANTE WHATSAPP (FAB PERSISTENTE) - Omitido si se elige estático o barra fija dual -->
-  ${(!data.estiloCta || data.estiloCta === 'flotante') ? `
-  <a href="${data.whatsappUrl}" 
-     target="_blank" 
-     rel="noopener noreferrer" 
-     class="fixed bottom-20 md:bottom-6 right-6 bg-emerald-500 text-white p-4 rounded-full shadow-2xl hover:bg-emerald-600 transition-all transform hover:scale-110 z-50 flex items-center justify-center focus:outline-none focus:ring-4 focus:ring-emerald-200"
-     aria-label="Contactar a la clínica vía WhatsApp para agendar una cita">
-    <svg class="w-7 h-7 fill-current" viewBox="0 0 24 24">
-      <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.717-1.454L0 24zm6.59-2.635c1.6.95 3.51 1.45 5.48 1.45 5.86 0 10.63-4.77 10.63-10.63 0-2.84-1.1-5.51-3.11-7.51a10.522 10.522 0 00-7.52-3.12c-5.87 0-10.64 4.77-10.64 10.64 0 2.05.54 4.05 1.56 5.81L1.92 22.2l4.727-1.242c1.7.93 3.59 1.41 5.4 1.41z" />
-    </svg>
-  </a>
-  ` : ''}
-
   <!-- NAVEGACIÓN MÓVIL INFERIOR: BARRA FIJA DUAL O MENÚ ERGONÓMICO -->
   ${data.estiloCta === 'barra_fija_dual' ? `
-  <!-- BARRA INFERIOR MÓVIL FIJA DUAL (WHATSAPP + AGENDAR) -->
+  <!-- BARRA INFERIOR MÓVIL FIJA DUAL (WHATSAPP + RESEÑAS) -->
   <div id="mobile-dual-cta-bar" class="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-xl border-t border-slate-200/90 py-2.5 px-3 flex items-center gap-2.5 md:hidden z-40 shadow-[0_-8px_25px_rgba(0,0,0,0.12)] pb-[calc(0.6rem+env(safe-area-inset-bottom))]">
-    <a href="${data.whatsappUrl}" target="_blank" rel="noopener noreferrer" class="flex-1 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white py-3 px-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 text-center" aria-label="Abrir WhatsApp directo con el especialista">
-      <svg class="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.717-1.454L0 24zm6.59-2.635c1.6.95 3.51 1.45 5.48 1.45 5.86 0 10.63-4.77 10.63-10.63 0-2.84-1.1-5.51-3.11-7.51a10.522 10.522 0 00-7.52-3.12c-5.87 0-10.64 4.77-10.64 10.64 0 2.05.54 4.05 1.56 5.81L1.92 22.2l4.727-1.242c1.7.93 3.59 1.41 5.4 1.41z" /></svg>
-      <span class="truncate font-black">WhatsApp Directo</span>
+    <a href="${data.whatsappUrl}" target="_blank" rel="noopener noreferrer" class="flex-1 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white py-3 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 text-center uppercase tracking-wide" aria-label="Agendar cita por WhatsApp">
+      <svg class="w-4 h-4 fill-white shrink-0" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.717-1.454L0 24zm6.59-2.635c1.6.95 3.51 1.45 5.48 1.45 5.86 0 10.63-4.77 10.63-10.63 0-2.84-1.1-5.51-3.11-7.51a10.522 10.522 0 00-7.52-3.12c-5.87 0-10.64 4.77-10.64 10.64 0 2.05.54 4.05 1.56 5.81L1.92 22.2l4.727-1.242c1.7.93 3.59 1.41 5.4 1.41z" /></svg>
+      <span class="truncate font-black">AGENDAR CITA</span>
     </a>
-    <button onclick="openAppointmentModal('whatsapp')" type="button" class="flex-1 bg-clinical-600 hover:bg-clinical-700 active:bg-clinical-800 text-white py-3 px-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 text-center cursor-pointer" aria-label="Agendar cita médica">
-      <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-      <span class="truncate font-black">Agendar Cita</span>
-    </button>
+    <a href="#resenas" class="flex-1 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-800 border border-slate-200/90 py-3 px-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition-all active:scale-95 text-center" aria-label="Ver reseñas de Google de los pacientes">
+      <svg class="w-4 h-4 fill-amber-400 text-amber-500 shrink-0" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+      <span class="truncate font-bold">Reseñas</span>
+    </a>
   </div>
   ` : `
   <!-- MENÚ INFERIOR MÓVIL (Barra de Navegación Ergonómica con Iconos de Alto Contraste y Estados de Color Distintivos) -->
@@ -3873,6 +3978,28 @@ ${jsonLd}
       }, 360);
     })();
 
+    // 7c. Efecto Parallax Sutil para la foto del médico en Desktop
+    (function initHeroParallax() {
+      const parallaxWrapper = document.getElementById('hero-parallax-wrapper');
+      if (!parallaxWrapper) return;
+
+      function handleParallax() {
+        if (window.innerWidth >= 1024) {
+          const scrolled = window.pageYOffset || document.documentElement.scrollTop;
+          if (scrolled < 1200) {
+            parallaxWrapper.style.transform = 'translateY(' + (scrolled * 0.08) + 'px)';
+          }
+        } else {
+          parallaxWrapper.style.transform = '';
+        }
+      }
+
+      window.addEventListener('scroll', handleParallax, { passive: true });
+      window.addEventListener('resize', handleParallax, { passive: true });
+      // Ejecutar una vez al inicio
+      handleParallax();
+    })();
+
     // 8. Carrusel de Fotos de Consultorio e Instalaciones
     (function initClinicCarousel() {
       let currentIndex = 0;
@@ -3890,21 +4017,23 @@ ${jsonLd}
         track.style.transform = 'translateX(-' + (currentIndex * 100) + '%)';
         if (counterEl) counterEl.textContent = (currentIndex + 1).toString();
 
+        // Actualizar título, descripción y badge fuera de la imagen
+        const activeSlide = track.children[currentIndex];
+        if (activeSlide) {
+          const titleEl = document.getElementById('clinic-caption-title');
+          const descEl = document.getElementById('clinic-caption-desc');
+          const badgeEl = document.getElementById('clinic-caption-badge');
+          if (titleEl) titleEl.textContent = activeSlide.getAttribute('data-titulo') || '';
+          if (descEl) descEl.textContent = activeSlide.getAttribute('data-descripcion') || '';
+          if (badgeEl) badgeEl.textContent = (currentIndex + 1) + ' de ' + totalSlides;
+        }
+
         // Actualizar dots
         dots.forEach((dot, idx) => {
           if (idx === currentIndex) {
             dot.className = 'carousel-dot h-2 w-6 bg-white rounded-full transition-all duration-300';
           } else {
             dot.className = 'carousel-dot h-2 w-2 bg-white/40 hover:bg-white/70 rounded-full transition-all duration-300';
-          }
-        });
-
-        // Actualizar miniaturas
-        thumbs.forEach((thumb, idx) => {
-          if (idx === currentIndex) {
-            thumb.className = 'clinic-thumb-btn text-left p-2 rounded-2xl border transition-all flex items-center gap-2.5 group cursor-pointer bg-white border-clinical-500 shadow-xs ring-2 ring-clinical-500/20';
-          } else {
-            thumb.className = 'clinic-thumb-btn text-left p-2 rounded-2xl border transition-all flex items-center gap-2.5 group cursor-pointer bg-white/70 border-slate-200 hover:border-slate-300 hover:bg-white';
           }
         });
       }

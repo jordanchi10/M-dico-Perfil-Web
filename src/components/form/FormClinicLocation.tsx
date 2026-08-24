@@ -18,7 +18,6 @@ import {
   Sparkles,
   Camera
 } from "lucide-react";
-import { ClinicGalleryManager } from "../ClinicGalleryManager";
 import { getLiveConsultationStatus } from "../../utils/scheduleUtils";
 
 interface FormClinicLocationProps {
@@ -443,15 +442,6 @@ export function FormClinicLocation({
             </div>
           </div>
         </div>
-      </div>
-
-      {/* 5. GALERÍA DE INSTALACIONES Y FOTOS DEL CONSULTORIO */}
-      <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3">
-        <ClinicGalleryManager
-          photos={data.fotosConsultorio || []}
-          onChange={(newPhotos) => updateField("fotosConsultorio", newPhotos)}
-          primaryColorClass={data.paletaColor || "blue"}
-        />
       </div>
     </div>
   );
