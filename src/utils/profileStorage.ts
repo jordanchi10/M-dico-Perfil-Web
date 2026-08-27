@@ -20,6 +20,7 @@ export function validateAndNormalizeMedicalData(raw: any): MedicalLandingData {
   const base = JSON.parse(JSON.stringify(defaultMedicalData)) as MedicalLandingData;
 
   // 1. Datos Clínicos Básicos
+  const tipoEnfoqueLanding = (raw.tipoEnfoqueLanding === "clinica" || raw.tipoEnfoqueLanding === "medico") ? raw.tipoEnfoqueLanding : (base.tipoEnfoqueLanding || "medico");
   const nombreMedico = typeof raw.nombreMedico === "string" && raw.nombreMedico.trim() ? raw.nombreMedico.trim() : base.nombreMedico;
   const especialidad = typeof raw.especialidad === "string" && raw.especialidad.trim() ? raw.especialidad.trim() : base.especialidad;
   const cedulaProfesional = typeof raw.cedulaProfesional === "string" ? raw.cedulaProfesional : base.cedulaProfesional;
@@ -79,6 +80,21 @@ export function validateAndNormalizeMedicalData(raw: any): MedicalLandingData {
   const asociaciones = Array.isArray(raw.asociaciones) 
     ? raw.asociaciones.filter((item: any) => typeof item === "string" && item.trim()) 
     : base.asociaciones;
+
+  let backlinksAutoridad = base.backlinksAutoridad || [];
+  if (Array.isArray(raw.backlinksAutoridad)) {
+    backlinksAutoridad = raw.backlinksAutoridad.map((blk: any, idx: number) => ({
+      id: typeof blk.id === "string" && blk.id.trim() ? blk.id : `backlink-${Date.now()}-${idx}`,
+      portalNombre: typeof blk.portalNombre === "string" ? blk.portalNombre : `Portal ${idx + 1}`,
+      tipoPortal: blk.tipoPortal || "otro",
+      urlDestino: typeof blk.urlDestino === "string" ? blk.urlDestino : "",
+      estado: (blk.estado === "verificado" || blk.estado === "pendiente" || blk.estado === "sugerido") ? blk.estado : "sugerido",
+      incluirEnSchema: Boolean(blk.incluirEnSchema),
+      mostrarEnFooter: Boolean(blk.mostrarEnFooter),
+      anchorText: typeof blk.anchorText === "string" ? blk.anchorText : "",
+      notas: typeof blk.notas === "string" ? blk.notas : ""
+    }));
+  }
 
   // 4. Servicios
   let servicios = base.servicios;
@@ -156,6 +172,12 @@ export function validateAndNormalizeMedicalData(raw: any): MedicalLandingData {
   const estiloCta = typeof raw.estiloCta === "string" ? raw.estiloCta : base.estiloCta;
   const logoUrl = typeof raw.logoUrl === "string" ? raw.logoUrl : (base.logoUrl || "");
   const faviconUrl = typeof raw.faviconUrl === "string" ? raw.faviconUrl : (base.faviconUrl || "");
+  const pwaIconUrl = typeof raw.pwaIconUrl === "string" ? raw.pwaIconUrl : (base.pwaIconUrl || "");
+  const pwaAppTitle = typeof raw.pwaAppTitle === "string" ? raw.pwaAppTitle : (base.pwaAppTitle || "");
+  const ogImageUrl = typeof raw.ogImageUrl === "string" ? raw.ogImageUrl : (base.ogImageUrl || "");
+  const ogImageSource = (raw.ogImageSource === "foto" || raw.ogImageSource === "logo" || raw.ogImageSource === "pwa_icon" || raw.ogImageSource === "custom")
+    ? raw.ogImageSource
+    : "foto";
   const imagenFondoHero = typeof raw.imagenFondoHero === "string" ? raw.imagenFondoHero : (base.imagenFondoHero || "");
   
   const tipoFondoHero = (raw.tipoFondoHero === "gradiente" || raw.tipoFondoHero === "solido" || raw.tipoFondoHero === "imagen")
@@ -182,7 +204,22 @@ export function validateAndNormalizeMedicalData(raw: any): MedicalLandingData {
   const ordenSecciones = Array.isArray(raw.ordenSecciones) ? raw.ordenSecciones : base.ordenSecciones;
   const designVersion = typeof raw.designVersion === "number" ? raw.designVersion : 1;
 
+  let guiasPacientes = base.guiasPacientes || [];
+  if (Array.isArray(raw.guiasPacientes) && raw.guiasPacientes.length > 0) {
+    guiasPacientes = raw.guiasPacientes.map((guia: any, idx: number) => ({
+      id: typeof guia.id === "string" && guia.id.trim() ? guia.id : `guia-${Date.now()}-${idx}`,
+      titulo: typeof guia.titulo === "string" ? guia.titulo : `Guía Médica ${idx + 1}`,
+      descripcion: typeof guia.descripcion === "string" ? guia.descripcion : "",
+      categoria: typeof guia.categoria === "string" ? guia.categoria : "Guía Clínica",
+      formato: (guia.formato === "PDF" || guia.formato === "Ficha Imprimible" || guia.formato === "Checklist" || guia.formato === "Documento") ? guia.formato : "PDF",
+      tamano: typeof guia.tamano === "string" ? guia.tamano : "1.8 MB",
+      archivoUrl: typeof guia.archivoUrl === "string" ? guia.archivoUrl : "",
+      requiereRegistro: typeof guia.requiereRegistro === "boolean" ? guia.requiereRegistro : true
+    }));
+  }
+
   return {
+    tipoEnfoqueLanding,
     nombreMedico,
     especialidad,
     cedulaProfesional,
@@ -205,6 +242,10 @@ export function validateAndNormalizeMedicalData(raw: any): MedicalLandingData {
     logoTamanoTablet,
     logoTamanoDesktop,
     faviconUrl,
+    pwaIconUrl,
+    pwaAppTitle,
+    ogImageUrl,
+    ogImageSource,
     filosofia,
     biografiaCurta,
     nombreClinicaGBP,
@@ -229,6 +270,7 @@ export function validateAndNormalizeMedicalData(raw: any): MedicalLandingData {
     aseguradoras,
     hospitalesdondeOpera,
     asociaciones,
+    backlinksAutoridad,
     servicios,
     casosAntesDespues,
     faqs,
@@ -247,7 +289,8 @@ export function validateAndNormalizeMedicalData(raw: any): MedicalLandingData {
     metodosPago,
     fotosConsultorio,
     ordenSecciones,
-    designVersion
+    designVersion,
+    guiasPacientes
   };
 }
 

@@ -43,58 +43,74 @@ export function DoctorIntakeFormModal({
   // 1. Plantilla optimizada para WhatsApp
   const whatsappTemplate = `*FORMULARIO DE TOMA DE DATOS PARA TU LANDING PAGE MÉDICA* 🩺✨
 
-¡Hola Doctor(a)! 👋 Para construir su sitio web médico profesional y optimizado para Google en Ecuador, por favor responda las siguientes preguntas con la información de su consulta:
+¡Hola Doctor(a)! 👋 Para construir su sitio web médico profesional, optimizado para posicionamiento en Google (SEO Local en Ecuador) y agendamiento directo de pacientes, por favor responda las siguientes preguntas con la información de su consulta:
 
 *1. DATOS PERSONALES Y REGISTRO PROFESIONAL* 👤
 • Nombre completo:
 • Especialidad médica / Subespecialidad:
-• Registro MSP / SENESCYT:
+• Registro MSP / SENESCYT (Ecuador):
 • Universidad (Pregrado y Posgrado):
 • Años de experiencia clínica:
-• Breve biografía o filosofía médica (2-3 párrafos):
+• Breve biografía o filosofía de atención al paciente (2-3 párrafos):
 
 *2. UBICACIÓN Y CONSULTORIO* 🏥
-• Nombre de la Clínica o Consultorio:
+• Nombre comercial de la Clínica o Consultorio:
 • Dirección exacta (Edificio, piso, número de consultorio):
 • Ciudad y Provincia (Ecuador):
 • Teléfono fijo del consultorio:
-• WhatsApp para agendamiento de pacientes:
+• WhatsApp exclusivo para citas de pacientes:
 • Correo electrónico de contacto:
 • Horarios de atención (Lunes-Viernes, Sábados, Domingos):
+• Dominio web personalizado deseado (ej. drmedico.ec / drjuanperez.com):
+• Enlace a Ficha de Google Business Profile / Google Maps (para integrar opiniones y widget de reseñas de Google):
 
 *3. SERVICIOS Y PROCEDIMIENTOS CLAVE (Mínimo 3 - 5 principales)* 🩺
 Para cada servicio indique:
-- Servicio 1: [Nombre] | [Breve descripción] | [Precio aprox] | [Duración] | [Recuperación]
-- Servicio 2: [Nombre] | [Breve descripción] | [Precio aprox] | [Duración] | [Recuperación]
-- Servicio 3: [Nombre] | [Breve descripción] | [Precio aprox] | [Duración] | [Recuperación]
-- Servicio 4: [Nombre] | [Breve descripción] | [Precio aprox] | [Duración] | [Recuperación]
+- Servicio 1: [Nombre] | [Breve descripción] | [Precio aprox ($ USD)] | [Duración] | [Recuperación] | [Imagen opcional]
+- Servicio 2: [Nombre] | [Breve descripción] | [Precio aprox ($ USD)] | [Duración] | [Recuperación] | [Imagen opcional]
+- Servicio 3: [Nombre] | [Breve descripción] | [Precio aprox ($ USD)] | [Duración] | [Recuperación] | [Imagen opcional]
+- Servicio 4: [Nombre] | [Breve descripción] | [Precio aprox ($ USD)] | [Duración] | [Recuperación] | [Imagen opcional]
 
-*4. REDES SOCIALES Y CONTACTO DIGITAL* 📱
-• Instagram:
+*4. RECURSOS MÉDICOS, EBOOKS Y MATERIAL EDUCATIVO PARA PACIENTES* 📚 (Lead Magnet)
+Si dispone o desea ofrecer material descargable para captar pacientes:
+• Título de Guías / Ebooks / Fichas de Cuidados (ej. "Cuidados Postoperatorios de Rinoplastia", "Guía Nutricional para Pacientes Diabéticos"):
+• Formato preferido (Ebook PDF, Ficha Imprimible, Checklist):
+• Método de entrega preferido (Descarga Directa en el sitio, Enviar por WhatsApp, Enviar por Email):
+• Enlace al PDF o ruta deseada en servidor/cPanel (ej. "/descargas/mi-guia.pdf"):
+
+*5. REDES SOCIALES Y CONTENIDO DIGITAL* 📱
+• Instagram (@usuario o enlace):
 • Facebook:
 • TikTok:
-• Enlace de agendamiento o sitio web previo:
-• Página web o dominio previo (si tiene):
+• YouTube / LinkedIn:
+• Enlaces de Reels / Videos informativos destacados (Instagram/TikTok/Shorts) para incrustar en la web:
+• Enlace a perfil de agendamiento o Ficha de Google Maps (si dispone):
 
-*5. SEÑALES DE AUTORIDAD Y CONFIANZA* 🛡️
-• Aseguradoras privadas aceptadas (ej. Saludsa, Humana, Ecuasanitas, etc.):
-• Hospitales o clínicas donde opera o atiende:
-• Sociedades médicas o certificaciones a las que pertenece:
+*6. SEÑALES DE AUTORIDAD Y CONFIANZA (E-E-A-T)* 🛡️
+• Aseguradoras privadas aceptadas para reembolso (ej. Saludsa, Humana, Ecuasanitas, Confiamed, BMI, etc.):
+• Hospitales o clínicas de 3er nivel donde opera o atiende:
+• Sociedades médicas, colegios profesionales o certificaciones a las que pertenece:
 
-*6. MATERIAL MULTIMEDIA (Enviar por este medio)* 📸
-• Foto de perfil profesional (alta resolución, fondo neutro/clínico).
-• Logotipo de su consultorio o marca personal (formato PNG transparente si dispone).
-• Fotos de sus instalaciones / consultorio (hasta 5 imágenes).
+*7. VALOR DE CONSULTA Y MÉTODOS DE PAGO* 💳
+• Valor aproximado de la consulta médica (Presencial / Telemedicina):
+• Métodos de pago aceptados (Efectivo, Transferencia Banco Pichincha / Guayaquil / Produbanco, Tarjetas de Crédito, Deuna, Facturación Electrónica SRI):
+
+*8. MATERIAL MULTIMEDIA ADJUNTO (Enviar por este medio)* 📸
+• Foto de perfil profesional (alta resolución, fondo clínico o neutro).
+• Logotipo de su consultorio o marca personal (PNG transparente si dispone).
+• Imagen de portada para sus Guías/Ebooks (si dispone de diseño propio, o el sistema generará una portada adecuada).
+• Fotos de sus instalaciones / consultorio / sala de espera (hasta 5-8 imágenes).
+• Fotos de casos clínicos / Evolución Antes y Después (si aplica a su especialidad).
 
 ---
-*Instrucciones:* Puede responder directamente este mensaje o enviar una nota de voz/documento Word con la información. ¡Crearemos su Landing Page en minutos! 🚀`;
+*Instrucciones:* Puede responder directamente este mensaje, enviar una nota de voz o adjuntar un documento Word con la información. ¡Procesaremos los datos para generar su Landing Page automáticamente en minutos! 🚀`;
 
   // 2. Plantilla formal para Correo Electrónico
   const emailTemplate = `Asunto: Formulario de Toma de Datos para su Landing Page Médica Profesional
 
 Estimado(a) Doctor(a),
 
-Con el fin de desarrollar su sitio web médico personalizado, optimizado para posicionamiento en Google (SEO Local) y agendamiento directo de pacientes, le solicitamos completar los siguientes datos clínicos y profesionales:
+Con el fin de desarrollar su sitio web médico personalizado, optimizado para posicionamiento en Google (SEO Local en Ecuador) y agendamiento directo de pacientes, le solicitamos completar los siguientes datos clínicos y profesionales:
 
 ==================================================
 FORMULARIO DE INGESTA DE INFORMACIÓN MÉDICA
@@ -104,7 +120,7 @@ FORMULARIO DE INGESTA DE INFORMACIÓN MÉDICA
 --------------------------------------------------
 - Nombre completo del médico:
 - Especialidad / Subespecialidad principal:
-- Registro del Ministerio de Salud Pública (MSP):
+- Registro del Ministerio de Salud Pública (MSP - Ecuador):
 - Registro SENESCYT:
 - Universidad de Egreso (Pregrado / Posgrado):
 - Años de Experiencia Clínica:
@@ -114,11 +130,12 @@ FORMULARIO DE INGESTA DE INFORMACIÓN MÉDICA
 --------------------------------------------------
 - Nombre comercial de la Clínica / Consultorio:
 - Dirección exacta (Calle principal, intersección, edificio, piso, consultorio):
-- Ciudad y Provincia:
+- Ciudad y Provincia (Ecuador):
 - Teléfono directo del consultorio:
 - Teléfono celular / WhatsApp exclusivo para citas:
 - Correo electrónico de contacto para pacientes:
-- Horarios de atención habituales:
+- Horarios de atención habituales (Lunes a Viernes, Sábados, Domingos):
+- Dominio web personalizado preferido (ej. drjuanperez.ec / drmedico.com):
 
 3. CATÁLOGO DE SERVICIOS Y PROCEDIMIENTOS
 --------------------------------------------------
@@ -140,26 +157,41 @@ Por favor liste entre 3 y 8 de sus principales servicios médicos o quirúrgicos
 
 (Puede agregar más servicios si lo requiere)
 
-4. REDES SOCIALES Y ENLACES OFICIALES
+4. GUÍAS, EBOOKS Y MATERIAL EDUCATIVO PARA PACIENTES (NUEVO)
+--------------------------------------------------
+Si cuenta con materiales informativos o desea ofrecer descargas gratuitas a sus pacientes (Lead Magnets):
+- Título de Guías / Ebooks / Fichas de cuidados (ej. "Cuidados Postoperatorios", "Guía Nutricional"):
+- Formato sugerido (Ebook PDF, Ficha Imprimible, Checklist):
+- Método de entrega deseado (Descarga Directa, Envío automático por WhatsApp o Email):
+
+5. REDES SOCIALES Y CONTENIDO DIGITAL
 --------------------------------------------------
 - Enlace o usuario de Instagram:
 - Enlace o usuario de Facebook:
 - Perfil de TikTok:
-- Enlace de agendamiento o sistema de citas previo:
-- Dominio web personalizado preferido (ej. drjuanperez.ec):
+- Canal de YouTube / Perfil de LinkedIn:
+- Enlaces de Reels o Videos educativos (Instagram Reels, TikToks, Shorts):
+- Enlace a perfil de Doctoralia, TopDoctors o Ficha de Google Maps (si dispone):
 
-5. ASEGURADORAS, HOSPITALES Y SOCIEDADES
+6. ASEGURADORAS, HOSPITALES Y SOCIEDADES
 --------------------------------------------------
-- Aseguradoras médicas asociadas (ej. Saludsa, Humana, Ecuasanitas, etc.):
+- Aseguradoras médicas asociadas por reembolso (ej. Saludsa, Humana, Ecuasanitas, Confiamed, BMI, etc.):
 - Hospitales o sanatorios de tercer nivel donde realiza procedimientos:
 - Asociaciones, colegios médicos o certificaciones nacionales/internacionales:
 
-6. ARCHIVOS ADJUNTOS REQUERIDOS
+7. VALORES DE CONSULTA Y FORMAS DE PAGO
+--------------------------------------------------
+- Precio estimado de consulta médica (Presencial / Telemedicina):
+- Métodos de pago aceptados en consultorio (Efectivo, Transferencia Banco Pichincha / Guayaquil / Produbanco, Tarjeta de Crédito, DeUna, Factura electrónica SRI):
+
+8. ARCHIVOS ADJUNTOS REQUERIDOS
 --------------------------------------------------
 Por favor adjunte a este correo:
 1. Fotografía profesional en alta resolución (formato portrait 1:1 o vertical).
 2. Logotipo con fondo transparente (PNG o vectorial).
-3. Fotos de las instalaciones de su consultorio o sala de recepción.
+3. Fotografías de las instalaciones de su consultorio, sala de recepción o equipos.
+4. Portada de Guías / Ebooks (si dispone de imágenes específicas).
+5. Fotos de Casos Clínicos / Evolución Antes y Después (si aplica a su especialidad médica/estética/dental).
 
 Quedamos atentos a sus respuestas para proceder con el montaje de su sitio web.
 
@@ -169,43 +201,61 @@ Su Equipo de Desarrollo Web y Marketing Médico`;
   // 3. Documento estructurado Markdown / Texto Plano
   const documentTemplate = `# FORMULARIO DE TOMA DE DATOS CLIENTE MÉDICO
   
-  Utilice este formulario para recopilar los datos requeridos para la creación automatizada de la Landing Page Médica.
+Utilice este formulario para recopilar los datos requeridos para la creación automatizada de la Landing Page Médica.
 
-  ## SECCIÓN 1: DATOS PERSONALES Y REGISTRO PROFESIONAL
-  - Nombre Médico: 
-  - Especialidad: 
-  - Reg. MSP / SENESCYT: 
-  - Universidad: 
-  - Años Exp.: 
-  - Biografía Curta: 
+## SECCIÓN 1: DATOS PERSONALES Y REGISTRO PROFESIONAL
+- Nombre Médico: 
+- Especialidad: 
+- Reg. MSP / SENESCYT: 
+- Universidad: 
+- Años Exp.: 
+- Biografía Curta / Filosofía: 
 
-  ## SECCIÓN 2: UBICACIÓN Y CONTACTO LOCAL
-  - Nombre Clínica / Consultorio: 
-  - Dirección Física: 
-  - Ciudad / Provincia: 
-  - Teléfono Fijo: 
-  - WhatsApp Citas: 
-  - Email: 
-  - Horario Semana: 
-  - Horario Sábado: 
+## SECCIÓN 2: UBICACIÓN Y CONTACTO LOCAL
+- Nombre Clínica / Consultorio: 
+- Dirección Física: 
+- Ciudad / Provincia: 
+- Teléfono Fijo: 
+- WhatsApp Citas: 
+- Email: 
+- Horario Semana: 
+- Horario Sábado: 
+- Dominio Web Deseado: 
 
-  ## SECCIÓN 3: SERVICIOS Y TRATAMIENTOS
-  - Servicio 1 (Título, Descripción, Precio, Duración, Recuperación)
-  - Servicio 2 (Título, Descripción, Precio, Duración, Recuperación)
-  - Servicio 3 (Título, Descripción, Precio, Duración, Recuperación)
-  - Servicio 4 (Título, Descripción, Precio, Duración, Recuperación)
-  - Servicio 5 (Título, Descripción, Precio, Duración, Recuperación)
+## SECCIÓN 3: SERVICIOS Y TRATAMIENTOS
+- Servicio 1 (Título, Descripción, Precio, Duración, Recuperación)
+- Servicio 2 (Título, Descripción, Precio, Duración, Recuperación)
+- Servicio 3 (Título, Descripción, Precio, Duración, Recuperación)
+- Servicio 4 (Título, Descripción, Precio, Duración, Recuperación)
+- Servicio 5 (Título, Descripción, Precio, Duración, Recuperación)
 
-  ## SECCIÓN 4: REDES SOCIALES & DIGITAL
-  - Instagram: 
-  - Facebook: 
-  - TikTok: 
-  - Enlace de citas previo: 
+## SECCIÓN 4: GUÍAS Y RECURSOS EDUCATIVOS PARA PACIENTES
+- Guía / Ebook 1 (Título, Formato PDF/Ebook, Método de Entrega: Descarga Directa / WhatsApp / Email)
+- Guía / Ebook 2 (Título, Formato PDF/Ebook, Método de Entrega)
 
-  ## SECCIÓN 5: ASEGURADORAS Y HOSPITALES
-  - Aseguradoras: 
-  - Hospitales donde opera: 
-  - Certificaciones y Colegios Médicos: 
+## SECCIÓN 5: REDES SOCIALES & DIGITAL
+- Instagram: 
+- Facebook: 
+- TikTok: 
+- YouTube / LinkedIn: 
+- Enlaces de Reels / Videos Destacados: 
+- Ficha Google Maps / Agendamiento previo: 
+
+## SECCIÓN 6: ASEGURADORAS Y HOSPITALES
+- Aseguradoras Privadas por Reembolso: 
+- Hospitales donde opera: 
+- Certificaciones y Colegios Médicos: 
+
+## SECCIÓN 7: VALOR DE CONSULTA Y MÉTODOS DE PAGO
+- Valor Consulta Presencial / Online: 
+- Formas de Pago Aceptadas (Efectivo, Pichincha, Guayaquil, Deuna, Tarjeta, SRI): 
+
+## SECCIÓN 8: ARCHIVOS MULTIMEDIA REQUERIDOS
+- Foto Profesional (Portrait)
+- Logotipo del Consultorio (PNG Transparente)
+- Fotos de Instalaciones / Consultorio (3-8 imágenes)
+- Imagen de Portada de Ebooks/Guías (Opcional)
+- Fotos de Casos Clínicos (Antes / Después)
 `;
 
   const getCurrentText = () => {

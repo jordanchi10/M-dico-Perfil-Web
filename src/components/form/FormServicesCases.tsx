@@ -19,7 +19,12 @@ import {
   ExternalLink,
   CheckCircle2,
   Upload,
-  Zap
+  Zap,
+  Tag,
+  Building2,
+  Timer,
+  Globe,
+  FileText
 } from "lucide-react";
 import { MedicalIconSelector } from "../MedicalIconSelector";
 import { compressAndConvertToWebP, formatBytes } from "../../utils/imageCompressor";
@@ -102,10 +107,9 @@ export function FormServicesCases({
   };
 
   const addCase = () => {
-    const caseNum = (data.casosAntesDespues || []).length + 1;
     const newCase: BeforeAfterCase = {
       id: `caso-${Date.now()}`,
-      titulo: `Caso Clínico ${caseNum}: Evolución y Resultado Post-Tratamiento`,
+      titulo: "Evolución y Resultado Post-Tratamiento",
       descripcion: "Descripción clínica detallada del diagnóstico del paciente, técnica médica empleada y resultados funcionales y estéticos obtenidos.",
       imgBefore: "https://images.unsplash.com/photo-1576091160550-2173dba999ef?q=80&w=600&auto=format&fit=crop",
       imgAfter: "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?q=80&w=600&auto=format&fit=crop"
@@ -208,10 +212,14 @@ export function FormServicesCases({
                   </div>
 
                   {/* Título y Slug SEO */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="sm:col-span-2 flex flex-col gap-1">
+                  <div className="space-y-3">
+                    {/* Título */}
+                    <div className="flex flex-col gap-1">
                       <label className="text-[10px] font-bold text-slate-600 uppercase flex items-center justify-between" htmlFor={`srv-titulo-${idx}`}>
-                        <span>Título del Servicio / Procedimiento (Etiqueta &lt;h2&gt; SEO)</span>
+                        <span className="flex items-center gap-1.5">
+                          <FileText className="w-3.5 h-3.5 text-purple-600" />
+                          Título del Servicio / Procedimiento (Etiqueta &lt;h2&gt; SEO)
+                        </span>
                       </label>
                       <input
                         id={`srv-titulo-${idx}`}
@@ -224,37 +232,50 @@ export function FormServicesCases({
                           }
                         }}
                         placeholder="ej. Consulta de Valoración Integral"
-                        className="px-3 py-2 rounded-xl border border-slate-200 text-xs focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all bg-white font-bold text-slate-900"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all bg-white font-bold text-slate-900 shadow-2xs"
                       />
                     </div>
                     
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[10px] font-bold text-slate-600 uppercase flex items-center justify-between" htmlFor={`srv-slug-${idx}`}>
-                        <span>Slug SEO / Enlace Propio</span>
+                    {/* Slug SEO / Enlace Propio */}
+                    <div className="p-3 bg-purple-50/60 rounded-xl border border-purple-200/80 flex flex-col gap-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="text-[10px] font-extrabold text-purple-900 uppercase flex items-center gap-1.5" htmlFor={`srv-slug-${idx}`}>
+                          <Link2 className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                          <span>Slug SEO / Enlace Propio del Servicio</span>
+                        </label>
                         <button
                           type="button"
                           onClick={() => autoGenerateSlug(idx)}
-                          className="text-[9px] font-bold text-purple-600 hover:text-purple-800 flex items-center gap-0.5 cursor-pointer"
-                          title="Generar slug automáticamente"
+                          className="text-[10px] font-bold text-purple-700 hover:text-purple-950 bg-white hover:bg-purple-100 px-2.5 py-1 rounded-lg border border-purple-200 shadow-2xs flex items-center gap-1 transition-colors cursor-pointer shrink-0"
+                          title="Generar slug optimizado automáticamente basado en el título"
                         >
-                          <Wand2 className="w-2.5 h-2.5" />
-                          Auto
+                          <Wand2 className="w-3 h-3 text-purple-600" />
+                          <span>Auto Generar</span>
                         </button>
-                      </label>
-                      <div className="relative">
+                      </div>
+
+                      <div className="flex items-center w-full rounded-xl border border-purple-200 overflow-hidden bg-white shadow-2xs focus-within:border-purple-500 focus-within:ring-1 focus-within:ring-purple-500">
+                        <span className="px-3 py-2 text-[11px] font-mono font-semibold text-purple-700 bg-purple-100/70 border-r border-purple-200 shrink-0 select-none flex items-center gap-1">
+                          <Globe className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                          /servicios/
+                        </span>
                         <input
                           id={`srv-slug-${idx}`}
                           type="text"
                           value={srv.slug || ""}
                           onChange={(e) => handleServiceChange(idx, "slug", slugify(e.target.value))}
                           placeholder={slugify(srv.titulo || `servicio-${idx + 1}`)}
-                          className="w-full pl-7 pr-3 py-2 rounded-xl border border-slate-200 text-xs focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all bg-white font-mono text-purple-900"
+                          className="w-full px-3 py-2 text-xs font-mono font-bold text-purple-950 outline-none bg-transparent"
                         />
-                        <Link2 className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                       </div>
-                      <span className="text-[10px] text-slate-400 font-mono truncate">
-                        sitemap.xml: /servicios/{currentSlug}
-                      </span>
+
+                      <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono px-0.5 pt-0.5 flex-wrap gap-1">
+                        <span className="flex items-center gap-1.5 text-purple-900 font-semibold truncate">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                          sitemap.xml: <strong className="font-mono text-purple-950">/servicios/{currentSlug}</strong>
+                        </span>
+                        <span className="text-purple-600/80 text-[9px] font-medium bg-purple-100/50 px-1.5 py-0.5 rounded">URL Amigable SEO</span>
+                      </div>
                     </div>
                   </div>
 
@@ -410,49 +431,181 @@ export function FormServicesCases({
                     )}
                   </div>
 
-                  {/* Metadatos Clínicos: Precio, Duración y Recuperación */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1" htmlFor={`srv-precio-${idx}`}>
-                        <DollarSign className="w-3 h-3 text-emerald-600" />
-                        Precio Estimado
+                  {/* ETIQUETA / BADGE DE CONVERSIÓN (PARTE SUPERIOR DERECHA) */}
+                  <div className="p-3 bg-amber-50/60 rounded-xl border border-amber-200/80 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-extrabold text-amber-900 uppercase flex items-center gap-1.5" htmlFor={`srv-badge-${idx}`}>
+                        <Tag className="w-3.5 h-3.5 text-amber-700" />
+                        <span>Etiqueta de Destacado / Badge (Superior Derecha de Foto o Tarjeta)</span>
                       </label>
+                      <label className="inline-flex items-center gap-1.5 cursor-pointer text-[10px] font-bold text-amber-900">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(srv.destacado)}
+                          onChange={(e) => handleServiceChange(idx, "destacado", e.target.checked)}
+                          className="rounded text-amber-600 focus:ring-amber-500 w-3.5 h-3.5"
+                        />
+                        <span>Destacar (Fondo Amarillo)</span>
+                      </label>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
                       <input
-                        id={`srv-precio-${idx}`}
+                        id={`srv-badge-${idx}`}
                         type="text"
-                        value={srv.precio || ""}
-                        onChange={(e) => handleServiceChange(idx, "precio", e.target.value)}
-                        placeholder="ej. $50 USD o Desde $450"
-                        className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all bg-white text-slate-800"
+                        value={srv.badgeEtiqueta || ""}
+                        onChange={(e) => handleServiceChange(idx, "badgeEtiqueta", e.target.value)}
+                        placeholder="ej. Más Solicitado, Novedad, Técnica Mínimamente Invasiva..."
+                        className="flex-1 px-3 py-1.5 rounded-lg border border-amber-300 text-xs font-bold text-amber-950 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition-all bg-white"
                       />
                     </div>
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1" htmlFor={`srv-duracion-${idx}`}>
-                        <Clock className="w-3 h-3 text-blue-600" />
-                        Duración del Procedimiento
-                      </label>
-                      <input
-                        id={`srv-duracion-${idx}`}
-                        type="text"
-                        value={srv.duracion || ""}
-                        onChange={(e) => handleServiceChange(idx, "duracion", e.target.value)}
-                        placeholder="ej. 45 - 60 min"
-                        className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all bg-white text-slate-800"
-                      />
+
+                    {/* Botones Rápidos de Sugerencia */}
+                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                      <span className="text-[9px] font-bold text-amber-800 uppercase">Añadir rápido:</span>
+                      {[
+                        "Más Solicitado",
+                        "Novedad",
+                        "Técnica Mínimamente Invasiva",
+                        "Procedimiento de Un Día",
+                        "Sin Anestesia General",
+                        "Alta Inmediata"
+                      ].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => handleServiceChange(idx, "badgeEtiqueta", preset)}
+                          className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
+                            srv.badgeEtiqueta === preset 
+                              ? "bg-amber-600 text-white border-amber-700 shadow-2xs"
+                              : "bg-white text-amber-900 border-amber-200 hover:bg-amber-100"
+                          }`}
+                        >
+                          {preset}
+                        </button>
+                      ))}
                     </div>
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1" htmlFor={`srv-recuperacion-${idx}`}>
-                        <Activity className="w-3 h-3 text-purple-600" />
-                        Recuperación
-                      </label>
-                      <input
-                        id={`srv-recuperacion-${idx}`}
-                        type="text"
-                        value={srv.recuperacion || ""}
-                        onChange={(e) => handleServiceChange(idx, "recuperacion", e.target.value)}
-                        placeholder="ej. Ambulatoria (24-48h)"
-                        className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all bg-white text-slate-800"
-                      />
+                  </div>
+
+                  {/* INDICADORES RÁPIDOS (FICHA TÉCNICA) */}
+                  <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/90 space-y-3">
+                    <p className="text-[10px] font-extrabold uppercase tracking-wide text-slate-700 flex items-center gap-1.5">
+                      <Timer className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Indicadores Rápidos de Conversión (Ficha Técnica)</span>
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* ⏱️ Tiempo de Recuperación */}
+                      <div className="flex flex-col gap-1 bg-white p-2.5 rounded-lg border border-slate-200/80">
+                        <label className="text-[10px] font-bold text-purple-900 uppercase flex items-center gap-1" htmlFor={`srv-recuperacion-${idx}`}>
+                          <Activity className="w-3 h-3 text-purple-600" />
+                          <span>⏱️ Tiempo de Recuperación</span>
+                        </label>
+                        <input
+                          id={`srv-recuperacion-${idx}`}
+                          type="text"
+                          value={srv.recuperacion || ""}
+                          onChange={(e) => handleServiceChange(idx, "recuperacion", e.target.value)}
+                          placeholder="ej. Ambulatorio, 24 horas, 3-5 días..."
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all bg-white text-slate-800 font-bold"
+                        />
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {["Ambulatorio", "24 horas", "3-5 días", "Inmediato"].map((preset) => (
+                            <button
+                              key={preset}
+                              type="button"
+                              onClick={() => handleServiceChange(idx, "recuperacion", preset)}
+                              className="text-[9px] font-semibold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+                            >
+                              {preset}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* 🏥 Modalidad */}
+                      <div className="flex flex-col gap-1 bg-white p-2.5 rounded-lg border border-slate-200/80">
+                        <label className="text-[10px] font-bold text-teal-900 uppercase flex items-center gap-1" htmlFor={`srv-modalidad-${idx}`}>
+                          <Building2 className="w-3 h-3 text-teal-600" />
+                          <span>🏥 Modalidad de Atención</span>
+                        </label>
+                        <input
+                          id={`srv-modalidad-${idx}`}
+                          type="text"
+                          value={srv.modalidad || ""}
+                          onChange={(e) => handleServiceChange(idx, "modalidad", e.target.value)}
+                          placeholder="ej. En consultorio, Quirófano, Online..."
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none transition-all bg-white text-slate-800 font-bold"
+                        />
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {["En consultorio", "Quirófano", "Online", "Hospitalario"].map((preset) => (
+                            <button
+                              key={preset}
+                              type="button"
+                              onClick={() => handleServiceChange(idx, "modalidad", preset)}
+                              className="text-[9px] font-semibold text-teal-700 hover:text-teal-900 bg-teal-50 hover:bg-teal-100 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+                            >
+                              {preset}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* ⏳ Duración de la Cita */}
+                      <div className="flex flex-col gap-1 bg-white p-2.5 rounded-lg border border-slate-200/80">
+                        <label className="text-[10px] font-bold text-blue-900 uppercase flex items-center gap-1" htmlFor={`srv-duracion-${idx}`}>
+                          <Clock className="w-3 h-3 text-blue-600" />
+                          <span>⏳ Duración de la Cita / Procedimiento</span>
+                        </label>
+                        <input
+                          id={`srv-duracion-${idx}`}
+                          type="text"
+                          value={srv.duracion || ""}
+                          onChange={(e) => handleServiceChange(idx, "duracion", e.target.value)}
+                          placeholder="ej. 30 min, 45 min, 1 hora..."
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all bg-white text-slate-800 font-bold"
+                        />
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {["30 min", "45 min", "1 hora", "1.5 horas"].map((preset) => (
+                            <button
+                              key={preset}
+                              type="button"
+                              onClick={() => handleServiceChange(idx, "duracion", preset)}
+                              className="text-[9px] font-semibold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+                            >
+                              {preset}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* 💰 Precio / Inversión */}
+                      <div className="flex flex-col gap-1 bg-white p-2.5 rounded-lg border border-slate-200/80">
+                        <label className="text-[10px] font-bold text-emerald-900 uppercase flex items-center gap-1" htmlFor={`srv-precio-${idx}`}>
+                          <DollarSign className="w-3 h-3 text-emerald-600" />
+                          <span>💰 Inversión / Valor Estimado</span>
+                        </label>
+                        <input
+                          id={`srv-precio-${idx}`}
+                          type="text"
+                          value={srv.precio || ""}
+                          onChange={(e) => handleServiceChange(idx, "precio", e.target.value)}
+                          placeholder="ej. $50 USD, Desde $450 USD..."
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all bg-white text-slate-800 font-bold"
+                        />
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {["$50 USD", "Desde $450 USD", "Consulta $40", "A cotizar"].map((preset) => (
+                            <button
+                              key={preset}
+                              type="button"
+                              onClick={() => handleServiceChange(idx, "precio", preset)}
+                              className="text-[9px] font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+                            >
+                              {preset}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -482,7 +635,6 @@ export function FormServicesCases({
         <div className="flex items-center justify-between">
           <div>
             <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wide flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-emerald-600" />
               <span>Casos Clínicos con Sliders Antes / Después</span>
               <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
                 {(data.casosAntesDespues || []).length} { (data.casosAntesDespues || []).length === 1 ? "caso" : "casos" }
@@ -517,12 +669,12 @@ export function FormServicesCases({
             {data.casosAntesDespues.map((caso, idx) => (
               <div key={caso.id || idx} className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/60 hover:bg-slate-50 space-y-3 transition-colors">
                 <div className="flex items-center justify-between">
-                  <p className="text-[11px] font-extrabold text-slate-800 uppercase">{caso.titulo || `Caso Clínico #${idx + 1}`}</p>
+                  <p className="text-[11px] font-extrabold text-slate-800 uppercase truncate pr-2">{caso.titulo || "Caso Clínico"}</p>
                   <button
                     type="button"
                     onClick={() => removeCase(idx)}
                     title="Eliminar caso clínico"
-                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer shrink-0"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

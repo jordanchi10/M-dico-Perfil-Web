@@ -42,6 +42,7 @@ import { FormSeo } from "./form/FormSeo";
 import { FormSocialReviews } from "./form/FormSocialReviews";
 import { FormFaqs } from "./form/FormFaqs";
 import { FormBlog } from "./form/FormBlog";
+import { FormPatientGuides } from "./form/FormPatientGuides";
 import { FormDesign } from "./form/FormDesign";
 import { ClinicGalleryManager } from "./ClinicGalleryManager";
 import { AiIngestionModal } from "./AiIngestionModal";
@@ -61,6 +62,7 @@ export type FormTabKey =
   | "credenciales" 
   | "servicios" 
   | "galeria"
+  | "guias"
   | "seo" 
   | "social" 
   | "faqs" 
@@ -85,58 +87,61 @@ interface CategoryGroup {
   }[];
 }
 
-const CATEGORY_GROUPS: CategoryGroup[] = [
-  {
-    id: "identidad",
-    name: "Identidad & Consultorio",
-    shortName: "Identidad",
-    description: "Doctor, clínica, ubicación y credenciales",
-    icon: Building2,
-    badgeColor: "bg-blue-100 text-blue-800 border-blue-200",
-    tabs: [
-      { id: "perfil", label: "Perfil & Contacto", shortLabel: "Perfil Médico", icon: User },
-      { id: "clinica", label: "Ubicación & Horarios", shortLabel: "Ubicación & GPS", icon: MapPin },
-      { id: "credenciales", label: "Credenciales E-E-A-T", shortLabel: "Credenciales E-E-A-T", icon: ShieldCheck }
-    ]
-  },
-  {
-    id: "contenido",
-    name: "Contenido & Pacientes",
-    shortName: "Contenido",
-    description: "Servicios, galería de instalaciones, reseñas, blog y preguntas",
-    icon: Users,
-    badgeColor: "bg-emerald-100 text-emerald-800 border-emerald-200",
-    tabs: [
-      { id: "servicios", label: "Servicios & Casos", shortLabel: "Servicios Clínicos", icon: Briefcase },
-      { id: "galeria", label: "Galería de Instalaciones & Consultorio", shortLabel: "Galería Consultorio", icon: Camera },
-      { id: "social", label: "Reseñas & Redes", shortLabel: "Reseñas & Redes", icon: MessageSquare },
-      { id: "faqs", label: "Preguntas Frecuentes", shortLabel: "Preguntas FAQs", icon: HelpCircle },
-      { id: "blog", label: "Blog & Artículos", shortLabel: "Blog Médico", icon: BookOpen }
-    ]
-  },
-  {
-    id: "diseno",
-    name: "Diseño & Layout",
-    shortName: "Diseño & Layout",
-    description: "Estilo visual, colores, CTAs y orden de secciones",
-    icon: Layout,
-    badgeColor: "bg-purple-100 text-purple-800 border-purple-200",
-    tabs: [
-      { id: "diseno", label: "Diseño, Colores & Estilo Visual", shortLabel: "Diseño & Estilo", icon: Palette }
-    ]
-  },
-  {
-    id: "seo",
-    name: "SEO & Dominio Web",
-    shortName: "SEO & Dominio",
-    description: "Posicionamiento Google y configuración de dominio",
-    icon: Globe,
-    badgeColor: "bg-amber-100 text-amber-800 border-amber-200",
-    tabs: [
-      { id: "seo", label: "SEO & Dominio Web", shortLabel: "SEO & Dominio", icon: Globe, badge: "Ecuador" }
-    ]
-  }
-];
+function getCategoryGroups(isClinica: boolean): CategoryGroup[] {
+  return [
+    {
+      id: "identidad",
+      name: "Identidad & Consultorio",
+      shortName: "Identidad",
+      description: isClinica ? "Clínica, centro, ubicación y credenciales" : "Doctor, clínica, ubicación y credenciales",
+      icon: Building2,
+      badgeColor: "bg-blue-100 text-blue-800 border-blue-200",
+      tabs: [
+        { id: "perfil", label: isClinica ? "Perfil & Contacto Institucional" : "Perfil & Contacto", shortLabel: isClinica ? "Perfil Clínica" : "Perfil Médico", icon: User },
+        { id: "clinica", label: "Ubicación & Horarios", shortLabel: "Ubicación & GPS", icon: MapPin },
+        { id: "credenciales", label: "Credenciales E-E-A-T", shortLabel: "Credenciales E-E-A-T", icon: ShieldCheck }
+      ]
+    },
+    {
+      id: "contenido",
+      name: "Contenido & Pacientes",
+      shortName: "Contenido",
+      description: "Servicios, galería de instalaciones, guías de pacientes, reseñas, blog y preguntas",
+      icon: Users,
+      badgeColor: "bg-emerald-100 text-emerald-800 border-emerald-200",
+      tabs: [
+        { id: "servicios", label: "Servicios & Casos", shortLabel: "Servicios Clínicos", icon: Briefcase },
+        { id: "galeria", label: "Galería de Instalaciones & Consultorio", shortLabel: "Galería Consultorio", icon: Camera },
+        { id: "guias", label: "Guías & Fichas para Pacientes", shortLabel: "Guías Pacientes PDF", icon: FileText, badge: "Lead Magnet" },
+        { id: "social", label: "Reseñas & Redes", shortLabel: "Reseñas & Redes", icon: MessageSquare },
+        { id: "faqs", label: "Preguntas Frecuentes", shortLabel: "Preguntas FAQs", icon: HelpCircle },
+        { id: "blog", label: "Blog & Artículos", shortLabel: isClinica ? "Blog Institucional" : "Blog Médico", icon: BookOpen }
+      ]
+    },
+    {
+      id: "diseno",
+      name: "Diseño & Layout",
+      shortName: "Diseño & Layout",
+      description: "Estilo visual, colores, CTAs y orden de secciones",
+      icon: Layout,
+      badgeColor: "bg-purple-100 text-purple-800 border-purple-200",
+      tabs: [
+        { id: "diseno", label: "Diseño, Colores & Estilo Visual", shortLabel: "Diseño & Estilo", icon: Palette }
+      ]
+    },
+    {
+      id: "seo",
+      name: "SEO & Dominio Web",
+      shortName: "SEO & Dominio",
+      description: "Posicionamiento Google y configuración de dominio",
+      icon: Globe,
+      badgeColor: "bg-amber-100 text-amber-800 border-amber-200",
+      tabs: [
+        { id: "seo", label: "SEO & Dominio Web", shortLabel: "SEO & Dominio", icon: Globe, badge: "Ecuador" }
+      ]
+    }
+  ];
+}
 
 export default function FormPanel({ 
   data, 
@@ -148,8 +153,11 @@ export default function FormPanel({
   const [isIntakeModalOpen, setIsIntakeModalOpen] = useState(false);
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
 
+  const isClinica = data.tipoEnfoqueLanding === "clinica";
+  const categoryGroups = getCategoryGroups(isClinica);
+
   const getCategoryForTab = (tabId: FormTabKey): CategoryId => {
-    for (const cat of CATEGORY_GROUPS) {
+    for (const cat of categoryGroups) {
       if (cat.tabs.some(t => t.id === tabId)) {
         return cat.id;
       }
@@ -159,7 +167,7 @@ export default function FormPanel({
 
   const handleSelectCategory = (catId: CategoryId) => {
     setActiveCategory(catId);
-    const cat = CATEGORY_GROUPS.find(c => c.id === catId);
+    const cat = categoryGroups.find(c => c.id === catId);
     if (cat && !cat.tabs.some(t => t.id === activeTab)) {
       setActiveTab(cat.tabs[0].id);
     }
@@ -173,7 +181,7 @@ export default function FormPanel({
     }
   };
 
-  const currentCategory = CATEGORY_GROUPS.find(c => c.id === activeCategory) || CATEGORY_GROUPS[0];
+  const currentCategory = categoryGroups.find(c => c.id === activeCategory) || categoryGroups[0];
 
   const updateField = (field: keyof MedicalLandingData, value: any) => {
     onChange((prevData) => ({
@@ -256,7 +264,7 @@ export default function FormPanel({
 
       {/* 1. PESTAÑAS PRINCIPALES (3 CATEGORÍAS APILADAS VERTICALMENTE) */}
       <div className="p-3 bg-slate-100/70 border-b border-slate-200 space-y-2">
-        {CATEGORY_GROUPS.map((cat) => {
+        {categoryGroups.map((cat) => {
           const CatIcon = cat.icon;
           const isCatActive = activeCategory === cat.id;
           return (
@@ -377,6 +385,14 @@ export default function FormPanel({
               primaryColorClass={data.paletaColor || "blue"}
             />
           </div>
+        )}
+
+        {activeTab === "guias" && (
+          <FormPatientGuides
+            data={data}
+            onChange={onChange}
+            updateField={updateField}
+          />
         )}
 
         {activeTab === "seo" && (

@@ -27,7 +27,8 @@ import {
   Smartphone,
   Tablet,
   Monitor,
-  Maximize2
+  Maximize2,
+  Building2
 } from "lucide-react";
 import { compressAndConvertToWebP, formatBytes, CompressResult } from "../../utils/imageCompressor";
 
@@ -81,6 +82,8 @@ export function FormDoctorProfile({
       setIsCompressingLogo(false);
     }
   };
+  const isClinica = data.tipoEnfoqueLanding === "clinica";
+
   return (
     <div id="form-doctor-profile-section" className="space-y-6">
       {/* CABECERA */}
@@ -91,8 +94,78 @@ export function FormDoctorProfile({
             Perfil Profesional & Canales de Contacto
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Información del especialista médico, imágenes corporativas, WhatsApp y redes sociales.
+            Información del especialista médico o clínica, imágenes corporativas, WhatsApp y redes sociales.
           </p>
+        </div>
+      </div>
+
+      {/* 0. ENFOQUE Y MODELO DE PRESENTACIÓN DE LA LANDING */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white shadow-md border border-slate-700/80 space-y-3.5">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <label className="text-xs font-black uppercase tracking-wider text-cyan-300 flex items-center gap-2">
+            <Building2 className="w-4 h-4 text-cyan-400" />
+            Enfoque & Modelo de Presentación de la Landing Page
+          </label>
+          <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-800">
+            {isClinica ? "🏥 Centro / Empresa" : "👨‍⚕️ Médico / Profesional"}
+          </span>
+        </div>
+        <p className="text-xs text-slate-300 leading-relaxed">
+          Selecciona cómo se adaptarán los textos principales de la web. Si tu servicio es para una <strong>Clínica o Centro Médico</strong>, la landing cambiará automáticamente las frases de primera persona (<em>"Doctor / Especialista"</em>) a formato institucional (<em>"Nosotros / Centro Médico"</em>).
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+          {/* Opción 1: Médico / Especialista */}
+          <button
+            type="button"
+            onClick={() => updateField("tipoEnfoqueLanding", "medico")}
+            className={`p-3.5 rounded-xl border text-left transition-all duration-200 flex items-start gap-3 cursor-pointer ${
+              !isClinica
+                ? "bg-blue-600/90 border-blue-400 text-white shadow-md ring-2 ring-blue-400/50"
+                : "bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800 hover:border-slate-600"
+            }`}
+          >
+            <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 font-bold text-lg ${
+              !isClinica ? "bg-white text-blue-700 shadow-sm" : "bg-slate-700 text-slate-300"
+            }`}>
+              👨‍⚕️
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase tracking-wide">Especialista / Doctor</span>
+                {!isClinica && <span className="text-[10px] bg-white/20 px-1.5 py-0.2 rounded font-extrabold">Activo</span>}
+              </div>
+              <p className={`text-[11px] leading-tight mt-1 ${!isClinica ? "text-blue-100" : "text-slate-400"}`}>
+                Marca personal para un médico, especialista o profesional independiente.
+              </p>
+            </div>
+          </button>
+
+          {/* Opción 2: Centro Médico / Clínica */}
+          <button
+            type="button"
+            onClick={() => updateField("tipoEnfoqueLanding", "clinica")}
+            className={`p-3.5 rounded-xl border text-left transition-all duration-200 flex items-start gap-3 cursor-pointer ${
+              isClinica
+                ? "bg-emerald-600/90 border-emerald-400 text-white shadow-md ring-2 ring-emerald-400/50"
+                : "bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800 hover:border-slate-600"
+            }`}
+          >
+            <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 font-bold text-lg ${
+              isClinica ? "bg-white text-emerald-700 shadow-sm" : "bg-slate-700 text-slate-300"
+            }`}>
+              🏥
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase tracking-wide">Centro Médico / Clínica</span>
+                {isClinica && <span className="text-[10px] bg-white/20 px-1.5 py-0.2 rounded font-extrabold">Activo</span>}
+              </div>
+              <p className={`text-[11px] leading-tight mt-1 ${isClinica ? "text-emerald-100" : "text-slate-400"}`}>
+                Presentación institucional "Nosotros" para clínicas, centros de salud o empresas.
+              </p>
+            </div>
+          </button>
         </div>
       </div>
 
@@ -100,34 +173,34 @@ export function FormDoctorProfile({
       <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
         <label className="text-xs font-extrabold text-slate-900 uppercase tracking-wide flex items-center gap-1.5">
           <Stethoscope className="w-4 h-4 text-blue-600" />
-          Datos del Especialista
+          {isClinica ? "Datos del Centro Médico / Clínica" : "Datos del Especialista"}
         </label>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-bold text-slate-700 uppercase" htmlFor="nombreMedico">
-              Nombre Completo con Título
+              {isClinica ? "Nombre de la Clínica / Centro" : "Nombre Completo con Título"}
             </label>
             <input
               id="nombreMedico"
               type="text"
               value={data.nombreMedico ?? ""}
               onChange={(e) => updateField("nombreMedico", e.target.value)}
-              placeholder="ej. Dr. Alejandro Ruiz"
+              placeholder={isClinica ? "ej. Clínica Santa Ana / Centro de Especialidades" : "ej. Dr. Alejandro Ruiz"}
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all font-bold text-slate-900"
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-bold text-slate-700 uppercase" htmlFor="especialidad">
-              Especialidad Médica
+              {isClinica ? "Especialidades / Enfoque Institucional" : "Especialidad Médica"}
             </label>
             <input
               id="especialidad"
               type="text"
               value={data.especialidad ?? ""}
               onChange={(e) => updateField("especialidad", e.target.value)}
-              placeholder="ej. Cardiólogo Pediatra"
+              placeholder={isClinica ? "ej. Centro de Especialidades Médicas & Diagnóstico" : "ej. Cardiólogo Pediatra"}
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all font-medium text-slate-900"
             />
           </div>
@@ -136,7 +209,7 @@ export function FormDoctorProfile({
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-bold text-slate-700 uppercase" htmlFor="cedulaProfesional">
-              Registro SENESCYT / MSP
+              {isClinica ? "Permiso Sanitario / Registro MSP" : "Registro SENESCYT / MSP"}
             </label>
             <input
               id="cedulaProfesional"
@@ -150,7 +223,7 @@ export function FormDoctorProfile({
 
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-bold text-slate-700 uppercase" htmlFor="anosExperiencia">
-              Años de Experiencia
+              {isClinica ? "Trayectoria (Años)" : "Años de Experiencia"}
             </label>
             <input
               id="anosExperiencia"
@@ -165,14 +238,14 @@ export function FormDoctorProfile({
 
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-bold text-slate-700 uppercase" htmlFor="universidad">
-              Universidad de Graduación
+              {isClinica ? "Convenios & Avales" : "Universidad de Graduación"}
             </label>
             <input
               id="universidad"
               type="text"
               value={data.universidad ?? ""}
               onChange={(e) => updateField("universidad", e.target.value)}
-              placeholder="ej. Universidad San Francisco de Quito (USFQ)"
+              placeholder={isClinica ? "ej. Avalado por MSP y Red de Salud" : "ej. Universidad San Francisco de Quito (USFQ)"}
               className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all font-medium text-slate-800"
             />
           </div>
@@ -361,68 +434,206 @@ export function FormDoctorProfile({
           </div>
         </div>
 
-        {/* FAVICON PERSONALIZADO */}
-        <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-              <span>🩺</span> Favicon de Navegador / PWA
+        {/* FAVICON Y LOGOTIPO DE APLICACIÓN PWA (INDEPENDIENTE DEL LOGO PRINCIPAL) */}
+        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div>
+              <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wide flex items-center gap-1.5">
+                <Smartphone className="w-4 h-4 text-indigo-600" />
+                Favicon de Navegador & Logotipo de Aplicación PWA
+              </h4>
+              <p className="text-[11px] text-slate-500">
+                Logotipo modificado o isotipo cuadrado (1:1) independiente del menú principal. Se usa en la pestaña del navegador y al instalar tu app en el celular.
+              </p>
+            </div>
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200 shrink-0">
+              Acceso Directo PWA
             </span>
-            <span className="text-[10px] text-slate-400">Pestaña de Chrome & Acceso Directo</span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <input
-              id="faviconUrl"
-              type="text"
-              value={data.faviconUrl || ""}
-              onChange={(e) => updateField("faviconUrl", e.target.value)}
-              placeholder="Pega URL o usa un emoji médico inteligente abajo: 🩺"
-              className="flex-1 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-mono bg-white outline-none focus:border-indigo-500"
-            />
-            {data.faviconUrl && (
-              <button
-                type="button"
-                onClick={() => updateField("faviconUrl", "")}
-                className="text-[10px] text-slate-400 hover:text-rose-600 font-bold px-2"
-              >
-                Limpiar
-              </button>
-            )}
-          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Formulario de Entrada e Icono Adaptado */}
+            <div className="space-y-3">
+              <div className="flex flex-col gap-1">
+                <label htmlFor="pwaIconUrl" className="text-xs font-bold text-slate-700 uppercase flex items-center justify-between">
+                  <span>Ícono Cuadrado para App & Favicon</span>
+                  <span className="text-[10px] text-indigo-600 font-normal">Formato 1:1 recomendado</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    id="pwaIconUrl"
+                    type="text"
+                    value={data.pwaIconUrl || data.faviconUrl || ""}
+                    onChange={(e) => {
+                      updateField("pwaIconUrl", e.target.value);
+                      updateField("faviconUrl", e.target.value);
+                    }}
+                    placeholder="Pega URL o sube un logotipo modificado cuadrado..."
+                    className="flex-1 px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono bg-white outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  />
+                  
+                  {/* Botón Subir Archivo Icono */}
+                  <label className="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shrink-0 shadow-xs">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Subir Ícono</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          try {
+                            const res = await compressAndConvertToWebP(file, {
+                              maxWidth: 512,
+                              maxHeight: 512,
+                              squareCrop: true,
+                              quality: 0.9
+                            });
+                            updateField("pwaIconUrl", res.dataUrl);
+                            updateField("faviconUrl", res.dataUrl);
+                          } catch (err) {
+                            console.error("Error compressing icon:", err);
+                          }
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
 
-          {/* Selector rápido de emojis médicos */}
-          <div className="flex flex-wrap items-center gap-1.5 pt-1">
-            <span className="text-[10px] text-slate-400 font-bold">Presets recomendados:</span>
-            {[
-              { emoji: "🩺", label: "Esteto" },
-              { emoji: "🏥", label: "Clínica" },
-              { emoji: "❤️", label: "Cardio" },
-              { emoji: "🦷", label: "Dental" },
-              { emoji: "🧠", label: "Cerebro" },
-              { emoji: "👶", label: "Pediatra" },
-              { emoji: "👁️", label: "Ojo" },
-              { emoji: "🩹", label: "Trauma" },
-              { emoji: "🥗", label: "Nutri" },
-              { emoji: "🤰", label: "Gine" }
-            ].map((item) => (
-              <button
-                key={item.emoji}
-                type="button"
-                onClick={() => {
-                  const svgDataUrl = `data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>${item.emoji}</text></svg>`;
-                  updateField("faviconUrl", svgDataUrl);
-                }}
-                className={`px-2 py-1 text-xs rounded-lg border transition-all flex items-center gap-1 bg-white hover:bg-slate-50 cursor-pointer ${
-                  data.faviconUrl && decodeURIComponent(data.faviconUrl).includes(item.emoji)
-                    ? "border-indigo-500 text-indigo-700 bg-indigo-50/40 font-bold"
-                    : "border-slate-200 text-slate-600"
-                }`}
-                title={`Usar ${item.label}`}
-              >
-                <span>{item.emoji}</span>
-                <span className="text-[9px] font-medium text-slate-400">{item.label}</span>
-              </button>
-            ))}
+              {/* Título de la Aplicación en la pantalla de inicio */}
+              <div className="flex flex-col gap-1">
+                <label htmlFor="pwaAppTitle" className="text-xs font-bold text-slate-700 uppercase">
+                  Nombre Corto de la App en Pantalla de Inicio
+                </label>
+                <input
+                  id="pwaAppTitle"
+                  type="text"
+                  value={data.pwaAppTitle || ""}
+                  onChange={(e) => updateField("pwaAppTitle", e.target.value)}
+                  placeholder={`ej. ${data.nombreMedico || "Dr. Ruiz"}`}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium bg-white outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              {/* Botones de Selección Rápida */}
+              <div className="space-y-1.5 pt-1">
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">
+                  Copiado Rápido de Recursos:
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (data.logoUrl) {
+                        updateField("pwaIconUrl", data.logoUrl);
+                        updateField("faviconUrl", data.logoUrl);
+                      }
+                    }}
+                    disabled={!data.logoUrl}
+                    className="px-2.5 py-1 text-[11px] rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-medium transition-all disabled:opacity-40 cursor-pointer flex items-center gap-1"
+                  >
+                    <span>🏥 Usar Logotipo Principal</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (data.fotoUrl) {
+                        updateField("pwaIconUrl", data.fotoUrl);
+                        updateField("faviconUrl", data.fotoUrl);
+                      }
+                    }}
+                    disabled={!data.fotoUrl}
+                    className="px-2.5 py-1 text-[11px] rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-medium transition-all disabled:opacity-40 cursor-pointer flex items-center gap-1"
+                  >
+                    <span>📷 Usar Foto de Perfil</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Presets de Emojis Médicos */}
+              <div className="space-y-1 pt-1">
+                <span className="text-[10px] text-slate-400 font-bold">Presets Médicos en Vector SVG:</span>
+                <div className="flex flex-wrap gap-1">
+                  {[
+                    { emoji: "🩺", label: "Esteto" },
+                    { emoji: "🏥", label: "Clínica" },
+                    { emoji: "❤️", label: "Cardio" },
+                    { emoji: "🦷", label: "Dental" },
+                    { emoji: "🧠", label: "Cerebro" },
+                    { emoji: "👶", label: "Pediatra" },
+                    { emoji: "👁️", label: "Ojo" },
+                    { emoji: "🩹", label: "Trauma" },
+                    { emoji: "🥗", label: "Nutri" },
+                    { emoji: "🤰", label: "Gine" }
+                  ].map((item) => (
+                    <button
+                      key={item.emoji}
+                      type="button"
+                      onClick={() => {
+                        const svgDataUrl = `data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>${item.emoji}</text></svg>`;
+                        updateField("pwaIconUrl", svgDataUrl);
+                        updateField("faviconUrl", svgDataUrl);
+                      }}
+                      className="px-2 py-1 text-xs rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 cursor-pointer flex items-center gap-1"
+                      title={`Usar ${item.label}`}
+                    >
+                      <span>{item.emoji}</span>
+                      <span className="text-[9px] text-slate-400">{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Muestras de Previsualización Real */}
+            <div className="p-3.5 rounded-xl bg-slate-900 text-white space-y-3 flex flex-col justify-between border border-slate-800">
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-indigo-300 block border-b border-slate-800 pb-1.5">
+                Previsualización del Ícono en Dispositivos:
+              </span>
+
+              {/* Muestra 1: Pestaña del Navegador */}
+              <div className="space-y-1">
+                <span className="text-[10px] text-slate-400 block font-medium">1. Pestaña en Navegador Web (Chrome / Safari):</span>
+                <div className="bg-slate-800 p-2 rounded-t-lg border-t border-x border-slate-700 flex items-center gap-2 max-w-[240px]">
+                  <div className="w-4 h-4 rounded bg-slate-700 flex items-center justify-center overflow-hidden shrink-0">
+                    {data.pwaIconUrl || data.faviconUrl ? (
+                      <img src={data.pwaIconUrl || data.faviconUrl} alt="Favicon" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-[10px]">🩺</span>
+                    )}
+                  </div>
+                  <span className="text-[11px] font-medium text-slate-200 truncate">
+                    {data.metaTitulo || data.nombreMedico || "Consulta Médica"}
+                  </span>
+                  <span className="text-[10px] text-slate-400 ml-auto cursor-pointer">✕</span>
+                </div>
+              </div>
+
+              {/* Muestra 2: Pantalla de Inicio de Smartphone (PWA App Icon) */}
+              <div className="space-y-1 pt-1 border-t border-slate-800">
+                <span className="text-[10px] text-slate-400 block font-medium">2. Ícono Instalado en Pantalla de Inicio del Celular:</span>
+                <div className="flex items-center gap-3 p-2 rounded-xl bg-slate-950 border border-slate-800">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 p-0.5 shadow-md shrink-0 flex items-center justify-center relative overflow-hidden">
+                    {data.pwaIconUrl || data.faviconUrl ? (
+                      <img src={data.pwaIconUrl || data.faviconUrl} alt="PWA Icon" className="w-full h-full object-cover rounded-[14px]" />
+                    ) : data.logoUrl ? (
+                      <img src={data.logoUrl} alt="PWA Icon" className="w-full h-full object-contain p-1 rounded-[14px] bg-white" />
+                    ) : (
+                      <span className="text-xl">🩺</span>
+                    )}
+                  </div>
+                  <div className="flex flex-col overflow-hidden">
+                    <span className="text-xs font-bold text-white truncate">
+                      {data.pwaAppTitle || data.nombreMedico || "App Médica"}
+                    </span>
+                    <span className="text-[10px] text-emerald-400 font-mono">Aplicación Instalada</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

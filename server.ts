@@ -269,6 +269,25 @@ INSTRUCCIONES DE EXTRACCIÓN Y REGLAS DE NEGOCIO:
   "aseguradoras": ["Saludsa", "Humana", "Ecuasanitas", "Confiamed"],
   "hospitalesdondeOpera": ["Hospital Metropolitano", "Hospital Vozandes"],
   "asociaciones": ["Colegio de Médicos de Pichincha", "Federación Médica Ecuatoriana (FME)"],
+  "guias": [
+    {
+      "id": "guia-1",
+      "titulo": "Guía de Cuidados Postoperatorios",
+      "descripcion": "Recomendaciones esenciales para una pronta recuperación en casa.",
+      "categoria": "Cuidados",
+      "formato": "PDF",
+      "metodoEntrega": "descarga_directa",
+      "tipoEnlace": "Descargar"
+    }
+  ],
+  "redesSocialesVideos": [
+    {
+      "id": "vid-1",
+      "plataforma": "instagram",
+      "titulo": "Reel: Consejos de Salud y Prevención",
+      "videoUrl": "https://www.instagram.com/reel/..."
+    }
+  ],
   "servicios": [
     {
       "id": "srv-1",

@@ -173,6 +173,23 @@ export default function SeoAuditPanel({ data }: SeoAuditPanelProps) {
         : "No tienes reseñas de pacientes. Añade reseñas dinámicas desde el formulario para activar el marcado de estrellas en Google."
   });
 
+  // Citaciones & Backlinks de Autoridad Médica (E-E-A-T & Google Trust)
+  const backlinksList = data.backlinksAutoridad || [];
+  const verifiedBacklinks = backlinksList.filter(b => b && b.estado === 'verificado').length;
+  const schemaBacklinks = backlinksList.filter(b => b && b.incluirEnSchema).length;
+  rules.push({
+    id: "eeat-backlinks-authority",
+    category: "eeat",
+    title: "Citaciones & Backlinks de Autoridad Médica",
+    description: "Conecta tu sitio con Colegios de Médicos, Google Maps, Staff Hospitalarios y Sociedades Científicas en sameAs.",
+    status: verifiedBacklinks >= 2 ? "pass" : (backlinksList.length > 0 ? "warning" : "error"),
+    feedback: verifiedBacklinks >= 2
+      ? `Excelente. Cuentas con ${verifiedBacklinks} enlaces/citaciones de autoridad verificadas (y ${schemaBacklinks} vinculados en Schema JSON-LD).`
+      : backlinksList.length > 0
+        ? `Tienes ${backlinksList.length} citación(es) registrada(s), pero solo ${verifiedBacklinks} verificada(s). Revisa el estado en el Módulo de Backlinks del Editor SEO.`
+        : "No tienes backlinks o citaciones de autoridad configurados. Agrégalos en el Módulo de Backlinks del Editor SEO o usa 'Sugerencias Automáticas'."
+  });
+
 
   // --- 2. AUDITORÍA DE SEO LOCAL (Google Maps & NAP) ---
   

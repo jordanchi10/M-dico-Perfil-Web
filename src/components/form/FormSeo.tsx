@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from "react";
-import { MedicalLandingData, ServiceItem } from "../../types";
+import { MedicalLandingData, ServiceItem, BacklinkAuthorityItem } from "../../types";
 import { 
   Globe, 
   MapPin, 
@@ -32,9 +32,23 @@ import {
   Server,
   RefreshCw,
   Terminal,
-  Sliders
+  Sliders,
+  Link,
+  Plus,
+  Trash2,
+  Award,
+  Building2,
+  Landmark,
+  GraduationCap,
+  CheckSquare,
+  Square,
+  Share2,
+  Smartphone,
+  Image,
+  Upload
 } from "lucide-react";
-import { generateJsonLd, normalizeDomainUrl, generateRobotsTxt, generateSitemapXml, generateLlmsTxt } from "../../utils/generators";
+import { generateJsonLd, normalizeDomainUrl, generateRobotsTxt, generateSitemapXml, generateLlmsTxt, getActiveFaviconUrl, getActiveOgImageUrl } from "../../utils/generators";
+import { compressAndConvertToWebP } from "../../utils/imageCompressor";
 import { GbpPostExporterModal } from "../GbpPostExporterModal";
 
 interface FormSeoProps {
@@ -54,6 +68,291 @@ export function FormSeo({
   const [copiedLlms, setCopiedLlms] = useState(false);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [isGbpExporterOpen, setIsGbpExporterOpen] = useState(false);
+  const [seoPreviewTab, setSeoPreviewTab] = useState<'serp' | 'social'>('serp');
+
+  // Estados para Módulo de Backlinks & Autoridad Médica E-E-A-T
+  const [newPortalNombre, setNewPortalNombre] = useState("");
+  const [newTipoPortal, setNewTipoPortal] = useState<BacklinkAuthorityItem["tipoPortal"]>("colegio_medico");
+  const [newUrlDestino, setNewUrlDestino] = useState("");
+  const [newAnchorText, setNewAnchorText] = useState("");
+  const [newNotas, setNewNotas] = useState("");
+  const [newEstado, setNewEstado] = useState<BacklinkAuthorityItem["estado"]>("verificado");
+  const [newIncluirSchema, setNewIncluirSchema] = useState(true);
+  const [newMostrarFooter, setNewMostrarFooter] = useState(true);
+  const [copiedAiPrompt, setCopiedAiPrompt] = useState(false);
+
+  // Estados para Importador Inteligente de Respuestas de IA
+  const [isImportingAiResponse, setIsImportingAiResponse] = useState(false);
+  const [pastedAiText, setPastedAiText] = useState("");
+  const [importSuccessMsg, setImportSuccessMsg] = useState<string | null>(null);
+  const [importErrorMsg, setImportErrorMsg] = useState<string | null>(null);
+  const [showAdvancedManualForm, setShowAdvancedManualForm] = useState(false);
+
+  const activeFavicon = getActiveFaviconUrl(data);
+  const activeOgImage = getActiveOgImageUrl(data);
+
+  // Agregar nuevo backlink manualmente
+  const handleAddBacklink = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPortalNombre.trim() || !newUrlDestino.trim()) return;
+
+    const newItem: BacklinkAuthorityItem = {
+      id: `backlink-${Date.now()}`,
+      portalNombre: newPortalNombre.trim(),
+      tipoPortal: newTipoPortal,
+      urlDestino: newUrlDestino.trim(),
+      estado: newEstado,
+      incluirEnSchema: newIncluirSchema,
+      mostrarEnFooter: newMostrarFooter,
+      anchorText: newAnchorText.trim() || newPortalNombre.trim(),
+      notas: newNotas.trim()
+    };
+
+    const currentList = data.backlinksAutoridad || [];
+    updateField("backlinksAutoridad", [newItem, ...currentList]);
+
+    setNewPortalNombre("");
+    setNewUrlDestino("");
+    setNewAnchorText("");
+    setNewNotas("");
+  };
+
+  // Eliminar backlink
+  const handleRemoveBacklink = (id: string) => {
+    const updated = (data.backlinksAutoridad || []).filter(b => b.id !== id);
+    updateField("backlinksAutoridad", updated);
+  };
+
+  // Toggle propiedad de backlink
+  const handleToggleBacklinkProp = (id: string, key: "incluirEnSchema" | "mostrarEnFooter") => {
+    const updated = (data.backlinksAutoridad || []).map(b => {
+      if (b.id === id) {
+        return { ...b, [key]: !b[key] };
+      }
+      return b;
+    });
+    updateField("backlinksAutoridad", updated);
+  };
+
+  // Sugerencias Inteligentes Automáticas por Ciudad / Especialidad
+  const handleGenerateSmartSuggestions = () => {
+    const ciudad = data.ciudad || "Ecuador";
+    const provincia = (data.ciudad && data.ciudad.toLowerCase().includes("quito")) ? "Pichincha" 
+      : (data.ciudad && data.ciudad.toLowerCase().includes("guayaquil")) ? "Guayas"
+      : (data.ciudad && data.ciudad.toLowerCase().includes("cuenca")) ? "Azuay" : "Ecuador";
+    const especialidad = data.especialidad || "Medicina";
+    const doctor = data.nombreMedico || "Especialista";
+
+    const defaultSuggestions: BacklinkAuthorityItem[] = [
+      {
+        id: `sug-${Date.now()}-1`,
+        portalNombre: `Colegio de Médicos de ${provincia}`,
+        tipoPortal: "colegio_medico",
+        urlDestino: `https://www.colegiomedico${provincia.toLowerCase().replace(/[^a-z]/g, '') || 'ecuador'}.org/directorio`,
+        estado: "verificado",
+        incluirEnSchema: true,
+        mostrarEnFooter: true,
+        anchorText: `Colegio de Médicos de ${provincia} - Directorio`,
+        notas: "Registro oficial provincial de colegiatura médica."
+      },
+      {
+        id: `sug-${Date.now()}-2`,
+        portalNombre: "Ficha Verificada Google Business Profile (Google Maps)",
+        tipoPortal: "perfil_google",
+        urlDestino: data.googleMapsReviewsUrl || "https://maps.google.com/?cid=123456789",
+        estado: "verificado",
+        incluirEnSchema: true,
+        mostrarEnFooter: true,
+        anchorText: `${doctor} - Google Maps ${ciudad}`,
+        notas: "Ficha oficial local en Google Maps."
+      },
+      {
+        id: `sug-${Date.now()}-3`,
+        portalNombre: `Sociedad Ecuatoriana de ${especialidad}`,
+        tipoPortal: "sociedad_cientifica",
+        urlDestino: `https://www.sociedad${especialidad.toLowerCase().replace(/[^a-z]/g, '') || 'medica'}.org.ec`,
+        estado: "sugerido",
+        incluirEnSchema: true,
+        mostrarEnFooter: false,
+        anchorText: `Miembro Activo Sociedad de ${especialidad}`,
+        notas: "Membresía científica de especialidad."
+      },
+      {
+        id: `sug-${Date.now()}-4`,
+        portalNombre: `Directorio Staff ${data.hospitalesdondeOpera?.[0] || 'Hospital Local'}`,
+        tipoPortal: "hospital_clinica",
+        urlDestino: "https://www.hospital-acreditado.ec/medicos",
+        estado: "verificado",
+        incluirEnSchema: true,
+        mostrarEnFooter: true,
+        anchorText: `Staff Médico - ${data.hospitalesdondeOpera?.[0] || 'Hospital Local'}`,
+        notas: "Acreditación de staff facultativo."
+      }
+    ];
+
+    const existing = data.backlinksAutoridad || [];
+    const newItems = defaultSuggestions.filter(sug => !existing.some(ex => ex.portalNombre.toLowerCase() === sug.portalNombre.toLowerCase()));
+
+    updateField("backlinksAutoridad", [...newItems, ...existing]);
+  };
+
+  // Copiar Prompt General para Cualquier IA (ChatGPT, Gemini, Claude, Perplexity, etc.)
+  const handleCopyAiPrompt = () => {
+    const doctor = data.nombreMedico || "Doctor Especialista";
+    const especialidad = data.especialidad || "Medicina";
+    const ciudad = data.ciudad || "Ecuador";
+    const clinica = data.nombreClinicaGBP || "Consultorio Médico";
+    const dominio = data.dominioWeb || 'https://tu-dominio.ec';
+
+    const promptText = `Actúa como un Consultor SEO Médico Senior especializado en posicionamiento orgánico E-E-A-T e indexación local en Ecuador.
+
+Necesito que investigues y me entregues una lista estructurada de los 10 mejores portales web, colegios de médicos, facultades de medicina, hospitales privados, sociedades científicas y directorios de salud locales de alta autoridad en ${ciudad}, Ecuador, ideales para conseguir backlinks de alta reputación y citaciones de autoridad para:
+
+- **Especialista**: ${doctor}
+- **Especialidad Principal**: ${especialidad}
+- **Ciudad y Sede**: ${ciudad}, Ecuador
+- **Clínica / Centro**: ${clinica}
+- **Sitio Web Objetivo**: ${dominio}
+
+FORMATO DE SALIDA COMPATIBLE PARA IMPORTACIÓN AUTOMÁTICA:
+Por favor entrega tu respuesta en DOS partes:
+
+1. Una explicación clara y ordenada de cada portal sugerido.
+2. Al final de tu respuesta, INCLUYE OBLIGATORIAMENTE un bloque de código JSON válido con el siguiente formato exacto para que mi plataforma pueda importar los enlaces automáticamente:
+
+\`\`\`json
+[
+  {
+    "portalNombre": "Colegio de Médicos de Pichincha",
+    "tipoPortal": "colegio_medico",
+    "urlDestino": "https://www.colegiomedicopichincha.org",
+    "anchorText": "${doctor} - ${especialidad} ${ciudad}",
+    "notas": "Directorio provincial oficial de colegiatura médica"
+  }
+]
+\`\`\`
+
+Valores válidos para "tipoPortal": "colegio_medico", "perfil_google", "hospital_clinica", "sociedad_cientifica", "directorio_medico", "universidad", "prensa_salud", "otro".
+
+Genera la lista con los portales más relevantes de ${ciudad}, Ecuador respetando estrictamente el bloque JSON final.`;
+
+    navigator.clipboard.writeText(promptText);
+    setCopiedAiPrompt(true);
+    setTimeout(() => setCopiedAiPrompt(false), 2500);
+  };
+
+  // Procesar e importar automáticamente la respuesta pegada de la IA
+  const handleImportAiResponse = () => {
+    if (!pastedAiText.trim()) {
+      setImportErrorMsg("Por favor pega el texto de respuesta de la IA antes de importar.");
+      return;
+    }
+
+    setImportErrorMsg(null);
+    setImportSuccessMsg(null);
+
+    try {
+      let itemsToAdd: BacklinkAuthorityItem[] = [];
+
+      // 1. Buscar bloque JSON en la respuesta de la IA
+      const jsonMatch = pastedAiText.match(/\[\s*\{[\s\S]*\}\s*\]/);
+      if (jsonMatch) {
+        try {
+          const parsed = JSON.parse(jsonMatch[0]);
+          if (Array.isArray(parsed)) {
+            const validTypes: BacklinkAuthorityItem["tipoPortal"][] = [
+              "colegio_medico", "perfil_google", "hospital_clinica", "sociedad_cientifica", "directorio_local", "universidad_investigacion", "prensa_salud", "otro"
+            ];
+
+            itemsToAdd = parsed.map((raw: any, idx: number) => {
+              const matchedType = validTypes.includes(raw.tipoPortal) ? raw.tipoPortal : "colegio_medico";
+              return {
+                id: `ai-import-${Date.now()}-${idx}`,
+                portalNombre: String(raw.portalNombre || raw.nombre || raw.portal || `Portal ${idx + 1}`).trim(),
+                tipoPortal: matchedType as BacklinkAuthorityItem["tipoPortal"],
+                urlDestino: String(raw.urlDestino || raw.url || raw.link || "").trim(),
+                estado: "verificado" as const,
+                incluirEnSchema: true,
+                mostrarEnFooter: true,
+                anchorText: String(raw.anchorText || raw.portalNombre || raw.nombre || "").trim(),
+                notas: String(raw.notas || raw.descripcion || "Importado desde IA").trim()
+              };
+            }).filter(item => item.urlDestino.startsWith("http") || item.portalNombre.length > 2);
+          }
+        } catch (e) {
+          console.warn("JSON block parsing failed, falling back to line parser", e);
+        }
+      }
+
+      // 2. Fallback: Parsear por líneas si no hay bloque JSON estricto
+      if (itemsToAdd.length === 0) {
+        const lines = pastedAiText.split('\n');
+        let count = 0;
+        for (const line of lines) {
+          const urlMatch = line.match(/https?:\/\/[^\s\)\>\]'"]+/i);
+          if (urlMatch) {
+            const url = urlMatch[0];
+            let cleanName = line
+              .replace(urlMatch[0], '')
+              .replace(/^[0-9+*-.\s\)\>\]:]+/, '')
+              .replace(/[*_#`]/g, '')
+              .trim();
+
+            if (!cleanName || cleanName.length < 3) {
+              try {
+                const urlObj = new URL(url);
+                cleanName = urlObj.hostname.replace('www.', '');
+              } catch {
+                cleanName = `Citación Sanitaria ${count + 1}`;
+              }
+            }
+
+            count++;
+            itemsToAdd.push({
+              id: `ai-text-${Date.now()}-${count}`,
+              portalNombre: cleanName.slice(0, 70),
+              tipoPortal: "directorio_local" as const,
+              urlDestino: url,
+              estado: "verificado" as const,
+              incluirEnSchema: true,
+              mostrarEnFooter: true,
+              anchorText: cleanName.slice(0, 60),
+              notas: "Extraído desde respuesta de IA"
+            });
+          }
+        }
+      }
+
+      if (itemsToAdd.length === 0) {
+        setImportErrorMsg("No se detectó un formato JSON ni enlaces válidos (https://...) en el texto pegado. Verifica la respuesta de la IA.");
+        return;
+      }
+
+      // Filtrar duplicados por URL o nombre
+      const currentList = data.backlinksAutoridad || [];
+      const newUnique = itemsToAdd.filter(item => 
+        !currentList.some(ex => ex.urlDestino.toLowerCase() === item.urlDestino.toLowerCase() || ex.portalNombre.toLowerCase() === item.portalNombre.toLowerCase())
+      );
+
+      if (newUnique.length === 0) {
+        setImportErrorMsg("Las citaciones o enlaces del texto ya existen en tu lista registrada.");
+        return;
+      }
+
+      const updated = [...newUnique, ...currentList];
+      updateField("backlinksAutoridad", updated);
+
+      setImportSuccessMsg(`¡Éxito! Se importaron ${newUnique.length} backlinks de autoridad a tu plataforma.`);
+      setPastedAiText("");
+      setTimeout(() => {
+        setImportSuccessMsg(null);
+        setIsImportingAiResponse(false);
+      }, 3000);
+
+    } catch (err: any) {
+      setImportErrorMsg("Hubo un error al procesar los datos de la IA. Intenta pegar el texto completo con el bloque JSON.");
+    }
+  };
 
   // Inyección de dominio
   const [injectionSuccess, setInjectionSuccess] = useState(false);
@@ -128,6 +427,22 @@ export function FormSeo({
     setHeadTag("meta[name='twitter:url']", "meta", "name", "twitter:url", "content", cleanUrl);
     if (title) setHeadTag("meta[name='twitter:title']", "meta", "name", "twitter:title", "content", title);
     if (desc) setHeadTag("meta[name='twitter:description']", "meta", "name", "twitter:description", "content", desc);
+
+    // Open Graph og:image & Twitter image
+    const activeOgImage = getActiveOgImageUrl(data);
+    if (activeOgImage) {
+      setHeadTag("meta[property='og:image']", "meta", "property", "og:image", "content", activeOgImage);
+      setHeadTag("meta[property='og:image:secure_url']", "meta", "property", "og:image:secure_url", "content", activeOgImage);
+      setHeadTag("meta[name='twitter:image']", "meta", "name", "twitter:image", "content", activeOgImage);
+      setHeadTag("meta[name='twitter:card']", "meta", "name", "twitter:card", "content", "summary_large_image");
+    }
+
+    // Favicon / Apple Touch Icon
+    const activeFavicon = getActiveFaviconUrl(data);
+    if (activeFavicon) {
+      setHeadTag("link[rel~='icon']", "link", "rel", "icon", "href", activeFavicon);
+      setHeadTag("link[rel='apple-touch-icon']", "link", "rel", "apple-touch-icon", "href", activeFavicon);
+    }
 
     // 7. Schema JSON-LD Injection
     let schemaScript = document.querySelector("#injected-schema-jsonld") as HTMLScriptElement;
@@ -936,31 +1251,221 @@ Estado: Listo para enrutamiento HTTPS SSL automático.`;
         )}
       </div>
 
-      {/* 3. SERP PREVIEW & METATAGS */}
+      {/* 3. SERP & SOCIAL MEDIA PREVIEW (GOOGLE & WHATSAPP) */}
       <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
-        <label className="text-xs font-extrabold text-slate-900 uppercase tracking-wide flex items-center gap-1.5">
-          <Search className="w-4 h-4 text-blue-600" />
-          Previsualización en Resultados de Búsqueda Google (SERP)
-        </label>
-
-        {/* Google SERP Card */}
-        <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-1 shadow-2xs">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center text-[10px]">🩺</div>
-            <div className="flex flex-col">
-              <span className="text-[11px] text-slate-800 font-medium leading-none">{data.dominioWeb || "https://tudominio.ec"}</span>
-              <span className="text-[10px] text-slate-400 leading-none mt-0.5">{data.ciudad || "Ecuador"} &gt; Consulta Médica</span>
-            </div>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+          <div>
+            <label className="text-xs font-extrabold text-slate-900 uppercase tracking-wide flex items-center gap-1.5">
+              <Search className="w-4 h-4 text-blue-600" />
+              Previsualización en Google (SERP) & Redes Sociales
+            </label>
+            <p className="text-[11px] text-slate-500">
+              Visualiza cómo se muestra tu perfil médico en Google y la tarjeta interactiva al enviar tu enlace por WhatsApp o redes sociales.
+            </p>
           </div>
-          <h5 className="text-base text-blue-800 font-medium hover:underline cursor-pointer pt-1 line-clamp-1">
-            {data.metaTitulo || `${data.nombreMedico} | ${data.especialidad} en ${data.ciudad}, Ecuador`}
-          </h5>
-          <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
-            {data.metaDescripcion || `Consulta con ${data.nombreMedico}, especialista en ${data.especialidad} en ${data.ciudad}. Agenda tu cita médica presencial o virtual hoy mismo.`}
-          </p>
+
+          {/* Selector de pestañas de previsualización */}
+          <div className="flex bg-slate-100 p-1 rounded-xl self-start sm:self-auto border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setSeoPreviewTab('serp')}
+              className={`px-3 py-1 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                seoPreviewTab === 'serp'
+                  ? 'bg-white text-blue-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Search className="w-3.5 h-3.5" />
+              <span>Google SERP</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSeoPreviewTab('social')}
+              className={`px-3 py-1 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                seoPreviewTab === 'social'
+                  ? 'bg-white text-emerald-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span>Redes Sociales (WhatsApp)</span>
+            </button>
+          </div>
         </div>
 
-        <div className="space-y-3">
+        {/* CONTENIDO PESTAÑA 1: GOOGLE SERP */}
+        {seoPreviewTab === 'serp' && (
+          <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-2 shadow-2xs">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 overflow-hidden">
+                {/* Favicon real del médico */}
+                <div className="w-5 h-5 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
+                  {activeFavicon ? (
+                    <img src={activeFavicon} alt="Favicon" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-[10px]">🩺</span>
+                  )}
+                </div>
+                <div className="flex flex-col truncate">
+                  <span className="text-[11px] text-slate-800 font-medium leading-none truncate">
+                    {data.dominioWeb || "https://tu-consultorio-medico.ec"}
+                  </span>
+                  <span className="text-[10px] text-slate-400 leading-none mt-0.5 truncate">
+                    {data.ciudad || "Ecuador"} &gt; {data.especialidad || "Consulta Médica"}
+                  </span>
+                </div>
+              </div>
+              <span className="text-[10px] text-slate-400 font-mono bg-slate-50 px-2 py-0.5 rounded border border-slate-100 shrink-0">
+                Google Search
+              </span>
+            </div>
+
+            <div className="flex items-start justify-between gap-3 pt-1">
+              <div className="flex-1 space-y-1">
+                <h5 className="text-base text-blue-800 font-medium hover:underline cursor-pointer leading-tight line-clamp-1">
+                  {data.metaTitulo || `${data.nombreMedico} | ${data.especialidad} en ${data.ciudad}, Ecuador`}
+                </h5>
+                <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                  {data.metaDescripcion || `Consulta con ${data.nombreMedico}, especialista en ${data.especialidad} en ${data.ciudad}. Agenda tu cita médica presencial o virtual hoy mismo.`}
+                </p>
+              </div>
+
+              {/* Miniatura lateral SERP (Rich Result Thumbnail) */}
+              {activeOgImage && (
+                <div className="w-16 h-16 rounded-xl border border-slate-200 overflow-hidden shrink-0 bg-slate-50 shadow-xs">
+                  <img src={activeOgImage} alt="Miniatura SERP" className="w-full h-full object-cover" />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* CONTENIDO PESTAÑA 2: REDES SOCIALES (OPEN GRAPH / WHATSAPP) */}
+        {seoPreviewTab === 'social' && (
+          <div className="space-y-4">
+            {/* Tarjeta de Previsualización estilo WhatsApp / Facebook */}
+            <div className="max-w-md mx-auto rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden shadow-sm">
+              {/* Imagen Banner Open Graph */}
+              <div className="w-full h-48 bg-slate-200 relative overflow-hidden flex items-center justify-center">
+                {activeOgImage ? (
+                  <img src={activeOgImage} alt="Vista Previa Redes" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="flex flex-col items-center gap-1 text-slate-400 p-4 text-center">
+                    <Share2 className="w-8 h-8 opacity-40" />
+                    <span className="text-xs font-semibold">Sin imagen asignada para compartir</span>
+                    <span className="text-[10px]">Selecciona o sube una imagen abajo</span>
+                  </div>
+                )}
+                {/* Badge de origen de imagen */}
+                <span className="absolute bottom-2 right-2 px-2 py-0.5 rounded-md text-[9px] font-bold bg-black/70 text-white backdrop-blur-xs">
+                  {data.ogImageSource === "logo"
+                    ? "Logotipo"
+                    : data.ogImageSource === "pwa_icon"
+                    ? "Ícono PWA / Favicon"
+                    : data.ogImageSource === "custom"
+                    ? "Personalizada"
+                    : "Foto de Perfil"}
+                </span>
+              </div>
+
+              {/* Texto de la tarjeta social */}
+              <div className="p-3.5 bg-white border-t border-slate-200 space-y-1">
+                <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block truncate">
+                  {(data.dominioWeb || "TU-CONSULTORIO-MEDICO.EC").replace(/^https?:\/\//i, "").toUpperCase()}
+                </span>
+                <h6 className="text-xs sm:text-sm font-bold text-slate-900 leading-snug line-clamp-2">
+                  {data.metaTitulo || `${data.nombreMedico} | ${data.especialidad} en ${data.ciudad}, Ecuador`}
+                </h6>
+                <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
+                  {data.metaDescripcion || `Consulta con ${data.nombreMedico}, especialista en ${data.especialidad}. Haz clic para ver información médica y agendar cita.`}
+                </p>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-500 text-center italic">
+              ✨ Tarjeta interactiva que verán tus pacientes al compartir tu enlace por WhatsApp, Facebook, Instagram, Twitter o LinkedIn.
+            </p>
+          </div>
+        )}
+
+        {/* SELECTOR Y CONFIGURACIÓN DE IMAGEN PARA REDES SOCIALES */}
+        <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <Share2 className="w-3.5 h-3.5 text-emerald-600" />
+              Imagen para Redes Sociales & Compartir Enlaces (Open Graph)
+            </span>
+            <span className="text-[10px] font-mono text-slate-500">og:image</span>
+          </div>
+
+          {/* Opciones de Origen de Imagen */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {[
+              { id: "foto", label: "📷 Foto Perfil", subtitle: "Recomendado" },
+              { id: "logo", label: "🏥 Logotipo", subtitle: "Identidad Marca" },
+              { id: "pwa_icon", label: "🎨 Ícono PWA", subtitle: "Favicon Adaptado" },
+              { id: "custom", label: "🖼️ Personalizada", subtitle: "Subir Imagen" }
+            ].map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => updateField("ogImageSource", opt.id)}
+                className={`p-2 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                  (data.ogImageSource || "foto") === opt.id
+                    ? "border-emerald-500 bg-emerald-50/50 text-emerald-950 font-bold shadow-2xs"
+                    : "border-slate-200 bg-white hover:bg-slate-100/70 text-slate-700 font-medium"
+                }`}
+              >
+                <span className="text-xs leading-tight">{opt.label}</span>
+                <span className="text-[9px] text-slate-400 font-normal mt-0.5">{opt.subtitle}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Campo cuando se selecciona "custom" */}
+          {data.ogImageSource === "custom" && (
+            <div className="space-y-2 pt-1 border-t border-slate-200">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={data.ogImageUrl || ""}
+                  onChange={(e) => updateField("ogImageUrl", e.target.value)}
+                  placeholder="Pega URL o sube una imagen personalizada para WhatsApp..."
+                  className="flex-1 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-mono bg-white outline-none focus:border-emerald-500"
+                />
+                
+                <label className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors shrink-0 shadow-xs">
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Subir</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        try {
+                          const res = await compressAndConvertToWebP(file, {
+                            maxWidth: 1200,
+                            maxHeight: 630,
+                            quality: 0.85
+                          });
+                          updateField("ogImageUrl", res.dataUrl);
+                          updateField("ogImageSource", "custom");
+                        } catch (err) {
+                          console.error("Error compressing OG image:", err);
+                        }
+                      }
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* EDICIÓN DE META TÍTULO Y META DESCRIPCIÓN */}
+        <div className="space-y-3 pt-2">
           <div className="flex flex-col gap-1">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-slate-700 uppercase" htmlFor="metaTitulo">
@@ -1087,6 +1592,396 @@ Estado: Listo para enrutamiento HTTPS SSL automático.`;
         <pre className="p-3.5 rounded-xl bg-slate-900 text-emerald-400 text-[11px] font-mono overflow-x-auto max-h-48 border border-slate-800">
           {JSON.stringify(generateJsonLd(data), null, 2)}
         </pre>
+      </div>
+
+      {/* 5.5. MÓDULO DE GESTIÓN DE BACKLINKS Y AUTORIDAD MÉDICA (E-E-A-T) */}
+      <div className="p-5 rounded-2xl bg-slate-900 text-white border border-slate-800 shadow-xl space-y-5">
+        <div className="flex items-start justify-between gap-3 flex-wrap border-b border-slate-800 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0 shadow-sm">
+              <Link className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-base font-black text-white flex items-center gap-2">
+                Gestión de Backlinks y Citaciones de Autoridad Médica (E-E-A-T)
+              </h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Fortalece la reputación médica en Google (E-E-A-T) vinculando tu sitio con colegios de médicos, sociedades científicas, staff hospitalario y Google Business Profile.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={handleGenerateSmartSuggestions}
+              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+              title="Generar enlaces sugeridos automáticamente según tu ciudad y especialidad"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>Sugerencias Automáticas</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleCopyAiPrompt}
+              className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer border border-indigo-400/30"
+              title="Copiar prompt compatible con ChatGPT, Gemini, Claude, Perplexity u otra IA"
+            >
+              {copiedAiPrompt ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Bot className="w-3.5 h-3.5 text-amber-300" />}
+              <span>{copiedAiPrompt ? "¡Prompt Copiado!" : "Copiar Prompt para IA (ChatGPT, Gemini, Claude)"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsImportingAiResponse(!isImportingAiResponse)}
+              className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 active:scale-95 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer border border-amber-400/30"
+              title="Pegar y procesar automáticamente la respuesta generada por la IA"
+            >
+              <Download className="w-3.5 h-3.5 text-white" />
+              <span>Importar Respuesta de IA</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Módulo Desplegable de Importación de Respuesta de IA */}
+        {isImportingAiResponse && (
+          <div className="p-4 rounded-xl bg-amber-950/40 border border-amber-500/40 space-y-3 animate-fadeIn">
+            <div className="flex items-center justify-between">
+              <h5 className="text-xs font-extrabold text-amber-300 flex items-center gap-1.5 uppercase tracking-wide">
+                <Download className="w-4 h-4 text-amber-400" />
+                <span>Importador Automático de Backlinks desde IA</span>
+              </h5>
+              <button
+                type="button"
+                onClick={() => setIsImportingAiResponse(false)}
+                className="text-xs text-slate-400 hover:text-white"
+              >
+                ✕ Cerrar
+              </button>
+            </div>
+
+            <p className="text-[11.5px] text-amber-200/90 leading-relaxed">
+              Pega aquí la respuesta que te dio ChatGPT, Gemini, Claude o Perplexity. La plataforma extraerá automáticamente las instituciones, nombres y enlaces para agregarlos a tu lista registrada.
+            </p>
+
+            <textarea
+              rows={5}
+              value={pastedAiText}
+              onChange={e => setPastedAiText(e.target.value)}
+              placeholder="Pega aquí todo el texto de respuesta de la IA (incluyendo el bloque JSON o la lista de enlaces)..."
+              className="w-full text-xs font-mono p-3 rounded-xl bg-slate-950 border border-amber-500/30 text-emerald-300 placeholder-slate-600 focus:border-amber-400 outline-none"
+            />
+
+            {importSuccessMsg && (
+              <div className="p-2.5 rounded-lg bg-emerald-900/60 border border-emerald-500/50 text-emerald-200 text-xs font-bold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{importSuccessMsg}</span>
+              </div>
+            )}
+
+            {importErrorMsg && (
+              <div className="p-2.5 rounded-lg bg-rose-900/60 border border-rose-500/50 text-rose-200 text-xs font-bold flex items-center gap-2">
+                <Info className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>{importErrorMsg}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setPastedAiText("")}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium cursor-pointer"
+              >
+                Limpiar Texto
+              </button>
+              <button
+                type="button"
+                onClick={handleImportAiResponse}
+                className="px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
+              >
+                <Zap className="w-3.5 h-3.5 fill-slate-950" />
+                <span>Procesar e Importar Backlinks</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Noticia de optimización sin saturación */}
+        <div className="p-3.5 rounded-xl bg-slate-800/80 border border-slate-700/80 text-xs text-slate-300 space-y-1.5">
+          <div className="flex items-center gap-2 font-bold text-amber-300">
+            <Info className="w-4 h-4 shrink-0 text-amber-400" />
+            <span>Búsqueda Inteligente y Cumplimiento Ético SEO Médico:</span>
+          </div>
+          <p className="text-[11.5px] leading-relaxed text-slate-300">
+            • <strong>Prospección Externa Sin Saturación</strong>: Usa <em>&quot;Copiar Prompt para IA&quot;</em> con cualquier inteligencia artificial (ChatGPT, Gemini, Claude). Luego pega la respuesta en <em>&quot;Importar Respuesta de IA&quot;</em> para cargar todos los backlinks en 1 segundo.<br/>
+            • <strong>Filtrado de Competencia Externa</strong>: Para resguardar la reputación del médico, los aggregators privados externos (ej. Doctoralia, etc.) son excluidos automáticamente del footer visual público de tu landing, reservando las citaciones visibles para instituciones y colegios oficiales (GBP, Colegio Médico, Hospitales).
+          </p>
+        </div>
+
+        {/* Resumen de Métrica E-E-A-T */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/60 text-center space-y-0.5">
+            <span className="text-[10px] uppercase tracking-wider text-slate-400 font-extrabold block">Total Citaciones</span>
+            <span className="text-lg font-black text-white">{data.backlinksAutoridad?.length || 0}</span>
+          </div>
+          <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-800/40 text-center space-y-0.5">
+            <span className="text-[10px] uppercase tracking-wider text-emerald-400 font-extrabold block">Verificados</span>
+            <span className="text-lg font-black text-emerald-300">
+              {(data.backlinksAutoridad || []).filter(b => b.estado === 'verificado').length}
+            </span>
+          </div>
+          <div className="p-3 rounded-xl bg-indigo-950/40 border border-indigo-800/40 text-center space-y-0.5">
+            <span className="text-[10px] uppercase tracking-wider text-indigo-400 font-extrabold block">En JSON-LD</span>
+            <span className="text-lg font-black text-indigo-300">
+              {(data.backlinksAutoridad || []).filter(b => b.incluirEnSchema).length}
+            </span>
+          </div>
+          <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-800/40 text-center space-y-0.5">
+            <span className="text-[10px] uppercase tracking-wider text-amber-400 font-extrabold block">Insignia Footer</span>
+            <span className="text-lg font-black text-amber-300">
+              {(data.backlinksAutoridad || []).filter(b => b.mostrarEnFooter).length}
+            </span>
+          </div>
+        </div>
+
+        {/* Formulario Sencillo y Rápido para agregar un enlace manualmente */}
+        <form onSubmit={handleAddBacklink} className="p-4 rounded-xl bg-slate-800/90 border border-slate-700 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <h5 className="text-xs font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+              <Plus className="w-4 h-4" />
+              <span>Agregar Nueva Citación o Enlace Rápido</span>
+            </h5>
+            <button
+              type="button"
+              onClick={() => setShowAdvancedManualForm(!showAdvancedManualForm)}
+              className="text-[11px] text-slate-400 hover:text-emerald-300 font-medium transition-colors cursor-pointer"
+            >
+              {showAdvancedManualForm ? "▲ Ocultar Opciones Avanzadas" : "⚙️ Opciones Avanzadas"}
+            </button>
+          </div>
+
+          {/* Formulario Simplificado Principal */}
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
+            <div className="sm:col-span-5 space-y-1">
+              <label className="text-[11px] font-bold text-slate-300">Portal / Institución *</label>
+              <input
+                type="text"
+                value={newPortalNombre}
+                onChange={e => setNewPortalNombre(e.target.value)}
+                placeholder="Ej. Colegio de Médicos de Pichincha"
+                required
+                className="w-full text-xs px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:border-emerald-500 outline-none"
+              />
+            </div>
+
+            <div className="sm:col-span-5 space-y-1">
+              <label className="text-[11px] font-bold text-slate-300">URL Destino (https://...) *</label>
+              <input
+                type="url"
+                value={newUrlDestino}
+                onChange={e => setNewUrlDestino(e.target.value)}
+                placeholder="https://www.colegiomedicopichincha.org/perfil"
+                required
+                className="w-full text-xs px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:border-emerald-500 outline-none"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <button
+                type="submit"
+                className="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer h-[34px]"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Guardar</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Opciones Avanzadas Opcionales */}
+          {showAdvancedManualForm && (
+            <div className="pt-3 border-t border-slate-700/60 space-y-3 animate-fadeIn">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-300">Tipo de Portal</label>
+                  <select
+                    value={newTipoPortal}
+                    onChange={e => setNewTipoPortal(e.target.value as any)}
+                    className="w-full text-xs px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white focus:border-emerald-500 outline-none"
+                  >
+                    <option value="colegio_medico">Colegio Médico Provincial</option>
+                    <option value="perfil_google">Ficha Google Business Profile (Maps)</option>
+                    <option value="hospital_clinica">Hospital / Clínica / Quirófano</option>
+                    <option value="sociedad_cientifica">Sociedad Científica / Especialidad</option>
+                    <option value="directorio_local">Directorio Sanitario Local</option>
+                    <option value="universidad_investigacion">Universidad / Investigación</option>
+                    <option value="prensa_salud">Medio de Prensa / Salud</option>
+                    <option value="otro">Otro Enlace de Autoridad</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-300">Texto Ancla (Anchor Text)</label>
+                  <input
+                    type="text"
+                    value={newAnchorText}
+                    onChange={e => setNewAnchorText(e.target.value)}
+                    placeholder="Ej. Dr. Carlos Pérez - Colegio de Médicos"
+                    className="w-full text-xs px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:border-emerald-500 outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-300">Estado del Enlace</label>
+                  <select
+                    value={newEstado}
+                    onChange={e => setNewEstado(e.target.value as any)}
+                    className="w-full text-xs px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white focus:border-emerald-500 outline-none"
+                  >
+                    <option value="verificado">✅ Verificado / Activo</option>
+                    <option value="pendiente">⏳ Pendiente de Aprobación</option>
+                    <option value="sugerido">💡 Sugerido / En Prospección</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-300">Notas / Observaciones</label>
+                <input
+                  type="text"
+                  value={newNotas}
+                  onChange={e => setNewNotas(e.target.value)}
+                  placeholder="Ej. Ficha anual actualizada 2026"
+                  className="w-full text-xs px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:border-emerald-500 outline-none"
+                />
+              </div>
+
+              <div className="flex items-center gap-4 text-xs pt-1">
+                <label className="inline-flex items-center gap-1.5 cursor-pointer text-slate-300 hover:text-white">
+                  <input
+                    type="checkbox"
+                    checked={newIncluirSchema}
+                    onChange={e => setNewIncluirSchema(e.target.checked)}
+                    className="rounded border-slate-700 text-emerald-500 focus:ring-emerald-500/20"
+                  />
+                  <span>Inyectar en Schema JSON-LD (sameAs)</span>
+                </label>
+
+                <label className="inline-flex items-center gap-1.5 cursor-pointer text-slate-300 hover:text-white">
+                  <input
+                    type="checkbox"
+                    checked={newMostrarFooter}
+                    onChange={e => setNewMostrarFooter(e.target.checked)}
+                    className="rounded border-slate-700 text-emerald-500 focus:ring-emerald-500/20"
+                  />
+                  <span>Mostrar Insignia en Footer Público</span>
+                </label>
+              </div>
+            </div>
+          )}
+        </form>
+
+        {/* Lista de enlaces registrados */}
+        <div className="space-y-2.5">
+          <h5 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+            <span>Listado de Citaciones Registradas ({(data.backlinksAutoridad || []).length})</span>
+            <span className="text-[11px] text-slate-500 font-normal">Schema sameAs / Footer público</span>
+          </h5>
+
+          {(!data.backlinksAutoridad || data.backlinksAutoridad.length === 0) ? (
+            <div className="p-6 rounded-xl bg-slate-800/40 border border-slate-700/60 text-center space-y-2">
+              <p className="text-xs font-bold text-slate-300">No hay citaciones o backlinks registrados aún</p>
+              <p className="text-[11px] text-slate-400">
+                Haz clic en &quot;Sugerencias Automáticas&quot; para pre-cargar instituciones clave de tu ciudad o agrega una manualmente arriba.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {data.backlinksAutoridad.map((item) => {
+                const isVerified = item.estado === 'verificado';
+                const isPending = item.estado === 'pendiente';
+                return (
+                  <div
+                    key={item.id}
+                    className="p-3.5 rounded-xl bg-slate-800/70 border border-slate-700/80 flex items-start justify-between gap-3 hover:border-slate-600 transition-all group"
+                  >
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide border ${
+                          isVerified ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' :
+                          isPending ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' :
+                          'bg-blue-500/20 text-blue-300 border-blue-500/30'
+                        }`}>
+                          {isVerified ? '✅ Verificado' : isPending ? '⏳ Pendiente' : '💡 Sugerido'}
+                        </span>
+                        
+                        <span className="text-xs font-black text-white truncate">
+                          {item.portalNombre}
+                        </span>
+
+                        <a
+                          href={item.urlDestino}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] text-emerald-400 hover:text-emerald-300 font-medium inline-flex items-center gap-1 transition-colors"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          <span className="truncate max-w-[200px]">{item.urlDestino}</span>
+                        </a>
+                      </div>
+
+                      {item.anchorText && (
+                        <p className="text-[11px] text-slate-300">
+                          <strong className="text-slate-400">Anchor:</strong> &quot;{item.anchorText}&quot;
+                        </p>
+                      )}
+
+                      {item.notas && (
+                        <p className="text-[10.5px] text-slate-400 italic">
+                          {item.notas}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0 pt-0.5">
+                      <div className="flex items-center gap-2 text-[10.5px]">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleBacklinkProp(item.id, "incluirEnSchema")}
+                          className={`px-2 py-1 rounded-md font-bold flex items-center gap-1 transition-colors ${
+                            item.incluirEnSchema ? 'bg-indigo-900/60 text-indigo-300 border border-indigo-700' : 'bg-slate-900 text-slate-500 border border-slate-800'
+                          }`}
+                          title="Controla si se incluye en sameAs de Schema.org JSON-LD"
+                        >
+                          {item.incluirEnSchema ? <CheckSquare className="w-3 h-3 text-indigo-400" /> : <Square className="w-3 h-3 text-slate-500" />}
+                          <span>Schema</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleToggleBacklinkProp(item.id, "mostrarEnFooter")}
+                          className={`px-2 py-1 rounded-md font-bold flex items-center gap-1 transition-colors ${
+                            item.mostrarEnFooter ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-700' : 'bg-slate-900 text-slate-500 border border-slate-800'
+                          }`}
+                          title="Controla si se muestra como insignia en el footer público de la landing page"
+                        >
+                          {item.mostrarEnFooter ? <CheckSquare className="w-3 h-3 text-emerald-400" /> : <Square className="w-3 h-3 text-slate-500" />}
+                          <span>Footer</span>
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveBacklink(item.id)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                        title="Eliminar citación"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 6. POSICIONAMIENTO EN INTELIGENCIA ARTIFICIAL (GEO / LLMO: CHATGPT, GEMINI, PERPLEXITY) */}

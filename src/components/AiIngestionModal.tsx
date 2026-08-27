@@ -54,6 +54,10 @@ Servicios que realizo:
 3. Tratamiento Láser para Cicatrices y Manchas: Tecnología de vanguardia para rejuvenecimiento y marcas de acné.
 4. Procedimientos Menores: Extirpación de quistes, biopsias cutáneas y cauterización de verrugas.
 
+Guías y Recursos Educativos para Pacientes:
+- Ebook PDF: "Guía de Cuidados de la Piel en el Clima de Quito (Radiación UV y Altitud)"
+- Ficha Imprimible: "Rutina Básica de Limpieza e Hidratación para Piel Sensible"
+
 Hospitales y Afiliaciones:
 - Hospital Metropolitano de Quito
 - Hospital de los Valles

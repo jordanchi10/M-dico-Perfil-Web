@@ -4,7 +4,8 @@
  */
 
 import React, { useState, useRef, useEffect } from "react";
-import { MedicalLandingData, BeforeAfterCase, DEFAULT_SECTION_ORDER } from "../types";
+import { MedicalLandingData, BeforeAfterCase, PatientGuideItem, DEFAULT_SECTION_ORDER } from "../types";
+import { PatientGuideModal } from "./PatientGuideModal";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   Smartphone, 
@@ -29,6 +30,9 @@ import {
   Eye,
   Thermometer,
   FileText,
+  FileDown,
+  Download,
+  Lock,
   Pill,
   Scissors,
   Cross,
@@ -59,11 +63,16 @@ import {
   ExternalLink as ExternalLinkIcon,
   Play,
   Video,
+  BookOpen,
   Film,
   Instagram,
   Facebook,
   Youtube,
-  Linkedin
+  Linkedin,
+  RefreshCw,
+  Target,
+  HeartHandshake,
+  Compass
 } from "lucide-react";
 import { getActiveColorScale, generateScaleFromHex } from "../utils/colorUtils";
 import { MedicalIconRenderer } from "./MedicalIconRenderer";
@@ -107,6 +116,7 @@ const TypewriterText = ({ text, className }: { text: string; className?: string 
 interface PreviewPanelProps {
   data: MedicalLandingData;
   onOpenExternalPreview?: () => void;
+  onForceRefresh?: () => void;
   key?: React.Key;
 }
 
@@ -204,13 +214,27 @@ const ClinicalBeforeAfterSliderItem: React.FC<ClinicalBeforeAfterSliderItemProps
 
         {/* Separador de Arrastre */}
         <div 
+          id="before-after-slider"
           onMouseDown={handleMouseDown}
           onTouchStart={handleMouseDown}
-          className="absolute top-0 bottom-0 w-0.5 bg-white flex items-center justify-center cursor-ew-resize shadow-md"
+          className="absolute top-0 bottom-0 w-0.5 bg-white flex items-center justify-center cursor-ew-resize shadow-lg z-20 group/slider-handle"
           style={{ left: `${sliderPos}%`, transform: "translateX(-50%)" }}
         >
-          <div className="w-7 h-7 rounded-full bg-white text-slate-800 shadow-md flex items-center justify-center border border-slate-300 text-[10px] font-extrabold pointer-events-none">
-            &larr;&rarr;
+          {/* Anillo exterior con pulso / brillo animado */}
+          <span className="absolute w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-blue-500/30 animate-ping opacity-75 pointer-events-none" />
+          <span className="absolute w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-r from-blue-500/20 via-cyan-400/30 to-blue-500/20 animate-pulse pointer-events-none blur-xs" />
+
+          {/* Botón principal del manipulador con borde reluciente */}
+          <div className="relative w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white text-blue-600 shadow-xl flex items-center justify-center border-2 border-blue-500/90 group-hover/slider-handle:border-blue-600 group-hover/slider-handle:scale-110 active:scale-95 transition-all duration-300 pointer-events-none ring-4 ring-blue-500/25 group-hover/slider-handle:ring-blue-500/50">
+            {/* Flechas animadas parpadeando horizontalmente */}
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 sm:w-5 sm:h-5 animate-pulse shrink-0 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l-4 4 4 4m8 0l4-4-4-4" />
+            </svg>
+          </div>
+
+          {/* Indicador flotante animado de indicación de arrastre */}
+          <div className="absolute -top-7 px-2 py-0.5 rounded-md bg-slate-900/95 text-white text-[9px] sm:text-[10px] font-extrabold tracking-wider uppercase backdrop-blur-xs shadow-md border border-white/20 whitespace-nowrap opacity-90 group-hover/slider-handle:opacity-100 transition-opacity pointer-events-none animate-bounce flex items-center gap-1">
+            <span>◄ Arrastra ►</span>
           </div>
         </div>
       </div>
@@ -532,13 +556,70 @@ const ReviewsInteractiveCarousel: React.FC<ReviewsInteractiveCarouselProps> = ({
   );
 };
 
-export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPanelProps) {
+export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefresh }: PreviewPanelProps) {
   const [device, setDevice] = useState<"mobile" | "tablet" | "desktop">("desktop");
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [activeSection, setActiveSection] = useState<string>("inicio");
   const [isScrolled, setIsScrolled] = useState<boolean>(false);
+  const [shareModalGuide, setShareModalGuide] = useState<PatientGuideItem | null>(null);
+  const [selectedGuideForDownload, setSelectedGuideForDownload] = useState<PatientGuideItem | null>(null);
+  const [leadCaptureName, setLeadCaptureName] = useState<string>("");
+  const [leadCaptureContact, setLeadCaptureContact] = useState<string>("");
+  const [leadCaptureSubmitted, setLeadCaptureSubmitted] = useState<boolean>(false);
+  const [downloadToast, setDownloadToast] = useState<string | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const heroParallaxRef = useRef<HTMLDivElement>(null);
+
+  const handleStartGuideDownload = (guide: PatientGuideItem) => {
+    if (guide.requiereRegistro) {
+      setSelectedGuideForDownload(guide);
+      setLeadCaptureName("");
+      setLeadCaptureContact("");
+      setLeadCaptureSubmitted(false);
+    } else {
+      triggerDirectDownload(guide);
+    }
+  };
+
+  const triggerDirectDownload = (guide: PatientGuideItem) => {
+    // Si la guía especifica una ruta real en cPanel (ej. /descargas/mi-libro.pdf) o archivoUrl
+    const cpanelOrUrl = guide.rutaCpanel || guide.archivoUrl;
+    
+    if (cpanelOrUrl && cpanelOrUrl.startsWith("http")) {
+      window.open(cpanelOrUrl, "_blank");
+    } else {
+      // Descarga directa con fallback de archivo simulado para la previsualización
+      const fileName = cpanelOrUrl ? cpanelOrUrl.split("/").pop() || `${guide.titulo}.pdf` : `${guide.titulo.toLowerCase().replace(/[^a-z0-9]/g, "_")}.pdf`;
+      const dummyContent = `%PDF-1.4\n% Guía Médica Oficial: ${guide.titulo}\n% Especialista: ${data.nombreMedico}\n% Clínica: ${data.nombreClinicaGBP || "Centro Médico Especializado"}\n% Ciudad: ${data.ciudad || "Ecuador"}\n% Fecha: ${new Date().toLocaleDateString()}\n% Este documento se aloja en la raíz de su servidor cPanel en: ${guide.rutaCpanel || "/descargas/"}`;
+      const blob = new Blob([dummyContent], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    setDownloadToast(`¡Descarga iniciada! "${guide.titulo}"`);
+    setTimeout(() => setDownloadToast(null), 4000);
+  };
+
+  const handleSubmitLeadCapture = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!leadCaptureName.trim() || !leadCaptureContact.trim()) return;
+
+    setLeadCaptureSubmitted(true);
+    if (selectedGuideForDownload) {
+      triggerDirectDownload(selectedGuideForDownload);
+    }
+
+    setTimeout(() => {
+      setSelectedGuideForDownload(null);
+      setLeadCaptureSubmitted(false);
+    }, 1500);
+  };
 
   const handleOpenExternal = () => {
     if (onOpenExternalPreview) {
@@ -556,6 +637,8 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
     }
   };
 
+  const isClinica = data.tipoEnfoqueLanding === "clinica";
+
   const isSectionVisible = (id: string) => {
     if (!data.ordenSecciones || data.ordenSecciones.length === 0) return true;
     const item = data.ordenSecciones.find(s => s.id === id);
@@ -565,40 +648,63 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
   const hasNosotros = isSectionVisible("eeat");
   const hasInstalaciones = data.fotosConsultorio && data.fotosConsultorio.length > 0 && isSectionVisible("galeria");
   const hasServicios = data.servicios && data.servicios.length > 0 && isSectionVisible("servicios");
+  const hasRedesSociales = isSectionVisible("redes_sociales");
   const hasCasos = data.casosAntesDespues && data.casosAntesDespues.length > 0 && isSectionVisible("casos");
   const hasFaq = data.faqs && data.faqs.length > 0 && isSectionVisible("faqs");
   const hasResenas = data.resenas && data.resenas.length > 0 && isSectionVisible("opiniones");
   const hasBlog = data.blogPosts && data.blogPosts.length > 0 && isSectionVisible("blog");
+  const hasGuias = data.guiasPacientes && data.guiasPacientes.length > 0 && isSectionVisible("guias");
 
-  // Active navigation items matching generators.ts
+  // Section order list from data or default
+  const sectionOrderList = (data.ordenSecciones && data.ordenSecciones.length > 0)
+    ? data.ordenSecciones
+    : DEFAULT_SECTION_ORDER;
+
+  // Active navigation items matching sectionOrderList order
   const activeNavs: { id: string; label: string; icon: string }[] = [];
-  activeNavs.push({ id: "inicio", label: "Inicio", icon: "home" });
-  if (hasNosotros) activeNavs.push({ id: "nosotros", label: "Doctor", icon: "doctor" });
-  
-  if (hasServicios) {
-    activeNavs.push({ id: "servicios", label: "Servicios", icon: "servicios" });
-  } else if (hasInstalaciones) {
-    activeNavs.push({ id: "instalaciones", label: "Clínica", icon: "clinica" });
-  }
 
-  if (hasResenas) {
-    activeNavs.push({ id: "opiniones", label: "Opiniones", icon: "opiniones" });
-  } else if (hasFaq) {
-    activeNavs.push({ id: "faqs", label: "Preguntas", icon: "faq" });
-  } else if (hasBlog) {
-    activeNavs.push({ id: "blog", label: "Blog", icon: "blog" });
+  sectionOrderList.forEach(sec => {
+    if (sec.visible === false) return;
+
+    if (sec.id === "hero") {
+      activeNavs.push({ id: "inicio", label: "Inicio", icon: "home" });
+    } else if (sec.id === "eeat" && hasNosotros) {
+      activeNavs.push({ id: "nosotros", label: isClinica ? "Nosotros" : "Doctor", icon: "doctor" });
+    } else if (sec.id === "servicios" && hasServicios) {
+      activeNavs.push({ id: "servicios", label: "Tratamientos", icon: "servicios" });
+    } else if (sec.id === "redes_sociales" && hasRedesSociales) {
+      activeNavs.push({ id: "redes-sociales", label: "Redes", icon: "video" });
+    } else if (sec.id === "casos" && hasCasos) {
+      activeNavs.push({ id: "casos", label: isClinica ? "Casos Clínicos" : "Mis casos", icon: "casos" });
+    } else if (sec.id === "opiniones" && hasResenas) {
+      activeNavs.push({ id: "opiniones", label: "Opiniones", icon: "opiniones" });
+    } else if (sec.id === "galeria" && hasInstalaciones) {
+      activeNavs.push({ id: "instalaciones", label: "Galería", icon: "clinica" });
+    } else if (sec.id === "faqs" && hasFaq) {
+      activeNavs.push({ id: "faqs", label: "Preguntas", icon: "faq" });
+    } else if (sec.id === "blog" && hasBlog) {
+      activeNavs.push({ id: "blog", label: "Blog", icon: "blog" });
+    } else if (sec.id === "guias" && hasGuias) {
+      activeNavs.push({ id: "guias", label: "Guías", icon: "guias" });
+    }
+  });
+
+  if (!activeNavs.some(item => item.id === "contacto")) {
+    activeNavs.push({ id: "contacto", label: "Cita", icon: "cita" });
   }
-  activeNavs.push({ id: "contacto", label: "Cita", icon: "cita" });
 
   const getIconComponent = (iconName: string) => {
     switch (iconName) {
       case "home": return Home;
       case "doctor": return Award;
       case "servicios": return Stethoscope;
+      case "video": return Video;
+      case "casos": return Activity;
       case "clinica": return Building2;
       case "opiniones": return Star;
       case "faq": return CheckCircle2;
       case "blog": return FileText;
+      case "guias": return BookOpen;
       case "cita": return Calendar;
       default: return Home;
     }
@@ -617,10 +723,13 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
         if (nav.id === "inicio") elementId = "#preview-landing-header";
         else if (nav.id === "nosotros") elementId = "#preview-landing-nosotros";
         else if (nav.id === "servicios") elementId = "#preview-landing-servicios";
+        else if (nav.id === "redes-sociales") elementId = "#preview-landing-redes-sociales";
+        else if (nav.id === "casos") elementId = "#preview-landing-casos";
         else if (nav.id === "instalaciones") elementId = "#preview-landing-instalaciones";
         else if (nav.id === "faqs") elementId = "#preview-landing-faq";
         else if (nav.id === "opiniones") elementId = "#resenas";
         else if (nav.id === "blog") elementId = "#preview-landing-blog";
+        else if (nav.id === "guias") elementId = "#preview-landing-guias";
         else if (nav.id === "contacto") elementId = "#agendar-preview";
 
         return { id: nav.id, element: viewport.querySelector(elementId) };
@@ -680,10 +789,13 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
     if (sectionId === "inicio") elementId = "preview-landing-header";
     else if (sectionId === "nosotros") elementId = "preview-landing-nosotros";
     else if (sectionId === "servicios") elementId = "preview-landing-servicios";
+    else if (sectionId === "redes-sociales") elementId = "preview-landing-redes-sociales";
+    else if (sectionId === "casos") elementId = "preview-landing-casos";
     else if (sectionId === "instalaciones") elementId = "preview-landing-instalaciones";
     else if (sectionId === "faqs") elementId = "preview-landing-faq";
     else if (sectionId === "opiniones" || sectionId === "resenas") elementId = "resenas";
     else if (sectionId === "blog") elementId = "preview-landing-blog";
+    else if (sectionId === "guias") elementId = "preview-landing-guias";
     else if (sectionId === "contacto") elementId = "agendar-preview";
 
     const element = viewport.querySelector(`#${elementId}`);
@@ -709,6 +821,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
   });
   const [bookingTime, setBookingTime] = useState<string>("10:30 AM");
   const [patientName, setPatientName] = useState<string>("");
+  const [bookingDetails, setBookingDetails] = useState<string>("");
 
   // Modal de confirmación de cita médica con resumen previo
   const [showBookingModal, setShowBookingModal] = useState<boolean>(false);
@@ -795,6 +908,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
       }
     }
     const nameStr = patientName.trim() ? ` Mi nombre es ${patientName.trim()}.` : "";
+    const detailsStr = bookingDetails.trim() ? ` Detalles de la consulta: ${bookingDetails.trim()}.` : "";
     const defaultTemplate = "Hola Dr(a). {{medico}}, deseo agendar una consulta médica de {{especialidad}} para el día {{fecha}} a las {{hora}}.{{nombre}} Por favor me confirma disponibilidad.";
     let msg = data.whatsappMensajePlantilla && data.whatsappMensajePlantilla.trim() 
       ? data.whatsappMensajePlantilla 
@@ -807,10 +921,15 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
       .replace(/\{\{clinica\}\}/gi, data.nombreClinicaGBP || "")
       .replace(/\{\{fecha\}\}/gi, dateFormatted)
       .replace(/\{\{hora\}\}/gi, bookingTime)
-      .replace(/\{\{nombre\}\}/gi, nameStr);
+      .replace(/\{\{nombre\}\}/gi, nameStr)
+      .replace(/\{\{detalles\}\}/gi, bookingDetails.trim() ? `Detalles: ${bookingDetails.trim()}` : "");
 
     if (nameStr && !data.whatsappMensajePlantilla?.includes("{{nombre}}") && !msg.includes(nameStr)) {
       msg += nameStr;
+    }
+
+    if (bookingDetails.trim() && !data.whatsappMensajePlantilla?.includes("{{detalles}}") && !msg.includes(bookingDetails.trim())) {
+      msg += detailsStr;
     }
 
     return `${baseUrl}?text=${encodeURIComponent(msg)}`;
@@ -1025,6 +1144,16 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
         </div>
         <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200/80">
           <button
+            id="btn-preview-refresh-inner"
+            type="button"
+            onClick={onForceRefresh}
+            className="px-2.5 py-1.5 rounded-lg text-blue-700 bg-white hover:bg-blue-50 transition-all cursor-pointer flex items-center gap-1 font-bold text-[11px] border border-slate-200 shadow-2xs hover:scale-105"
+            title="Forzar refresco inmediato y re-renderizado de la vista previa"
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-blue-600" />
+            <span className="hidden sm:inline">Refrescar</span>
+          </button>
+          <button
             id="btn-preview-mobile"
             onClick={() => setDevice("mobile")}
             className={`p-2 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
@@ -1065,6 +1194,16 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
           >
             <Monitor className="w-4 h-4" />
             <span className="text-[11px] font-extrabold hidden sm:inline">Desktop</span>
+          </button>
+          <button
+            id="btn-preview-external-inline"
+            type="button"
+            onClick={handleOpenExternal}
+            className="p-2 rounded-lg text-slate-600 hover:text-blue-600 hover:bg-white transition-all cursor-pointer flex items-center gap-1 font-bold text-[11px]"
+            title="Abrir vista previa en pestaña independiente"
+          >
+            <ExternalLink className="w-3.5 h-3.5 text-blue-600" />
+            <span className="hidden lg:inline">Navegador</span>
           </button>
         </div>
       </div>
@@ -1721,8 +1860,8 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
 
               {/* Mobile Slide-Down Menu Panel */}
               {device === "mobile" && mobileMenuOpen && (
-                <div className="overflow-hidden border-t border-slate-100 mt-2.5">
-                  <nav className="flex flex-col py-1.5 gap-1 bg-slate-50/90 p-2.5 rounded-2xl border border-slate-200/70 mt-1">
+                <div className="overflow-hidden max-w-full w-full border-t border-slate-100 mt-2.5">
+                  <nav className="flex flex-wrap items-center justify-center py-2 px-2.5 gap-2 bg-slate-50/90 rounded-2xl border border-slate-200/70 mt-1 max-w-full overflow-hidden">
                     {activeNavs.map((item) => {
                       const isActive = activeSection === item.id;
                       const Icon = getIconComponent(item.icon);
@@ -1731,16 +1870,16 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                           key={item.id}
                           onClick={() => scrollToSection(item.id)}
                           style={isActive ? { backgroundColor: activeColorScale["600"], color: "#FFFFFF" } : {}}
-                          className={`flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-left text-[14px] font-bold transition-all cursor-pointer ${
+                          className={`flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-[13px] font-bold transition-all cursor-pointer shrink-0 ${
                             isActive 
                               ? "text-white shadow-xs font-black"
-                              : "text-slate-800 hover:bg-white hover:text-slate-950"
+                              : "text-slate-800 bg-white border border-slate-200/60 hover:bg-slate-100 hover:text-slate-950"
                           }`}
                         >
-                          <Icon className={`w-4.5 h-4.5 shrink-0 ${isActive ? "text-white" : "text-slate-500"}`} />
-                          <span className={isActive ? "text-white font-black" : "text-slate-800 font-bold"}>{item.label}</span>
+                          <Icon className={`w-4 h-4 shrink-0 min-w-[16px] min-h-[16px] ${isActive ? "text-white" : "text-slate-600"}`} />
+                          <span className="whitespace-nowrap font-bold">{item.label}</span>
                           {isActive && (
-                            <span className="ml-auto w-2 h-2 rounded-full bg-white animate-pulse" />
+                            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0" />
                           )}
                         </button>
                       );
@@ -1754,7 +1893,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
         {isSectionVisible("hero") && (
           <section 
             id="inicio" 
-            className="relative w-full min-h-[80vh] md:min-h-[80vh] flex flex-col justify-center items-center text-center px-4 sm:px-8 py-8 sm:py-12 md:py-16 overflow-hidden bg-cover bg-center bg-no-repeat shadow-inner"
+            className="relative w-full min-h-[80vh] md:min-h-[80vh] flex flex-col justify-center items-center text-center px-4 sm:px-8 pt-5 pb-8 sm:py-12 md:py-16 overflow-hidden bg-cover bg-center bg-no-repeat shadow-inner"
             style={(() => {
               const bgType = data.tipoFondoHero || (data.imagenFondoHero ? "imagen" : "gradiente");
               if (bgType === "imagen" && data.imagenFondoHero) {
@@ -1842,7 +1981,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                 const isSinBorde = forma === "sin_borde";
 
                 return (
-                  <div className={`relative group hero-animate-image ${isDesktop ? "shrink-0 my-0.5" : "mx-auto my-0.5 max-w-full"}`}>
+                  <div className={`relative group hero-animate-image ${isDesktop ? "shrink-0 my-0.5" : "mx-auto -mt-0.5 mb-1 sm:my-0.5 max-w-full"}`}>
                     <style>{`
                       .doctor-hero-photo-container {
                         width: ${currentW}px !important;
@@ -1989,22 +2128,23 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                   <div className={`flex items-center ${isDesktopAlignLeft ? "justify-start" : "justify-center"} pt-0.5 hero-animate-badge`}>
                     <div className="inline-flex items-center gap-1.5 px-3.5 py-1 sm:px-4 sm:py-1.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-[11px] sm:text-xs font-extrabold uppercase tracking-wider shadow-sm border border-blue-400/40 shrink-0 transform transition-all duration-200 hover:scale-105 cursor-default">
                       <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-100 shrink-0" />
-                      <span>{isCentradoVersion ? "Verificado" : "Médico Certificado"}</span>
+                      <span>{isCentradoVersion ? "Verificado" : (isClinica ? "Centro Acreditado" : "Médico Certificado")}</span>
                     </div>
                   </div>
 
                   {/* NOMBRE Y ESPECIALIDAD */}
                   <div className={`space-y-0.5 w-full ${isDesktopAlignLeft ? "text-left px-0" : "text-center px-2"}`}>
-                    <h1 className={`text-lg sm:text-xl md:text-2xl ${isDesktop ? "lg:text-4xl" : "lg:text-3xl"} font-medium leading-tight tracking-normal truncate max-w-full font-display hero-animate-title ${
+                    <h2 className={`text-2xl sm:text-3xl md:text-3xl lg:text-4xl font-bold leading-tight tracking-tight break-words max-w-full font-display hero-animate-title ${
                       data.tipoOverlayHero === "claro" ? "text-slate-900 drop-shadow-xs" : "text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.7)]"
                     }`}>
                       {data.nombreMedico}
-                    </h1>
-                    <p className={`text-xs sm:text-sm uppercase tracking-wide sm:tracking-wider truncate max-w-full hero-animate-specialty ${
+                    </h2>
+                    <h1 className={`text-sm sm:text-base md:text-lg uppercase tracking-wide sm:tracking-wider leading-snug break-words max-w-full hero-animate-specialty ${
                       data.tipoOverlayHero === "claro" ? "text-blue-700 font-extrabold drop-shadow-2xs" : "text-cyan-300 font-semibold drop-shadow-xs"
                     }`}>
                       <TypewriterText text={data.especialidad} />
-                    </p>
+                      <span className="sr-only"> en {data.ciudad || "Ecuador"}</span>
+                    </h1>
                   </div>
 
                   {/* CIUDAD / UBICACIÓN */}
@@ -2025,7 +2165,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                         e.preventDefault();
                         scrollToSection("contacto");
                       }}
-                      className={`${isDesktopAlignLeft ? "w-auto min-w-[260px] mx-0" : "w-[80%] sm:w-auto sm:min-w-[280px] max-w-md mx-auto"} inline-flex items-center justify-center gap-2.5 font-extrabold text-sm sm:text-base py-3.5 px-6 rounded-2xl shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group text-center bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white border border-emerald-500/30 ${
+                      className={`${isDesktopAlignLeft ? "w-auto min-w-[260px] mx-0" : "w-[80%] sm:w-auto sm:min-w-[280px] max-w-md mx-auto"} inline-flex items-center justify-center gap-2.5 font-extrabold text-sm sm:text-base py-3.5 px-6 rounded-xl shadow-md hover:shadow-lg hover:-translate-y-0.5 active:scale-95 transition-all duration-200 cursor-pointer group text-center bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white border border-emerald-500/30 ${
                         data.estiloCta === "estatico_pulso"
                           ? "ring-4 ring-emerald-400/40 shadow-xl animate-pulse hover:animate-none"
                           : ""
@@ -2036,59 +2176,57 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                     </a>
                   </div>
 
-                  {/* REDES SOCIALES & BOTONES DE ACCIÓN RÁPIDA */}
+                  {/* REDES SOCIALES & BOTONES DE ACCIÓN RÁPIDA (Orden: Facebook, Instagram, TikTok, Llamar, Compartir) */}
                   <div className={`flex items-center ${isDesktopAlignLeft ? "justify-start" : "justify-center"} gap-2.5 pt-1 flex-wrap hero-animate-social`}>
-                    {/* WhatsApp */}
+                    {/* 1. Facebook */}
                     <a 
-                      href={data.whatsappUrl || `https://wa.me/${data.telefonoGBP.replace(/\D/g, "")}`}
+                      href={data.facebookUrl || "#"}
                       target="_blank"
                       rel="noopener noreferrer"
-                      aria-label="Contactar por WhatsApp"
-                      title="WhatsApp Directo"
-                      className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-white flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-110 active:scale-95 transition-all cursor-pointer border border-white/20"
+                      aria-label="Facebook del Especialista"
+                      title="Facebook"
+                      className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#1877F2] hover:bg-[#166fe5] text-white flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer border border-white/20"
                     >
-                      <MessageCircle className="w-5 h-5 fill-current" />
+                      <Facebook className="w-5 h-5 fill-current" />
                     </a>
 
-                    {/* Instagram */}
-                    {data.instagramUrl && (
-                      <a 
-                        href={data.instagramUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label="Instagram del Especialista"
-                        title="Instagram"
-                        className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-110 active:scale-95 transition-all cursor-pointer border border-white/20"
-                      >
-                        <Instagram className="w-5 h-5" />
-                      </a>
-                    )}
-
-                    {/* Facebook */}
-                    {data.facebookUrl && (
-                      <a 
-                        href={data.facebookUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label="Facebook del Especialista"
-                        title="Facebook"
-                        className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#1877F2] hover:bg-[#166fe5] text-white flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-110 active:scale-95 transition-all cursor-pointer border border-white/20"
-                      >
-                        <Facebook className="w-5 h-5 fill-current" />
-                      </a>
-                    )}
-
-                    {/* Teléfono / Llamar */}
+                    {/* 2. Instagram */}
                     <a 
-                      href={`tel:${data.telefonoGBP}`} 
+                      href={data.instagramUrl || "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="Instagram del Especialista"
+                      title="Instagram"
+                      className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer border border-white/20"
+                    >
+                      <Instagram className="w-5 h-5" />
+                    </a>
+
+                    {/* 3. TikTok */}
+                    <a 
+                      href={data.tiktokUrl || "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="TikTok del Especialista"
+                      title="TikTok"
+                      className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-slate-900 hover:bg-black text-white flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer border border-white/20"
+                    >
+                      <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                        <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.298 0 .59.043.87.126V9.4a6.33 6.33 0 0 0-.87-.06A6.34 6.34 0 0 0 3 15.68a6.34 6.34 0 0 0 10.82 4.48c.18-.18.34-.37.49-.57V10.7a8.28 8.28 0 0 0 5.28 1.93v-3.45a4.84 4.84 0 0 1-3.23-.97c-.01-.01-.02-.02-.04-.03l3.27-1.49z"/>
+                      </svg>
+                    </a>
+
+                    {/* 4. Teléfono / Llamar */}
+                    <a 
+                      href={data.telefonoGBP ? `tel:${data.telefonoGBP}` : "#"} 
                       aria-label="Llamar al Consultorio"
                       title="Llamada Directa"
-                      className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#0288D1] hover:bg-[#0277bd] text-white flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-110 active:scale-95 transition-all cursor-pointer border border-white/20"
+                      className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#0288D1] hover:bg-[#0277bd] text-white flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer border border-white/20"
                     >
                       <Phone className="w-5 h-5" />
                     </a>
 
-                    {/* Compartir Perfil */}
+                    {/* 5. Compartir Perfil */}
                     <button 
                       type="button"
                       onClick={() => {
@@ -2106,7 +2244,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                       }}
                       aria-label="Compartir perfil"
                       title="Compartir Perfil Médico"
-                      className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-110 active:scale-95 transition-all cursor-pointer border border-white/20"
+                      className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer border border-white/20"
                     >
                       <Share2 className="w-5 h-5" />
                     </button>
@@ -2203,10 +2341,10 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
 
               // Renderizado para MOBILE Y TABLET (1 columna vertical: Logotipo -> Foto de Perfil -> Información)
               return (
-                <div className="relative z-10 w-full max-w-xl mx-auto flex flex-col items-center justify-center space-y-3 sm:space-y-3.5 text-center my-auto">
+                <div className="relative z-10 w-full max-w-xl mx-auto flex flex-col items-center justify-center space-y-2.5 sm:space-y-3.5 text-center my-auto -mt-3.5 sm:mt-0">
                   {/* 1. LOGOTIPO (Visible únicamente en Mobile y Tablet, Oculto en Desktop) */}
                   {data.logoUrl ? (
-                    <div className="w-full flex justify-center items-center -mt-2 sm:-mt-3 pt-0 pb-0.5 animate-in fade-in slide-in-from-top-2 duration-700">
+                    <div className="w-full flex justify-center items-center -mt-2 sm:-mt-2 pt-0 pb-0 animate-in fade-in slide-in-from-top-2 duration-700">
                       <img 
                         src={data.logoUrl} 
                         alt={`Logotipo ${data.nombreMedico}`} 
@@ -2242,9 +2380,9 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
           <div className="space-y-2.5">
             <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-${getC("50")} text-${getC("700")} border border-${getC("200")}/80 shadow-2xs`}>
               <ShieldCheck className={`w-3.5 h-3.5 text-${getC("600")} shrink-0`} />
-              <span>Sobre el Especialista</span>
+              <span>{isClinica ? "Sobre Nosotros / Centro Médico" : "Sobre el Especialista"}</span>
             </div>
-            <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-slate-950 leading-tight">Trayectoria y formación</h2>
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-slate-950 leading-tight">{isClinica ? "Trayectoria e Instalaciones" : "Trayectoria y formación"}</h2>
             <p className={`text-xs sm:text-sm font-semibold text-${getC("700")} tracking-wide`}>Experiencia, acreditaciones y compromiso con el paciente</p>
             <p className="text-sm sm:text-base text-slate-700 leading-relaxed">
               {data.biografiaCurta}
@@ -2265,7 +2403,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                     Años Exp.
                   </span>
                 </div>
-                <p className="text-[11px] sm:text-xs font-bold text-slate-800 tracking-wide mt-1 leading-snug">Trayectoria Médica Acreditada</p>
+                <p className="text-[11px] sm:text-xs font-bold text-slate-800 tracking-wide mt-1 leading-snug">{isClinica ? "Trayectoria Institucional Acreditada" : "Trayectoria Médica Acreditada"}</p>
                 <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium truncate mt-0.5 hidden sm:block">Experiencia clínica y actualización continua</p>
               </div>
             </div>
@@ -2297,11 +2435,11 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
             <button
               type="button"
               onClick={() => setShowProfileModal(true)}
-              className={`w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-2xl bg-${getC("600")} hover:bg-${getC("700")} text-white text-sm font-extrabold shadow-md transition-all duration-300 cursor-pointer hover:scale-[1.02] active:scale-[0.98] animate-bounce hover:animate-none`}
+              className={`w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-xl bg-${getC("600")} hover:bg-${getC("700")} text-white text-xs sm:text-sm font-extrabold uppercase tracking-wide shadow-md hover:shadow-lg hover:-translate-y-0.5 active:scale-95 transition-all duration-200 cursor-pointer animate-bounce hover:animate-none`}
               style={{ animationDuration: '2.5s' }}
             >
               <UserCheck className="w-5 h-5 text-white shrink-0" />
-              <span className="tracking-wide uppercase font-black">MI PERFIL COMPLETO</span>
+              <span className="font-black">{isClinica ? "CONOCE NUESTRO CENTRO" : "MI PERFIL COMPLETO"}</span>
             </button>
           </div>
         </section>
@@ -2318,9 +2456,9 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
             <p className={`text-xs sm:text-sm text-${getC("700")} mt-1 max-w-lg mx-auto font-medium`}>Servicios integrales diseñados bajo estándares internacionales para garantizar seguridad y máxima precisión.</p>
           </div>
 
-          {/* Grid de los 5 servicios principales */}
-          <div className={`grid ${device === "desktop" ? "grid-cols-2" : "grid-cols-1"} gap-4`}>
-            {data.servicios.slice(0, 5).map((srv, idx) => {
+          {/* Grid de servicios principales (6 en desktop, 4 en tablet/mobile) */}
+          <div className={`grid ${device === "desktop" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : device === "tablet" ? "grid-cols-2" : "grid-cols-1"} gap-4`}>
+            {data.servicios.slice(0, device === "desktop" ? 6 : 4).map((srv, idx) => {
               const hasImage = srv.mostrarImagen !== false && Boolean(srv.imagenUrl);
 
               return (
@@ -2332,20 +2470,50 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                     {hasImage ? (
                       <div className="relative w-full aspect-[5/4] rounded-xl overflow-hidden bg-slate-100 border border-slate-200/90 shadow-2xs group-hover:scale-[1.015] transition-transform duration-300">
                         <img src={srv.imagenUrl} alt={srv.titulo} className="w-full h-full object-cover" loading="lazy" />
-                        {srv.destacado && (
-                          <span className="absolute top-2.5 right-2.5 text-[10px] font-extrabold text-amber-800 bg-amber-50/95 backdrop-blur-xs border border-amber-200/90 px-2.5 py-0.5 rounded-full shadow-xs">
-                            ⭐ Destacado
-                          </span>
-                        )}
+                        <div className="absolute top-2.5 right-2.5 flex flex-col items-end gap-1 z-10">
+                          {(() => {
+                            const isDestacado = Boolean(srv.destacado);
+                            const text = srv.badgeEtiqueta || (isDestacado ? "DESTACADO" : "");
+                            if (!text) return null;
+                            if (isDestacado) {
+                              return (
+                                <span className="text-[10px] font-black tracking-wide uppercase text-amber-950 bg-amber-300 border border-amber-400/90 px-2.5 py-0.5 rounded-full shadow-xs flex items-center gap-1">
+                                  ⭐ {text}
+                                </span>
+                              );
+                            }
+                            return (
+                              <span className="text-[10px] font-bold tracking-wide uppercase text-slate-800 bg-white/90 backdrop-blur-xs border border-slate-200/90 px-2.5 py-0.5 rounded-full shadow-2xs">
+                                {text}
+                              </span>
+                            );
+                          })()}
+                        </div>
                       </div>
                     ) : (
                       <div className="flex items-center justify-between">
                         <div className="p-3 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 shrink-0 h-12 w-12 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
                           {renderIcon(srv.icono)}
                         </div>
-                        {srv.destacado && (
-                          <span className="text-[10px] font-extrabold text-amber-700 bg-amber-50 border border-amber-200/80 px-2.5 py-0.5 rounded-full">⭐ Destacado</span>
-                        )}
+                        <div className="flex flex-col items-end gap-1">
+                          {(() => {
+                            const isDestacado = Boolean(srv.destacado);
+                            const text = srv.badgeEtiqueta || (isDestacado ? "DESTACADO" : "");
+                            if (!text) return null;
+                            if (isDestacado) {
+                              return (
+                                <span className="text-[10px] font-black tracking-wide uppercase text-amber-950 bg-amber-300 border border-amber-400 px-2.5 py-0.5 rounded-full shadow-xs flex items-center gap-1">
+                                  ⭐ {text}
+                                </span>
+                              );
+                            }
+                            return (
+                              <span className="text-[10px] font-bold tracking-wide uppercase text-slate-700 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-full">
+                                {text}
+                              </span>
+                            );
+                          })()}
+                        </div>
                       </div>
                     )}
 
@@ -2358,24 +2526,30 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                     </div>
                   </div>
 
-                  {/* Badges de precio, duración y recuperación */}
-                  <div className="flex flex-wrap items-center gap-2 pt-2.5 border-t border-slate-100 text-[11px]">
+                  {/* Indicadores Rápidos (Ficha Técnica: Precio, Duración, Recuperación, Modalidad) */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-2.5 border-t border-slate-100 text-[11px]">
                     {srv.precio && (
-                      <span className="inline-flex items-center gap-1 font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/60 px-2.5 py-0.5 rounded-md">
-                        <Banknote className="w-3 h-3 text-emerald-600" />
-                        {srv.precio}
+                      <span className="inline-flex items-center gap-1 font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/60 px-2.5 py-0.5 rounded-md" title="Inversión / Precio Estimado">
+                        <Banknote className="w-3 h-3 text-emerald-600 shrink-0" />
+                        <span>{srv.precio}</span>
                       </span>
                     )}
                     {srv.duracion && (
-                      <span className="inline-flex items-center gap-1 font-bold text-blue-800 bg-blue-50 border border-blue-200/60 px-2.5 py-0.5 rounded-md">
-                        <Clock className="w-3 h-3 text-blue-600" />
-                        {srv.duracion}
+                      <span className="inline-flex items-center gap-1 font-bold text-blue-800 bg-blue-50 border border-blue-200/60 px-2.5 py-0.5 rounded-md" title="Duración de la Cita">
+                        <Clock className="w-3 h-3 text-blue-600 shrink-0" />
+                        <span>⏳ {srv.duracion}</span>
                       </span>
                     )}
                     {srv.recuperacion && (
-                      <span className="inline-flex items-center gap-1 font-bold text-purple-800 bg-purple-50 border border-purple-200/60 px-2.5 py-0.5 rounded-md">
-                        <Activity className="w-3 h-3 text-purple-600" />
-                        {srv.recuperacion}
+                      <span className="inline-flex items-center gap-1 font-bold text-purple-800 bg-purple-50 border border-purple-200/60 px-2.5 py-0.5 rounded-md" title="Tiempo de Recuperación">
+                        <Activity className="w-3 h-3 text-purple-600 shrink-0" />
+                        <span>⏱️ {srv.recuperacion}</span>
+                      </span>
+                    )}
+                    {srv.modalidad && (
+                      <span className="inline-flex items-center gap-1 font-bold text-teal-800 bg-teal-50 border border-teal-200/60 px-2.5 py-0.5 rounded-md" title="Modalidad de Atención">
+                        <Building2 className="w-3 h-3 text-teal-600 shrink-0" />
+                        <span>🏥 {srv.modalidad}</span>
                       </span>
                     )}
                   </div>
@@ -2385,16 +2559,16 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
           </div>
 
           {/* Botón "Mis Servicios" para abrir el modal */}
-          <div className="pt-3 text-center">
+          <div className="pt-3 text-center flex flex-col items-center justify-center">
             <button
               type="button"
               id="btn-open-all-services-modal"
               onClick={() => setShowServicesModal(true)}
-              className={`w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-2xl bg-${getC("600")} hover:bg-${getC("700")} text-white text-sm font-extrabold shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer hover:scale-[1.01]`}
+              className={`w-[90%] max-w-lg inline-flex items-center justify-center gap-2 sm:gap-3 px-4 sm:px-8 py-3.5 sm:py-4 rounded-2xl bg-${getC("600")} hover:bg-${getC("700")} text-white text-xs sm:text-base font-extrabold uppercase tracking-wider shadow-lg shadow-${getC("600")}/25 hover:shadow-xl hover:shadow-${getC("600")}/40 hover:scale-[1.03] active:scale-[0.97] transition-all duration-300 cursor-pointer group animate-heartbeat hover:animate-none`}
             >
-              <Stethoscope className="w-4.5 h-4.5" />
-              <span>Mis servicios</span>
-              <ArrowRight className="w-4 h-4 ml-1" />
+              <Stethoscope className="w-4 sm:w-5 h-4 sm:h-5 group-hover:rotate-12 transition-transform duration-300 shrink-0" />
+              <span className="whitespace-nowrap">Mis servicios</span>
+              <ArrowRight className="w-4 h-4 ml-0.5 sm:ml-1 group-hover:translate-x-1 transition-transform duration-300 shrink-0" />
             </button>
             <p className="text-[11px] text-slate-500 mt-2 font-medium">Abre el catálogo completo con detalles de cada tratamiento</p>
           </div>
@@ -2423,7 +2597,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                     href={data.instagramUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 text-white text-xs font-bold shadow-xs hover:shadow-md transition-all hover:scale-105"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 text-white text-xs font-extrabold shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all duration-200 cursor-pointer"
                   >
                     <Instagram className="w-3.5 h-3.5" />
                     <span>Instagram</span>
@@ -2435,7 +2609,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                     href={data.tiktokUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-bold shadow-xs hover:shadow-md transition-all hover:scale-105"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-extrabold shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all duration-200 cursor-pointer"
                   >
                     <span className="text-cyan-400 font-extrabold text-xs">♪</span>
                     <span>TikTok</span>
@@ -2447,7 +2621,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                     href={data.facebookUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs hover:shadow-md transition-all hover:scale-105"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all duration-200 cursor-pointer"
                   >
                     <Facebook className="w-3.5 h-3.5" />
                     <span>Facebook</span>
@@ -2459,7 +2633,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                     href={data.youtubeUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-xs hover:shadow-md transition-all hover:scale-105"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-extrabold shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all duration-200 cursor-pointer"
                   >
                     <Youtube className="w-3.5 h-3.5" />
                     <span>YouTube</span>
@@ -2471,7 +2645,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                     href={data.linkedinUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-800 hover:bg-blue-900 text-white text-xs font-bold shadow-xs hover:shadow-md transition-all hover:scale-105"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-800 hover:bg-blue-900 text-white text-xs font-extrabold shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all duration-200 cursor-pointer"
                   >
                     <Linkedin className="w-3.5 h-3.5" />
                     <span>LinkedIn</span>
@@ -2597,7 +2771,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
               <span className={`text-[11px] font-extrabold text-${getC("600")} uppercase tracking-widest bg-${getC("50")} border border-${getC("200")}/60 px-3 py-1 rounded-full inline-block`}>
                 Casos Clínicos
               </span>
-              <h2 className="text-xl sm:text-2xl font-extrabold text-slate-950 mt-2">Mis casos</h2>
+              <h2 className="text-xl sm:text-2xl font-extrabold text-slate-950 mt-2">Casos Clínicos</h2>
               <p className={`text-xs sm:text-sm text-${getC("700")} font-medium mt-1`}>Arrastra o haz clic en el slider de cualquier caso para comparar resultados:</p>
             </div>
 
@@ -2710,7 +2884,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                       href={data.googleMapsReviewsUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center justify-center gap-2.5 px-5 py-3 rounded-2xl bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-200 text-xs sm:text-sm font-bold shadow-2xs hover:border-slate-300 transition-all shrink-0 self-start md:self-auto"
+                      className="inline-flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-200 text-xs sm:text-sm font-extrabold shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all duration-200 cursor-pointer shrink-0 self-start md:self-auto"
                     >
                       <span>Ver ficha en Google Maps</span>
                       <ExternalLink className="w-4 h-4 text-blue-600 shrink-0" />
@@ -2752,7 +2926,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                     href={data.googleMapsReviewsUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center gap-2.5 px-6 py-3.5 w-full rounded-xl bg-slate-950 hover:bg-slate-900 text-white font-extrabold text-xs sm:text-sm shadow-md transition-all active:scale-95 cursor-pointer"
+                    className="inline-flex items-center justify-center gap-2.5 px-4 py-3.5 w-full rounded-xl bg-slate-950 hover:bg-slate-900 text-white font-extrabold text-xs sm:text-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 active:scale-95 transition-all duration-200 cursor-pointer"
                   >
                     <svg className="w-4 h-4 text-white fill-current shrink-0" viewBox="0 0 24 24">
                       <path d="M12.24 10.285V14.4h6.887c-.648 2.41-2.519 4.114-6.887 4.114-4.636 0-8.403-3.728-8.403-8.4s3.767-8.4 8.403-8.4c2.086 0 3.978.74 5.46 2.2l3.184-3.185C18.358 1.155 15.42 0 12.24 0 5.58 0 0 5.37 0 12s5.58 12 12.24 12c7.03 0 11.76-4.945 11.76-12 0-.728-.088-1.423-.224-1.715H12.24z"/>
@@ -2809,7 +2983,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                     </div>
                     <button
                       type="button"
-                      className={`text-xs font-extrabold text-${getC("600")} hover:text-${getC("700")} flex items-center gap-1 mt-1 cursor-pointer self-start`}
+                      className={`px-3 py-1.5 rounded-xl bg-${getC("50")} hover:bg-${getC("100")} text-${getC("700")} hover:text-${getC("800")} border border-${getC("200")}/60 text-xs font-extrabold flex items-center gap-1.5 mt-1 cursor-pointer self-start shadow-2xs hover:shadow-xs hover:-translate-y-0.5 active:scale-95 transition-all duration-200`}
                     >
                       <span>Leer artículo</span>
                       <ArrowRight className="w-3.5 h-3.5" />
@@ -2817,6 +2991,130 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                   </div>
                 </div>
               ))}
+            </div>
+          </section>
+        )}
+
+        {/* SECCIÓN GUÍAS, EBOOKS & FICHAS PARA PACIENTES */}
+        {isSectionVisible("guias") && data.guiasPacientes && data.guiasPacientes.length > 0 && (
+          <section id="preview-landing-guias" className="p-6 sm:p-8 md:p-10 bg-white text-slate-900 border-t border-slate-200/80 space-y-8 text-left relative overflow-hidden" aria-label="Guías y fichas para pacientes">
+            {/* Decoración sutil con el color primario de la web */}
+            <div className={`absolute -right-20 -top-20 w-72 h-72 bg-${getC("500")}/5 rounded-full blur-3xl pointer-events-none`} />
+            <div className={`absolute -left-20 -bottom-20 w-72 h-72 bg-${getC("500")}/5 rounded-full blur-3xl pointer-events-none`} />
+
+            {/* Cabecera limpia sin el logotipo secundario */}
+            <div className="text-center max-w-3xl mx-auto space-y-3 relative z-10">
+              <span className={`text-[11px] font-extrabold text-${getC("800")} uppercase tracking-widest bg-${getC("50")} border border-${getC("200")}/80 px-3.5 py-1 rounded-full inline-flex items-center gap-1.5 shadow-2xs`}>
+                <FileDown className={`w-3.5 h-3.5 text-${getC("600")}`} />
+                Recursos Médicos & Ebooks ({data.guiasPacientes.length})
+              </span>
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-slate-950 tracking-tight">
+                Guías, Ebooks y Fichas para Pacientes
+              </h2>
+              <p className={`text-xs sm:text-sm text-${getC("800")}/80 font-medium leading-relaxed max-w-2xl mx-auto`}>
+                Material educativo en PDF para orientación y preparación antes y después de tu consulta médica.
+              </p>
+            </div>
+
+            {/* Grid de Tarjetas con Fondo Blanco, Imagen de Portada y Botones Elegantes */}
+            <div className={`grid ${device === "desktop" && data.guiasPacientes.length > 1 ? "grid-cols-2" : "grid-cols-1"} gap-5 sm:gap-6 max-w-5xl mx-auto relative z-10`}>
+              {data.guiasPacientes.map((guia, idx) => {
+                const deliveryMethod = guia.metodoEntrega || "todos";
+
+                // Enlace de WhatsApp
+                const phoneClean = (data.telefonoGBP || "").replace(/[^0-9]/g, "");
+                const waMessage = encodeURIComponent(`Hola ${data.nombreMedico}, me gustaría solicitar la guía descargable: "${guia.titulo}"`);
+                const waUrl = data.whatsappUrl && data.whatsappUrl.startsWith("http")
+                  ? data.whatsappUrl
+                  : `https://wa.me/${phoneClean || "593991234567"}?text=${waMessage}`;
+                
+                // Enlace de Correo
+                const mailUrl = `mailto:${data.emailContacto || "contacto@medico.com"}?subject=${encodeURIComponent(`Solicitud de Guía: ${guia.titulo}`)}&body=${encodeURIComponent(`Hola ${data.nombreMedico},\n\nDesearía recibir la guía médica "${guia.titulo}" en PDF.\n\nSaludos.`)}`;
+
+                return (
+                  <div 
+                    key={guia.id || idx}
+                    className={`p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-${getC("300")} shadow-2xs hover:shadow-md transition-all duration-300 flex flex-col justify-between gap-3.5 group relative`}
+                  >
+                    <div className="space-y-3 text-left">
+                      {/* Imagen de Portada de la Guía / Ebook */}
+                      {guia.imagenPortadaUrl && (
+                        <div className="w-full h-36 sm:h-44 rounded-xl overflow-hidden border border-slate-100 shadow-2xs group-hover:shadow-xs transition-shadow">
+                          <img
+                            src={guia.imagenPortadaUrl}
+                            alt={guia.titulo}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
+                        </div>
+                      )}
+
+                      {/* Categoría y Formato */}
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-${getC("50")} text-${getC("800")} border border-${getC("200")}`}>
+                          {guia.categoria || "Guía Médica"}
+                        </span>
+
+                        <span className="text-[11px] text-slate-500 font-semibold flex items-center gap-1">
+                          <FileText className={`w-3.5 h-3.5 text-${getC("600")}`} />
+                          {guia.formato || "PDF"} • {guia.tamano || "1.8 MB"}
+                        </span>
+                      </div>
+
+                      {/* Título de la Guía */}
+                      <h3 className={`text-base font-extrabold text-slate-900 group-hover:text-${getC("700")} transition-colors leading-snug`}>
+                        {guia.titulo}
+                      </h3>
+
+                      {/* Descripción */}
+                      {guia.descripcion && (
+                        <p className="text-xs text-slate-600 leading-relaxed font-normal">
+                          {guia.descripcion}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Botones de Acción Múltiple con Animaciones e Identidad de Landing Page */}
+                    <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row flex-wrap items-center gap-2.5">
+                      {/* Opción 1: Descarga Directa desde Servidor / cPanel */}
+                      {(deliveryMethod === "todos" || deliveryMethod === "descarga_directa") && (
+                        <button
+                          type="button"
+                          onClick={() => handleStartGuideDownload(guia)}
+                          style={{ backgroundColor: activeColorScale["600"] }}
+                          className="group/btn px-4 py-2.5 rounded-xl text-white font-extrabold text-xs shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer flex-1 min-w-[130px]"
+                        >
+                          <Download className="w-4 h-4 group-hover/btn:translate-y-0.5 transition-transform duration-200" />
+                          <span>Descarga Directa</span>
+                        </button>
+                      )}
+
+                      {/* Opción 2: Solicitar por WhatsApp */}
+                      {(deliveryMethod === "todos" || deliveryMethod === "whatsapp") && (
+                        <a
+                          href={waUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="group/btn px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 flex-1 min-w-[140px]"
+                        >
+                          <MessageCircle className="w-4 h-4 group-hover/btn:scale-110 transition-transform duration-200" />
+                          <span>Solicitar por WhatsApp</span>
+                        </a>
+                      )}
+
+                      {/* Opción 3: Solicitar por Correo */}
+                      {(deliveryMethod === "todos" || deliveryMethod === "email") && (
+                        <a
+                          href={mailUrl}
+                          className="group/btn px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-extrabold text-xs shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 flex-1 min-w-[130px]"
+                        >
+                          <Mail className="w-4 h-4 group-hover/btn:scale-110 transition-transform duration-200" />
+                          <span>Solicitar por Email</span>
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </section>
         )}
@@ -2987,6 +3285,22 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none bg-slate-50/60 font-medium text-slate-800"
               />
             </div>
+
+            {/* Detalles de la consulta opcional */}
+            <div className="flex flex-col gap-1">
+              <label htmlFor="preview-booking-details" className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                <FileText className="w-3.5 h-3.5 text-slate-500" />
+                <span>Detalles de la consulta (opcional)</span>
+              </label>
+              <textarea
+                id="preview-booking-details"
+                placeholder="ej. Dolor de espalda, chequeo anual, renovación de receta..."
+                value={bookingDetails}
+                onChange={(e) => setBookingDetails(e.target.value)}
+                rows={2}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none bg-slate-50/60 font-medium text-slate-800 resize-none"
+              />
+            </div>
           </div>
 
           {/* Botones de Agenda Adaptables */}
@@ -3007,7 +3321,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                 setBookingModalService("whatsapp");
                 setShowBookingModal(true);
               }}
-              className={`w-[95%] max-w-md text-sm sm:text-base font-extrabold py-4 px-6 rounded-2xl text-center flex items-center justify-center gap-2.5 shadow-md hover:shadow-lg hover:scale-[1.01] active:scale-[0.99] transition-all cursor-pointer bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white border border-emerald-500/30 ${
+              className={`w-[95%] max-w-md text-xs sm:text-sm font-extrabold uppercase tracking-wide py-3.5 px-6 rounded-xl text-center flex items-center justify-center gap-2.5 shadow-md hover:shadow-lg hover:-translate-y-0.5 active:scale-95 transition-all duration-200 cursor-pointer bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white border border-emerald-500/30 ${
                 data.estiloCta === "estatico_pulso" 
                   ? "ring-4 ring-emerald-400/40 shadow-xl animate-pulse hover:animate-none" 
                   : ""
@@ -3185,8 +3499,8 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                         <UserCheck className="w-5 h-5 text-white" />
                       </div>
                       <div>
-                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-100 block">Trayectoria</span>
-                        <h3 className="text-base sm:text-lg font-black leading-tight text-white">Perfil Profesional</h3>
+                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-100 block">{isClinica ? "Institucional" : "Trayectoria"}</span>
+                        <h3 className="text-base sm:text-lg font-black leading-tight text-white">{isClinica ? "Presentación e Instalaciones del Centro" : "Perfil Profesional"}</h3>
                       </div>
                     </div>
                     <button
@@ -3223,6 +3537,55 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                       <p className="text-[10px] text-slate-500 truncate">Cédula Profesional: {data.cedulaProfesional}</p>
                     </div>
                   </div>
+
+                  {/* Misión, Visión y Valores Institucionales / Profesionales */}
+                  {(data.mision || data.vision || (data.valores && data.valores.length > 0)) && (
+                    <div className="space-y-3 pt-1 border-t border-slate-100">
+                      <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <Target className={`w-4 h-4 text-${getC("600")}`} />
+                        {isClinica ? "Misión, Visión & Valores Institucionales" : "Misión, Visión & Valores Médicos"}
+                      </h4>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {data.mision && (
+                          <div className="p-3.5 rounded-2xl bg-purple-50/70 border border-purple-100/90 text-left space-y-1.5 shadow-2xs">
+                            <div className="flex items-center gap-1.5 text-xs font-black uppercase text-purple-900 tracking-wide">
+                              <Target className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                              <span>Misión</span>
+                            </div>
+                            <p className="text-xs text-purple-950 leading-relaxed font-medium">{data.mision}</p>
+                          </div>
+                        )}
+
+                        {data.vision && (
+                          <div className="p-3.5 rounded-2xl bg-blue-50/70 border border-blue-100/90 text-left space-y-1.5 shadow-2xs">
+                            <div className="flex items-center gap-1.5 text-xs font-black uppercase text-blue-900 tracking-wide">
+                              <Eye className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                              <span>Visión</span>
+                            </div>
+                            <p className="text-xs text-blue-950 leading-relaxed font-medium">{data.vision}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {data.valores && data.valores.length > 0 && (
+                        <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-100/90 space-y-2 text-left shadow-2xs">
+                          <div className="flex items-center gap-1.5 text-xs font-black uppercase text-emerald-900 tracking-wide">
+                            <HeartHandshake className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span>Valores Fundamentales</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {data.valores.filter(v => v && v.trim()).map((val, idx) => (
+                              <span key={idx} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white text-emerald-900 text-xs font-bold border border-emerald-200 shadow-2xs">
+                                <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                                {val}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Hospitales */}
                   <div className="space-y-2.5">
@@ -3332,7 +3695,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                   <button
                     type="button"
                     onClick={handleShareProfile}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-extrabold rounded-xl transition-all cursor-pointer shadow-2xs border border-blue-200/40 active:scale-95 duration-150"
+                    className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-extrabold rounded-xl transition-all duration-200 cursor-pointer shadow-2xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 border border-blue-200/40"
                   >
                     <Share2 className="w-3.5 h-3.5 shrink-0 text-blue-600" />
                     <span>{shareFeedback || "Compartir perfil"}</span>
@@ -3340,7 +3703,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                   <button
                     type="button"
                     onClick={() => setShowProfileModal(false)}
-                    className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-extrabold rounded-xl transition-all cursor-pointer active:scale-95 duration-150"
+                    className="px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-extrabold rounded-xl transition-all duration-200 cursor-pointer shadow-2xs hover:shadow-md hover:-translate-y-0.5 active:scale-95"
                   >
                     Entendido
                   </button>
@@ -3454,6 +3817,19 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                     </span>
                   </div>
 
+                  {/* Detalles de la Consulta */}
+                  {bookingDetails.trim() && (
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-slate-500 shrink-0" />
+                        <span className="text-xs font-bold text-slate-600">Detalles:</span>
+                      </div>
+                      <p className="text-xs font-semibold text-slate-800 break-words pl-6">
+                        {bookingDetails}
+                      </p>
+                    </div>
+                  )}
+
                   {/* Valor de la Consulta & Métodos de Pago */}
                   <div className="p-3.5 rounded-2xl bg-amber-50/50 border border-amber-200/80 space-y-2">
                     <div className="flex items-center justify-between">
@@ -3502,7 +3878,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={() => setShowBookingModal(false)}
-                    className="w-full bg-[#25D366] hover:bg-[#20ba5a] active:bg-[#1ca34f] text-white text-xs sm:text-sm font-extrabold py-3.5 px-4 rounded-xl text-center flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all"
+                    className="w-full bg-[#25D366] hover:bg-[#20ba5a] active:bg-[#1ca34f] text-white text-xs sm:text-sm font-extrabold py-3.5 px-4 rounded-xl text-center flex items-center justify-center gap-2 shadow-md hover:shadow-lg hover:-translate-y-0.5 active:scale-95 transition-all duration-200 cursor-pointer"
                   >
                     <MessageCircle className="w-4 h-4 shrink-0" />
                     <span>Confirmar y Abrir WhatsApp</span>
@@ -3620,22 +3996,50 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                                   <div className="relative w-full aspect-[5/4] rounded-xl overflow-hidden bg-slate-100 border border-slate-200/80 shadow-2xs group-hover:scale-[1.02] transition-transform duration-300">
                                     <img src={srv.imagenUrl} alt={srv.titulo} className="w-full h-full object-cover" loading="lazy" />
                                     <div className="absolute inset-0 bg-gradient-to-t from-slate-950/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                                    {srv.destacado && (
-                                      <span className="absolute top-2.5 right-2.5 text-[10px] font-extrabold text-amber-800 bg-amber-50/95 backdrop-blur-xs border border-amber-200/90 px-2.5 py-0.5 rounded-full shadow-xs">
-                                        ⭐ Destacado
-                                      </span>
-                                    )}
+                                    <div className="absolute top-2.5 right-2.5 flex flex-col items-end gap-1 z-10">
+                                      {(() => {
+                                        const isDestacado = Boolean(srv.destacado);
+                                        const text = srv.badgeEtiqueta || (isDestacado ? "DESTACADO" : "");
+                                        if (!text) return null;
+                                        if (isDestacado) {
+                                          return (
+                                            <span className="text-[10px] font-black tracking-wide uppercase text-amber-950 bg-amber-300 border border-amber-400/90 px-2.5 py-0.5 rounded-full shadow-xs flex items-center gap-1">
+                                              ⭐ {text}
+                                            </span>
+                                          );
+                                        }
+                                        return (
+                                          <span className="text-[10px] font-bold tracking-wide uppercase text-slate-800 bg-white/90 backdrop-blur-xs border border-slate-200/90 px-2.5 py-0.5 rounded-full shadow-2xs">
+                                            {text}
+                                          </span>
+                                        );
+                                      })()}
+                                    </div>
                                   </div>
                                 ) : (
                                   <div className="relative w-full h-36 sm:h-40 rounded-xl bg-gradient-to-br from-blue-50/90 via-slate-50 to-indigo-50/70 border border-blue-100/80 flex items-center justify-center overflow-hidden group-hover:border-blue-300 transition-all duration-300">
                                     <div className="w-16 h-16 rounded-2xl bg-white shadow-sm border border-blue-100 text-blue-600 flex items-center justify-center group-hover:scale-110 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
                                       {renderIcon(srv.icono)}
                                     </div>
-                                    {srv.destacado && (
-                                      <span className="absolute top-2.5 right-2.5 text-[10px] font-extrabold text-amber-800 bg-amber-50/95 backdrop-blur-xs border border-amber-200/90 px-2.5 py-0.5 rounded-full shadow-xs">
-                                        ⭐ Destacado
-                                      </span>
-                                    )}
+                                    <div className="absolute top-2.5 right-2.5 flex flex-col items-end gap-1 z-10">
+                                      {(() => {
+                                        const isDestacado = Boolean(srv.destacado);
+                                        const text = srv.badgeEtiqueta || (isDestacado ? "DESTACADO" : "");
+                                        if (!text) return null;
+                                        if (isDestacado) {
+                                          return (
+                                            <span className="text-[10px] font-black tracking-wide uppercase text-amber-950 bg-amber-300 border border-amber-400/90 px-2.5 py-0.5 rounded-full shadow-xs flex items-center gap-1">
+                                              ⭐ {text}
+                                            </span>
+                                          );
+                                        }
+                                        return (
+                                          <span className="text-[10px] font-bold tracking-wide uppercase text-slate-800 bg-white/90 backdrop-blur-xs border border-slate-200/90 px-2.5 py-0.5 rounded-full shadow-2xs">
+                                            {text}
+                                          </span>
+                                        );
+                                      })()}
+                                    </div>
                                   </div>
                                 )}
 
@@ -3647,24 +4051,30 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                                   <p className="text-xs sm:text-sm text-slate-600 leading-relaxed line-clamp-3">{srv.descripcion}</p>
                                 </div>
 
-                                {/* Badges informativos */}
+                                {/* Badges informativos / Ficha Técnica */}
                                 <div className="flex flex-wrap gap-1.5 pt-1">
                                   {srv.precio && (
-                                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200/60 flex items-center gap-1">
-                                      <Banknote className="w-3 h-3 text-emerald-600" />
-                                      {srv.precio}
+                                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200/60 flex items-center gap-1" title="Inversión Estimada">
+                                      <Banknote className="w-3 h-3 text-emerald-600 shrink-0" />
+                                      <span>{srv.precio}</span>
                                     </span>
                                   )}
                                   {srv.duracion && (
-                                    <span className="text-[10px] font-bold text-blue-800 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200/60 flex items-center gap-1">
-                                      <Clock className="w-3 h-3 text-blue-600" />
-                                      {srv.duracion}
+                                    <span className="text-[10px] font-bold text-blue-800 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200/60 flex items-center gap-1" title="Duración de la Cita">
+                                      <Clock className="w-3 h-3 text-blue-600 shrink-0" />
+                                      <span>⏳ {srv.duracion}</span>
                                     </span>
                                   )}
                                   {srv.recuperacion && (
-                                    <span className="text-[10px] font-bold text-purple-800 bg-purple-50 px-2.5 py-1 rounded-md border border-purple-200/60 flex items-center gap-1">
-                                      <Activity className="w-3 h-3 text-purple-600" />
-                                      {srv.recuperacion}
+                                    <span className="text-[10px] font-bold text-purple-800 bg-purple-50 px-2.5 py-1 rounded-md border border-purple-200/60 flex items-center gap-1" title="Tiempo de Recuperación">
+                                      <Activity className="w-3 h-3 text-purple-600 shrink-0" />
+                                      <span>⏱️ {srv.recuperacion}</span>
+                                    </span>
+                                  )}
+                                  {srv.modalidad && (
+                                    <span className="text-[10px] font-bold text-teal-800 bg-teal-50 px-2.5 py-1 rounded-md border border-teal-200/60 flex items-center gap-1" title="Modalidad de Atención">
+                                      <Building2 className="w-3 h-3 text-teal-600 shrink-0" />
+                                      <span>🏥 {srv.modalidad}</span>
                                     </span>
                                   )}
                                 </div>
@@ -3697,14 +4107,14 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                     <a
                       href="#agendar-preview"
                       onClick={() => setShowServicesModal(false)}
-                      className={`flex-1 sm:flex-none bg-${getC("600")} hover:bg-${getC("700")} text-white text-xs font-extrabold py-2.5 px-5 rounded-xl text-center transition-colors shadow-2xs`}
+                      className={`flex-1 sm:flex-none bg-${getC("600")} hover:bg-${getC("700")} text-white text-xs font-extrabold py-2.5 px-5 rounded-xl text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all duration-200 cursor-pointer`}
                     >
                       Agendar Consulta
                     </a>
                     <button
                       type="button"
                       onClick={() => setShowServicesModal(false)}
-                      className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-white text-xs font-bold transition-colors cursor-pointer"
+                      className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-white text-xs font-extrabold shadow-2xs hover:shadow-xs hover:-translate-y-0.5 active:scale-95 transition-all duration-200 cursor-pointer"
                     >
                       Cerrar
                     </button>
@@ -3727,7 +4137,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                 href={data.whatsappUrl || "#"} 
                 target="_blank" 
                 rel="noopener noreferrer" 
-                className="flex-1 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white py-3 px-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 text-center uppercase tracking-wide"
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white py-2.5 px-3.5 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all duration-200 text-center uppercase tracking-wide cursor-pointer"
               >
                 <MessageCircle className="w-4 h-4 shrink-0 fill-white text-white" />
                 <span className="truncate font-black">AGENDAR CITA</span>
@@ -3737,7 +4147,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                 onClick={() => {
                   scrollToSection("resenas");
                 }}
-                className="flex-1 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-800 border border-slate-200/90 py-3 px-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition-all active:scale-95 text-center cursor-pointer"
+                className="flex-1 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-800 border border-slate-200/90 py-2.5 px-3.5 rounded-xl font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all duration-200 text-center cursor-pointer"
               >
                 <Star className="w-4 h-4 shrink-0 fill-amber-400 text-amber-500" />
                 <span className="truncate font-black">Reseñas</span>
@@ -3767,7 +4177,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
                 <div className="w-8 h-8 rounded-xl bg-indigo-100/80 text-indigo-700 border border-indigo-200/70 flex items-center justify-center shadow-xs group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-600 transition-all duration-200">
                   <Award className="w-4 h-4 transition-transform group-hover:scale-110" />
                 </div>
-                <span className="text-[10px] font-extrabold tracking-tight">Doctor</span>
+                <span className="text-[10px] font-extrabold tracking-tight">{isClinica ? "Nosotros" : "Doctor"}</span>
               </a>
 
               {/* Servicios (Teal) */}
@@ -3904,6 +4314,144 @@ export default function PreviewPanel({ data, onOpenExternalPreview }: PreviewPan
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* MODAL DE DESCARGA DE GUÍAS (LEAD MAGNET CAPTURE) */}
+        <AnimatePresence>
+          {selectedGuideForDownload && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
+              onClick={() => setSelectedGuideForDownload(null)}
+            >
+              <motion.div 
+                initial={{ scale: 0.95, opacity: 0, y: 15 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 15 }}
+                transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden my-auto text-left"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="bg-gradient-to-r from-emerald-800 to-slate-900 p-5 text-white relative">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-400">
+                        <FileDown className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-emerald-300 block">Descarga Oficial</span>
+                        <h3 className="text-sm sm:text-base font-extrabold text-white leading-tight">Acceso a la Guía Médica</h3>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedGuideForDownload(null)}
+                      className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Formulario */}
+                <form onSubmit={handleSubmitLeadCapture} className="p-5 sm:p-6 space-y-4">
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
+                    <p className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>{selectedGuideForDownload.titulo}</span>
+                    </p>
+                    <p className="text-[11px] text-slate-500 line-clamp-2">
+                      {selectedGuideForDownload.descripcion}
+                    </p>
+                  </div>
+
+                  <p className="text-xs text-slate-600 leading-relaxed font-normal">
+                    Ingresa tus datos para recibir el enlace de descarga oficial y una copia directa a tu WhatsApp:
+                  </p>
+
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-extrabold text-slate-700">Nombre Completo</label>
+                      <input
+                        type="text"
+                        required
+                        value={leadCaptureName}
+                        onChange={(e) => setLeadCaptureName(e.target.value)}
+                        placeholder="Ej. María Fernanda Morales"
+                        className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none text-slate-900 font-medium"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-extrabold text-slate-700">Número de WhatsApp / Teléfono</label>
+                      <input
+                        type="tel"
+                        required
+                        value={leadCaptureContact}
+                        onChange={(e) => setLeadCaptureContact(e.target.value)}
+                        placeholder="Ej. +593 99 123 4567"
+                        className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none text-slate-900 font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      type="submit"
+                      disabled={leadCaptureSubmitted}
+                      className="w-full py-3.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-xs sm:text-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-75"
+                    >
+                      {leadCaptureSubmitted ? (
+                        <>
+                          <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+                          <span>¡Enviando y descargando...!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-4 h-4" />
+                          <span>Descargar Guía Inmediata</span>
+                        </>
+                      )}
+                    </button>
+                    <p className="text-[10px] text-slate-400 text-center mt-2">
+                      Tus datos son 100% confidenciales según la ley médica de protección de datos.
+                    </p>
+                  </div>
+                </form>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* TOAST DE CONFIRMACIÓN DE DESCARGA */}
+        <AnimatePresence>
+          {downloadToast && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-xl border border-slate-700 flex items-center gap-3 text-xs font-bold"
+            >
+              <div className="w-7 h-7 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-white font-bold">{downloadToast}</p>
+                <span className="text-[10px] text-slate-400 font-normal">Documento PDF generado con éxito</span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* MODAL COMPONENTE COMPARTIBLE DE GUÍA / EBOOK */}
+        <PatientGuideModal
+          guide={shareModalGuide}
+          data={data}
+          isOpen={Boolean(shareModalGuide)}
+          onClose={() => setShareModalGuide(null)}
+        />
 
       </div>
     </div>

@@ -20,7 +20,8 @@ export type MedicalSectionId =
   | "faqs"
   | "tarifas"
   | "horarios_ubicacion"
-  | "blog";
+  | "blog"
+  | "guias";
 
 export interface SectionOrderItem {
   id: MedicalSectionId;
@@ -40,7 +41,24 @@ export const DEFAULT_SECTION_ORDER: SectionOrderItem[] = [
   { id: "tarifas", label: "Valor de Consulta & Métodos de Pago", visible: true },
   { id: "horarios_ubicacion", label: "Horarios de Atención & Ubicación NAP", visible: true },
   { id: "blog", label: "Blog Médico & Artículos de Salud", visible: true },
+  { id: "guias", label: "Guías & Fichas para Pacientes (PDF Lead Magnet)", visible: true },
 ];
+
+export interface PatientGuideItem {
+  id: string;
+  titulo: string;
+  descripcion?: string;
+  categoria: string;
+  formato: "PDF" | "Ficha Imprimible" | "Checklist" | "Documento" | "Ebook" | "Libro";
+  tamano?: string;
+  archivoUrl?: string; // URL externa o relativa ej: "/descargas/guia-postoperatoria.pdf"
+  rutaCpanel?: string; // Ruta personalizada alojada en la raíz al subir a cPanel (ej. "/descargas/mi-libro.pdf")
+  metodoEntrega?: "descarga_directa" | "whatsapp" | "email" | "todos" | "registro_lead";
+  requiereRegistro?: boolean;
+  slug?: string; // Enlace propio personalizable (ej. "guia-gastritis" o "cuidados-postquirurgicos")
+  tipoEnlace?: "Ebook" | "Descargar" | "Libro"; // Prefijo de enlace (Ebook/Descargar/Libro)
+  imagenPortadaUrl?: string;
+}
 
 export interface FAQItem {
   id: string;
@@ -57,8 +75,10 @@ export interface ServiceItem {
   mostrarImagen?: boolean; // Habilitar o deshabilitar imagen para este servicio
   slug?: string; // Slug amigable para SEO (ej. "consulta-diagnostica-especialidad")
   precio?: string; // ej. "$50 USD" o "Desde $450"
-  duracion?: string; // ej. "45 - 60 min"
-  recuperacion?: string; // ej. "Ambulatoria (24-48 horas)"
+  duracion?: string; // ⏳ Duración de la Cita: ej. "30 min", "1 hora", "45 a 60 min"
+  recuperacion?: string; // ⏱️ Tiempo de Recuperación: ej. "Ambulatorio", "24 horas", "3-5 días"
+  modalidad?: string; // 🏥 Modalidad: ej. "En consultorio", "Quirófano", "Online / Telemedicina"
+  badgeEtiqueta?: string; // Badges de Destacado / Conversión (Superior Derecha): ej. "Novedad", "Más Solicitado", "Técnica Mínimamente Invasiva", "Procedimiento de Un Día"
   destacado?: boolean; // Marcar como servicio destacado
 }
 
@@ -106,18 +126,31 @@ export interface SocialVideoItem {
   descripcion?: string; // Breve descripción
 }
 
+export interface BacklinkAuthorityItem {
+  id: string;
+  portalNombre: string; // ej. "Colegio Médico de Pichincha", "Google Business Profile", "Hospital Metropolitano", "Sociedad Ecuatoriana de la Especialidad"
+  tipoPortal: "colegio_medico" | "hospital_clinica" | "sociedad_cientifica" | "directorio_local" | "perfil_google" | "universidad_investigacion" | "prensa_salud" | "otro";
+  urlDestino: string; // ej. "https://www.colegiomedicopichincha.org/directorio/dr-ruiz"
+  estado: "verificado" | "pendiente" | "sugerido";
+  incluirEnSchema: boolean; // Si true, se incluye en sameAs del JSON-LD en el código
+  mostrarEnFooter?: boolean; // Si true, muestra distintivo institucional en footer (GBP, Colegio Médico, Hospitales)
+  anchorText?: string; // Texto ancla recomendado (ej. "Dr. Alejandro Ruiz - Cardiólogo Quito")
+  notas?: string;
+}
+
 export interface MedicalLandingData {
   // 1. Datos Personales / Clínicos
-  nombreMedico: string; // ej. "Dr. Alejandro Ruiz"
+  tipoEnfoqueLanding?: "medico" | "clinica"; // Enfoque de presentación: "medico" (Especialista / Doctor Individual) o "clinica" (Centro Médico / Clínica / Policlínico / Empresa)
+  nombreMedico: string; // ej. "Dr. Alejandro Ruiz" o "Clínica Santa Ana"
   especialidad: string; // ej. "Cardiólogo Pediatra"
   cedulaProfesional: string; // ej. "12345678"
   universidad: string; // ej. "Universidad Nacional Autónoma de México"
   anosExperiencia: number; // ej. 15
   fotoUrl: string; // URL de la foto profesional
   fotoFormaHero?: "circular" | "rectangular" | "sin_borde"; // Forma visual en Hero: circular (1:1), rectangular (3:4), o sin_borde (recorte flotante 3:4)
-  fotoTamanoMobile?: number; // Tamaño en px para vista móvil (ej. 176, min 100, max 300)
-  fotoTamanoTablet?: number; // Tamaño en px para vista tablet (ej. 240, min 150, max 450)
-  fotoTamanoDesktop?: number; // Tamaño en px para vista desktop (ej. 320, min 200, max 600)
+  fotoTamanoMobile?: number; // Tamaño en px para vista móvil (ej. 176, min 100, max 340)
+  fotoTamanoTablet?: number; // Tamaño en px para vista tablet (ej. 240, min 150, max 500)
+  fotoTamanoDesktop?: number; // Tamaño en px para vista desktop (ej. 320, min 200, max 640)
   disenoHeroDesktop?: "estandar" | "invertido" | "centrado"; // Estructura de Hero únicamente en versión Desktop (estandar = info izq / foto der, invertido = foto izq / info der, centrado = sin foto / centrado)
   tipoFondoHero?: "gradiente" | "solido" | "imagen"; // Tipo de fondo del Hero
   colorFondoHero?: string; // Color sólido hexadecimal (ej. "#0f172a")
@@ -131,6 +164,9 @@ export interface MedicalLandingData {
   logoTamanoDesktop?: number; // Alto en px del logotipo para vista desktop (ej. 60, min 28, max 200)
   filosofia: string; // Filosofía de atención al paciente
   biografiaCurta: string; // Biografía resumida
+  mision?: string; // Misión del especialista / centro médico
+  vision?: string; // Visión institucional o del especialista
+  valores?: string[]; // Lista de valores (ej. ["Excelencia Médica", "Ética & Transparencia", "Calidez Humana", "Innovación Tecnológica"])
 
   // 2. SEO Local & Google Business Profile (GBP)
   dominioWeb?: string; // Dominio personalizado oficial (ej. "https://dralejandroruiz.ec" o "dralejandroruiz.com")
@@ -161,10 +197,11 @@ export interface MedicalLandingData {
     domingo: string; // ej. "Domingo: Cerrado"
   };
 
-  // 3. Señales E-E-A-T (Autoridad)
+  // 3. Señales E-E-A-T (Autoridad & Backlinks)
   aseguradoras: string[]; // Aseguradoras asociadas
   hospitalesdondeOpera: string[]; // Hospitales donde opera
   asociaciones: string[]; // Certificaciones / Consejos / Asociaciones médicas
+  backlinksAutoridad?: BacklinkAuthorityItem[]; // Enlaces de autoridad para Schema sameAs y citaciones local E-E-A-T
 
   // 4. Servicios y Casos de Éxito
   servicios: ServiceItem[];
@@ -195,6 +232,10 @@ export interface MedicalLandingData {
   fuenteTitulos?: string; // Tipografía personalizada para títulos (h1, h2)
   fuenteParrafos?: string; // Tipografía personalizada para párrafos (p, body)
   faviconUrl?: string; // URL del favicon personalizado
+  pwaIconUrl?: string; // Ícono adaptado e independiente para Favicon y PWA (instalación de aplicación)
+  pwaAppTitle?: string; // Nombre corto de la aplicación PWA para la pantalla de inicio del teléfono
+  ogImageUrl?: string; // URL de la imagen personalizada para previsualización en Redes Sociales (WhatsApp, Facebook, Twitter, Open Graph)
+  ogImageSource?: "foto" | "logo" | "pwa_icon" | "custom"; // Origen de la imagen para compartir en redes sociales
 
   // 9. Tarifas & Formas de Pago
   precioConsulta?: string; // ej. "$50 USD"
@@ -211,7 +252,12 @@ export interface MedicalLandingData {
 
   // 13. Versión de Diseño (Para forzar re-renderizado reactivo global)
   designVersion?: number;
+
+  // 14. Guías Preparatorias y Fichas para Pacientes (Lead Magnet)
+  guiasPacientes?: PatientGuideItem[];
 }
+
+export type DoctorProfile = MedicalLandingData;
 
 export interface SavedClientProfile {
   id: string;
@@ -405,6 +451,7 @@ export const ECUADOR_ASOCIACIONES: string[] = [
 ];
 
 export const defaultMedicalData: MedicalLandingData = {
+  tipoEnfoqueLanding: "medico",
   nombreMedico: "{{NOMBRE_MEDICO}}",
   especialidad: "{{ESPECIALIDAD}}",
   cedulaProfesional: "MSP Reg. 171485921-0 / SENESCYT 1005-2012-1148292",
@@ -420,6 +467,9 @@ export const defaultMedicalData: MedicalLandingData = {
   estiloMenuDesktop: "capsula",
   filosofia: "Brindar una atención médica cálida, humana y basada en la más estricta evidencia científica para mejorar la calidad de vida de cada paciente en el Ecuador.",
   biografiaCurta: "Médico especialista con más de 15 años de trayectoria en el Ecuador. Registrado y avalado por el Ministerio de Salud Pública (MSP) y el SENESCYT, con posgrado y alta especialidad médica en hospitales de tercer nivel.",
+  mision: "Proporcionar atención médica y quirúrgica especializada de máxima precisión y calidez humana, garantizando diagnósticos certeros fundamentados en la más estricta evidencia científica y la preservación del bienestar integral del paciente.",
+  vision: "Ser el centro médico y especialista de referencia nacional e internacional en Ecuador, distinguido por la constante excelencia clínica, la vanguardia en tecnología y la confianza de nuestras familias.",
+  valores: ["Excelencia & Evidencia", "Ética & Transparencia", "Calidez Humana", "Innovación Tecnológica"],
   
   dominioWeb: "https://dralejandroruiz.ec",
   nombreClinicaGBP: "Centro Médico de Especialidades {{CIUDAD}}",
@@ -483,6 +533,52 @@ export const defaultMedicalData: MedicalLandingData = {
   aseguradoras: ["Saludsa", "Humana", "Ecuasanitas", "Confiamed", "Latina Seguros", "Seguros Equinoccial", "Best Doctors Ecuador", "BMI del Ecuador", "Bupa Ecuador", "IESS (Reembolso)"],
   hospitalesdondeOpera: ["Hospital Metropolitano (Quito)", "Hospital Vozandes Quito", "Omni Hospital (Guayaquil)", "Clínica Kennedy (Guayaquil)", "Hospital Santa Inés (Cuenca)"],
   asociaciones: ["Colegio de Médicos de Pichincha", "Federación Médica Ecuatoriana (FME)", "Sociedad Ecuatoriana de la Especialidad", "Ministerio de Salud Pública del Ecuador (MSP)"],
+  backlinksAutoridad: [
+    {
+      id: "backlink-1",
+      portalNombre: "Perfil Profesional Google Business Profile (Google Maps)",
+      tipoPortal: "perfil_google",
+      urlDestino: "https://maps.google.com/?cid=123456789",
+      estado: "verificado",
+      incluirEnSchema: true,
+      mostrarEnFooter: true,
+      anchorText: "Google Business Profile - Ficha Médica",
+      notas: "Ficha oficial verificada en Google Maps para posicionamiento local E-E-A-T."
+    },
+    {
+      id: "backlink-2",
+      portalNombre: "Colegio de Médicos de Pichincha",
+      tipoPortal: "colegio_medico",
+      urlDestino: "https://www.colegiomedicopichincha.org/directorio",
+      estado: "verificado",
+      incluirEnSchema: true,
+      mostrarEnFooter: true,
+      anchorText: "Colegio de Médicos de Pichincha - Directorio",
+      notas: "Registro oficial de colegiatura médica provincial."
+    },
+    {
+      id: "backlink-3",
+      portalNombre: "Hospital Metropolitano de Quito",
+      tipoPortal: "hospital_clinica",
+      urlDestino: "https://www.hospitalmetropolitano.org/es/medicos",
+      estado: "verificado",
+      incluirEnSchema: true,
+      mostrarEnFooter: true,
+      anchorText: "Staff Médico Acreditado - Hospital Metropolitano",
+      notas: "Directorio institucional de facultativos acreditados."
+    },
+    {
+      id: "backlink-4",
+      portalNombre: "Sociedad Ecuatoriana de Especialidades Médicas",
+      tipoPortal: "sociedad_cientifica",
+      urlDestino: "https://www.sociedadmedicaecuador.org",
+      estado: "sugerido",
+      incluirEnSchema: false,
+      mostrarEnFooter: false,
+      anchorText: "Miembro Activo Sociedad Médica",
+      notas: "Citación sugerida para vinculación externa directa."
+    }
+  ],
 
   servicios: [
     {
@@ -494,8 +590,10 @@ export const defaultMedicalData: MedicalLandingData = {
       imagenUrl: "https://images.unsplash.com/photo-1579684385127-1ef15d508118?q=80&w=800&auto=format&fit=crop",
       mostrarImagen: true,
       precio: "$50 USD",
-      duracion: "45 a 60 min",
-      recuperacion: "Inmediata",
+      duracion: "45 min",
+      recuperacion: "Inmediato",
+      modalidad: "En consultorio",
+      badgeEtiqueta: "Más Solicitado",
       destacado: true
     },
     {
@@ -507,8 +605,10 @@ export const defaultMedicalData: MedicalLandingData = {
       imagenUrl: "https://images.unsplash.com/photo-1551076805-e1869033e561?q=80&w=800&auto=format&fit=crop",
       mostrarImagen: true,
       precio: "Desde $450 USD",
-      duracion: "60 a 90 min",
-      recuperacion: "24 a 48 horas",
+      duracion: "1 hora",
+      recuperacion: "24 horas",
+      modalidad: "Quirófano",
+      badgeEtiqueta: "Técnica Mínimamente Invasiva",
       destacado: true
     },
     {
@@ -521,8 +621,10 @@ export const defaultMedicalData: MedicalLandingData = {
       mostrarImagen: true,
       precio: "$70 USD",
       duracion: "45 min",
-      recuperacion: "Inmediata",
-      destacado: true
+      recuperacion: "Ambulatorio",
+      modalidad: "En consultorio",
+      badgeEtiqueta: "Procedimiento de Un Día",
+      destacado: false
     },
     {
       id: "srv-4",
@@ -533,9 +635,11 @@ export const defaultMedicalData: MedicalLandingData = {
       imagenUrl: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?q=80&w=800&auto=format&fit=crop",
       mostrarImagen: true,
       precio: "Desde $120 USD",
-      duracion: "30 a 60 min",
-      recuperacion: "Ambulatoria (12-24h)",
-      destacado: true
+      duracion: "30 min",
+      recuperacion: "Ambulatorio",
+      modalidad: "En consultorio",
+      badgeEtiqueta: "Novedad",
+      destacado: false
     },
     {
       id: "srv-5",
@@ -547,8 +651,10 @@ export const defaultMedicalData: MedicalLandingData = {
       mostrarImagen: true,
       precio: "$40 USD por sesión",
       duracion: "50 min",
-      recuperacion: "Progresiva",
-      destacado: true
+      recuperacion: "3-5 días",
+      modalidad: "En consultorio",
+      badgeEtiqueta: "Alta Inmediata",
+      destacado: false
     },
     {
       id: "srv-6",
@@ -823,6 +929,10 @@ export const defaultMedicalData: MedicalLandingData = {
   logoUrl: "",
   imagenFondoHero: "https://images.unsplash.com/photo-1629909613654-28e377c37b09?q=80&w=1600&auto=format&fit=crop",
   faviconUrl: "",
+  pwaIconUrl: "",
+  pwaAppTitle: "",
+  ogImageUrl: "",
+  ogImageSource: "foto",
   precioConsulta: "$50 USD",
   metodosPago: ["Efectivo", "Transferencia bancaria", "Tarjetas de crédito"],
   fotosConsultorio: [
@@ -853,5 +963,34 @@ export const defaultMedicalData: MedicalLandingData = {
   ],
   estiloCta: "flotante",
   ordenSecciones: DEFAULT_SECTION_ORDER,
-  designVersion: 1
+  designVersion: 1,
+  guiasPacientes: [
+    {
+      id: "guia-1",
+      titulo: "Guía de Cuidados Pre y Post Operatorios",
+      descripcion: "Recomendaciones esenciales antes y después de una intervención quirúrgica para una recuperación rápida y segura sin complicaciones.",
+      categoria: "Cirugía & Procedimientos",
+      formato: "PDF",
+      tamano: "2.4 MB",
+      requiereRegistro: true
+    },
+    {
+      id: "guia-2",
+      titulo: "Checklist de Primera Consulta Médica",
+      descripcion: "Qué estudios, exámenes de laboratorio y antecedentes médicos llevar a tu cita para optimizar el diagnóstico de especialidad.",
+      categoria: "Preparación de Consulta",
+      formato: "Checklist",
+      tamano: "1.1 MB",
+      requiereRegistro: false
+    },
+    {
+      id: "guia-3",
+      titulo: "Pautas de Nutrición y Preparación para Exámenes",
+      descripcion: "Instrucciones de ayuno, ingesta de líquidos y medicamentos previos a toma de muestras o estudios diagnósticos.",
+      categoria: "Diagnóstico & Laboratorio",
+      formato: "PDF",
+      tamano: "1.8 MB",
+      requiereRegistro: true
+    }
+  ]
 };

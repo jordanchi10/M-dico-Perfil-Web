@@ -1,5 +1,28 @@
 @import "tailwindcss";
 
+/* Keyframe animación Latido / Heartbeat */
+@keyframes heartbeat {
+  0%, 100% {
+    transform: scale(1);
+  }
+  14% {
+    transform: scale(1.04);
+  }
+  28% {
+    transform: scale(1);
+  }
+  42% {
+    transform: scale(1.06);
+  }
+  70% {
+    transform: scale(1);
+  }
+}
+
+.animate-heartbeat {
+  animation: heartbeat 1.8s ease-in-out infinite;
+}
+
 /* 
  * TEMA OSCURO PARA LA INTERFAZ DEL GENERADOR
  * Asegura la ergonomía visual en largas sesiones de edición

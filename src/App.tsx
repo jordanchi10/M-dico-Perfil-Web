@@ -79,6 +79,7 @@ export default function App() {
 
   // Datos reactivos de la landing page del médico
   const [medicalData, setMedicalData] = useState<MedicalLandingData>(getInitialData);
+  const [previewKey, setPreviewKey] = useState<number>(() => Date.now());
   const [rightTab, setRightTab] = useState<"preview" | "code" | "audit">("preview");
   const [isGlobalAiModalOpen, setIsGlobalAiModalOpen] = useState(false);
   const [isGlobalIntakeModalOpen, setIsGlobalIntakeModalOpen] = useState(false);
@@ -123,32 +124,53 @@ export default function App() {
     refreshProfileStats();
   }, []);
 
-  // Guardar en localStorage cuando cambie medicalData
+  // Guardar en localStorage cuando cambie medicalData y notificar vistas externas
   useEffect(() => {
     try {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(medicalData));
+      if (typeof BroadcastChannel !== "undefined") {
+        const channel = new BroadcastChannel("medical_landing_preview_sync");
+        channel.postMessage({ type: "DATA_UPDATED", timestamp: Date.now() });
+        channel.close();
+      }
     } catch (error) {
       console.error("Error saving to localStorage:", error);
     }
+    setPreviewKey(Date.now());
   }, [medicalData]);
+
+  const handleForceRefresh = () => {
+    setPreviewKey(Date.now());
+    if (typeof BroadcastChannel !== "undefined") {
+      try {
+        const channel = new BroadcastChannel("medical_landing_preview_sync");
+        channel.postMessage({ type: "DATA_UPDATED", timestamp: Date.now() });
+        channel.close();
+      } catch (e) {
+        console.error("BroadcastChannel error:", e);
+      }
+    }
+    setQuickSavedToast("¡Vista previa sincronizada y re-renderizada!");
+    setTimeout(() => setQuickSavedToast(""), 3000);
+  };
 
   // Actualizar favicon de la pestaña en tiempo real
   useEffect(() => {
     try {
-      const faviconUrl = medicalData.faviconUrl;
-      if (faviconUrl) {
+      const activeFavicon = medicalData.pwaIconUrl || medicalData.faviconUrl || medicalData.logoUrl;
+      if (activeFavicon) {
         let link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
         if (!link) {
           link = document.createElement("link");
           link.rel = "icon";
           document.getElementsByTagName("head")[0].appendChild(link);
         }
-        link.href = faviconUrl;
+        link.href = activeFavicon;
       }
     } catch (e) {
       console.error("Error updating browser favicon:", e);
     }
-  }, [medicalData.faviconUrl]);
+  }, [medicalData.pwaIconUrl, medicalData.faviconUrl, medicalData.logoUrl]);
 
   const handleDataChange = (newData: MedicalLandingData | ((prev: MedicalLandingData) => MedicalLandingData)) => {
     setMedicalData(newData);
@@ -562,6 +584,18 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Netlify
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
+              {/* Botón de Refresco Forzado / Re-render */}
+              <button
+                id="btn-force-refresh-preview"
+                type="button"
+                onClick={handleForceRefresh}
+                className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 active:bg-blue-200 rounded-lg border border-blue-200 transition-all cursor-pointer shadow-2xs hover:scale-105"
+                title="Forzar re-renderizado inmediato de la vista previa"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-blue-600" />
+                <span>Refrescar</span>
+              </button>
+
               {/* Badge de Sincronización en Vivo */}
               <div 
                 id="design-version-pill-btn"
@@ -569,12 +603,7 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Netlify
                 title="Cambios sincronizados en tiempo real"
               >
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Sincronizado en Vivo</span>
-              </div>
-
-              <div className="hidden 2xl:flex items-center gap-1 text-[11px] font-bold text-slate-500 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100 shrink-0">
-                <Sparkles className="w-3 h-3 text-blue-500 shrink-0" />
-                <span>NAP en vivo</span>
+                <span className="hidden sm:inline">Sincronizado en Vivo</span>
               </div>
             </div>
           </div>
@@ -583,7 +612,7 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Netlify
           <div id="workspace-content-viewport" className="transition-all duration-300">
             <AnimatePresence mode="wait">
               <motion.div
-                key={rightTab}
+                key={`${rightTab}-${previewKey}`}
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -15 }}
@@ -591,8 +620,10 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Netlify
               >
                 {rightTab === "preview" ? (
                   <PreviewPanel 
+                    key={`preview-${previewKey}`}
                     data={medicalData} 
                     onOpenExternalPreview={handleOpenExternalPreview}
+                    onForceRefresh={handleForceRefresh}
                   />
                 ) : rightTab === "code" ? (
                   <CodePanel 
@@ -613,7 +644,7 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Netlify
       {/* FOOTER INFORMADO */}
       <footer id="app-global-footer" className="bg-white border-t border-slate-200 mt-auto py-6 shrink-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-4">
-          <p>&copy; 2026 Medico.ec - Creador de Consultorio Digital 3.0. Diseñado para cardiólogos, otorrinolaringólogos, cirujanos y especialistas del sector salud en Ecuador.</p>
+          <p>&copy; {new Date().getFullYear()} Medico.ec - Creador de Consultorio Digital 3.0. Diseñado para cardiólogos, otorrinolaringólogos, cirujanos y especialistas del sector salud en Ecuador.</p>
           <div className="flex items-center gap-4 font-semibold text-slate-600">
             <button 
               onClick={() => setIsClientManagerOpen(true)}

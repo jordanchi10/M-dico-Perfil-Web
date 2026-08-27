@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MedicalLandingData } from "../types";
+import { MedicalLandingData, DEFAULT_SECTION_ORDER } from "../types";
 import { getMedicalIconSvg } from "./medicalIcons";
 import { getActiveColorScale, generateScaleFromHex } from "./colorUtils";
 import { generateOpeningHoursSchema, getLiveConsultationStatus } from "./scheduleUtils";
@@ -19,6 +19,41 @@ export function normalizeDomainUrl(rawUrl?: string): string {
     trimmed = `https://${trimmed}`;
   }
   return trimmed.replace(/\/+$/, "");
+}
+
+/**
+ * Obtiene la URL activa del Favicon e ícono PWA (adaptado e independiente)
+ */
+export function getActiveFaviconUrl(data: MedicalLandingData): string {
+  if (data.pwaIconUrl && data.pwaIconUrl.trim()) {
+    return data.pwaIconUrl.trim();
+  }
+  if (data.faviconUrl && data.faviconUrl.trim()) {
+    return data.faviconUrl.trim();
+  }
+  if (data.logoUrl && data.logoUrl.trim()) {
+    return data.logoUrl.trim();
+  }
+  return "";
+}
+
+/**
+ * Obtiene la URL activa de la imagen para compartir en Redes Sociales (Open Graph / WhatsApp / Facebook)
+ */
+export function getActiveOgImageUrl(data: MedicalLandingData): string {
+  if (data.ogImageSource === "custom" && data.ogImageUrl && data.ogImageUrl.trim()) {
+    return data.ogImageUrl.trim();
+  }
+  if (data.ogImageSource === "logo" && data.logoUrl && data.logoUrl.trim()) {
+    return data.logoUrl.trim();
+  }
+  if (data.ogImageSource === "pwa_icon" && (data.pwaIconUrl || data.faviconUrl)) {
+    return (data.pwaIconUrl || data.faviconUrl || "").trim();
+  }
+  if (data.ogImageUrl && data.ogImageUrl.trim()) {
+    return data.ogImageUrl.trim();
+  }
+  return data.fotoUrl || data.logoUrl || "";
 }
 
 /**
@@ -93,6 +128,9 @@ export function generateLlmsTxt(data: MedicalLandingData, appUrl?: string): stri
   const servicesList = (data.servicios || []).map(s => `- **${s.titulo}**: ${s.descripcion || "Atención especializada con altos estándares médicos."}`).join("\n");
   const faqsList = (data.faqs || []).map(f => `### P: ${f.pregunta}\nR: ${f.respuesta}`).join("\n\n");
   const insuranceList = (data.aseguradoras || []).map(a => `- ${a}`).join("\n");
+  const authorityLinksList = (data.backlinksAutoridad || [])
+    .filter(b => b && b.urlDestino && b.estado === "verificado")
+    .map(b => `- **${b.portalNombre}**: [${b.anchorText || b.portalNombre}](${b.urlDestino})`).join("\n");
 
   return `# ${doctorName} - ${specialty} en ${city}, Ecuador
 
@@ -117,7 +155,7 @@ ${servicesList || "- Consulta Médica Especializada y Diagnóstico Integral."}
 - **Facturación Electrónica SRI**: Emitimos factura médica autorizada por el SRI.
 - **Reembolso con Aseguradoras Privadas**: Documentación válida para reembolso de gastos médicos con seguros privados en Ecuador.
 ${insuranceList ? `\n- **Aseguradoras Asociadas / Aceptadas**:\n${insuranceList}` : ''}
-
+${authorityLinksList ? `\n## Citaciones y Enlaces de Autoridad Médica Verificados (E-E-A-T)\n${authorityLinksList}\n` : ''}
 ## Preguntas Frecuentes de Pacientes (FAQs)
 ${faqsList || "### P: ¿Cómo agendar una cita médica?\nR: Puede agendar directamente desde el sitio web oficial o por mensaje de WhatsApp."}
 
@@ -462,11 +500,73 @@ ${generateLandingStyleCssVariables(selectedStylePreset)}
 export function generateJsonLd(data: MedicalLandingData, appUrl: string = "https://tu-dominio.com"): string {
   const cleanAppUrl = normalizeDomainUrl(data.dominioWeb || appUrl);
   
-  // Mapeo de asociaciones para Schema
-  const memberOrganizations = data.asociaciones.map(asoc => ({
-    "@type": "MedicalOrganization",
-    "name": asoc
-  }));
+  // Citaciones de autoridad médica (E-E-A-T) para Schema
+  const citationEntities = (data.backlinksAutoridad || [])
+    .filter(b => b && b.urlDestino && b.urlDestino.startsWith("http"))
+    .map(b => ({
+      "@type": "WebPage",
+      "name": b.portalNombre || b.anchorText || "Citación de Autoridad Médica",
+      "url": b.urlDestino,
+      "publisher": {
+        "@type": "Organization",
+        "name": b.portalNombre
+      }
+    }));
+
+  // Mapeo de asociaciones y sociedades médicas
+  const memberOrganizations = [
+    ...(data.asociaciones || []).map(asoc => ({
+      "@type": "MedicalOrganization",
+      "name": asoc
+    })),
+    ...(data.backlinksAutoridad || [])
+      .filter(b => b && (b.tipoPortal === "colegio_medico" || b.tipoPortal === "sociedad_cientifica") && b.urlDestino)
+      .map(b => ({
+        "@type": "MedicalOrganization",
+        "name": b.portalNombre,
+        "url": b.urlDestino
+      }))
+  ];
+
+  // Afiliaciones de hospitales y clínicas de operación
+  const hospitalAffiliations = [
+    ...(data.hospitalesdondeOpera || []).map(hosp => ({
+      "@type": "Hospital",
+      "name": hosp
+    })),
+    ...(data.backlinksAutoridad || [])
+      .filter(b => b && b.tipoPortal === "hospital_clinica" && b.urlDestino)
+      .map(b => ({
+        "@type": "Hospital",
+        "name": b.portalNombre,
+        "url": b.urlDestino
+      }))
+  ];
+
+  // Formación académica y universidades acreditadas
+  const alumniOrganizations = [
+    ...(data.universidad ? [{
+      "@type": "EducationalOrganization",
+      "name": data.universidad
+    }] : []),
+    ...(data.backlinksAutoridad || [])
+      .filter(b => b && b.tipoPortal === "universidad_investigacion" && b.urlDestino)
+      .map(b => ({
+        "@type": "EducationalOrganization",
+        "name": b.portalNombre,
+        "url": b.urlDestino
+      }))
+  ];
+
+  // Credenciales y Cédula Profesional Médica
+  const credentials = data.cedulaProfesional ? [
+    {
+      "@type": "EducationalOccupationalCredential",
+      "credentialCategory": "Licencia Médica / Cédula Profesional",
+      "identifier": data.cedulaProfesional,
+      "name": `Cédula Profesional Médica: ${data.cedulaProfesional}`
+    }
+  ] : [];
 
   // Mapeo de FAQs para el marcado Schema FAQPage
   const faqEntities = (data.faqs || []).map(faq => ({
@@ -534,6 +634,28 @@ export function generateJsonLd(data: MedicalLandingData, appUrl: string = "https
     ? data.metodosPago.join(", ")
     : "Efectivo, Tarjeta de Crédito, Transferencia Bancaria Directa (Banco Pichincha, Banco Guayaquil, Produbanco, DeUna), Seguro Privado Reembolso (Saludsa, Humana, Ecuasanitas, Confiamed, Latina, Equinoccial, Best Doctors, BMI)";
 
+  // Recopilar todos los URLs de SameAs (Redes, Perfiles y Citaciones de Autoridad)
+  const sameAsUrls = [
+    data.whatsappUrl,
+    data.facebookUrl,
+    data.instagramUrl,
+    data.tiktokUrl,
+    data.youtubeUrl,
+    data.linkedinUrl,
+    data.googleMapsReviewsUrl,
+    data.doctoraliaUrl,
+    ...(data.backlinksAutoridad || [])
+      .filter(b => b && b.urlDestino && b.urlDestino.startsWith("http"))
+      .map(b => b.urlDestino)
+  ].filter((url, idx, self) => url && self.indexOf(url) === idx);
+
+  // Temas de conocimiento experto para Google E-E-A-T
+  const knowsAboutTopics = Array.from(new Set([
+    data.especialidad,
+    ...(data.servicios || []).map(s => s.titulo),
+    ...(data.backlinksAutoridad || []).map(b => b.portalNombre)
+  ])).filter(Boolean);
+
   const medicalBusinessObject: Record<string, any> = {
     "@type": ["MedicalBusiness", "Physician"],
     "@id": `${cleanAppUrl}/#medicalbusiness`,
@@ -570,16 +692,14 @@ export function generateJsonLd(data: MedicalLandingData, appUrl: string = "https
       "longitude": data.longitud
     },
     "openingHoursSpecification": generateOpeningHoursSchema(data.horarios),
-    "memberOf": memberOrganizations,
+    "memberOf": memberOrganizations.length > 0 ? memberOrganizations : undefined,
+    "hospitalAffiliation": hospitalAffiliations.length > 0 ? hospitalAffiliations : undefined,
+    "alumniOf": alumniOrganizations.length > 0 ? alumniOrganizations : undefined,
+    "hasCredential": credentials.length > 0 ? credentials : undefined,
+    "citation": citationEntities.length > 0 ? citationEntities : undefined,
     "hasOfferCatalog": offerCatalog,
-    "knowsAbout": [data.especialidad, ...data.servicios.map(s => s.titulo)],
-    "sameAs": [
-      data.whatsappUrl,
-      data.facebookUrl,
-      data.instagramUrl,
-      data.tiktokUrl,
-      data.googleMapsReviewsUrl
-    ].filter(Boolean)
+    "knowsAbout": knowsAboutTopics,
+    "sameAs": sameAsUrls
   };
 
   if (aggregateRating) {
@@ -853,6 +973,28 @@ h1, h2, h3, h4, h5, h6, .font-display {
 /* ==========================================================================
    6. ANIMACIONES & ESTILOS DE LLAMADOS A LA ACCIÓN (CTA)
    ========================================================================== */
+@keyframes heartbeat {
+  0%, 100% {
+    transform: scale(1);
+  }
+  14% {
+    transform: scale(1.04);
+  }
+  28% {
+    transform: scale(1);
+  }
+  42% {
+    transform: scale(1.06);
+  }
+  70% {
+    transform: scale(1);
+  }
+}
+
+.animate-heartbeat {
+  animation: heartbeat 1.8s ease-in-out infinite;
+}
+
 ${ctaStyle === "estatico_pulso" ? `
 @keyframes ctaPulseGlow {
   0%, 100% {
@@ -940,6 +1082,8 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
     ? generateScaleFromHex(data.colorAcentoHex)
     : generateScaleFromHex("#f59e0b");
 
+  const isClinica = data.tipoEnfoqueLanding === "clinica";
+
   const isSectionVisible = (id: string) => {
     if (!data.ordenSecciones || data.ordenSecciones.length === 0) return true;
     const item = data.ordenSecciones.find(s => s.id === id);
@@ -956,28 +1100,47 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
   const hasFaq = isSectionVisible("faqs") && Boolean(data.faqs && data.faqs.length > 0);
   const hasResenas = isSectionVisible("opiniones") && Boolean((data.resenas && data.resenas.length > 0) || (data.habilitarGoogleReviewsWidget ?? true));
   const hasBlog = isSectionVisible("blog") && Boolean(data.blogPosts && data.blogPosts.length > 0);
+  const hasGuias = isSectionVisible("guias") && Boolean(data.guiasPacientes && data.guiasPacientes.length > 0);
   const hasTarifas = isSectionVisible("tarifas");
   const hasHorariosUbicacion = isSectionVisible("horarios_ubicacion");
 
-  // Build mobile bottom navigation items
-  const activeNavs = [];
-  activeNavs.push({ href: '#inicio', label: 'Inicio', icon: 'home' });
-  if (hasNosotros) activeNavs.push({ href: '#nosotros', label: 'Doctor', icon: 'doctor' });
-  
-  if (hasServicios) {
-    activeNavs.push({ href: '#servicios', label: 'Servicios', icon: 'servicios' });
-  } else if (hasInstalaciones) {
-    activeNavs.push({ href: '#instalaciones', label: 'Galería', icon: 'clinica' });
-  }
+  // Section order list from data or default
+  const sectionOrderList = (data.ordenSecciones && data.ordenSecciones.length > 0)
+    ? data.ordenSecciones
+    : DEFAULT_SECTION_ORDER;
 
-  if (hasResenas) {
-    activeNavs.push({ href: '#resenas', label: 'Opiniones', icon: 'opiniones' });
-  } else if (hasFaq) {
-    activeNavs.push({ href: '#faq', label: 'Preguntas', icon: 'faq' });
-  } else if (hasBlog) {
-    activeNavs.push({ href: '#blog', label: 'Blog', icon: 'blog' });
+  // Build navigation items strictly following sectionOrderList
+  const activeNavs: { href: string; label: string; icon: string; id: string }[] = [];
+
+  sectionOrderList.forEach(sec => {
+    if (sec.visible === false) return;
+
+    if (sec.id === "hero" && hasHero) {
+      activeNavs.push({ href: '#inicio', label: 'Inicio', icon: 'home', id: 'inicio' });
+    } else if (sec.id === "eeat" && hasNosotros) {
+      activeNavs.push({ href: '#nosotros', label: isClinica ? 'Nosotros' : 'Doctor', icon: 'doctor', id: 'nosotros' });
+    } else if (sec.id === "servicios" && hasServicios) {
+      activeNavs.push({ href: '#servicios', label: 'Tratamientos', icon: 'servicios', id: 'servicios' });
+    } else if (sec.id === "redes_sociales" && hasRedesSociales) {
+      activeNavs.push({ href: '#redes-sociales', label: 'Redes', icon: 'video', id: 'redes-sociales' });
+    } else if (sec.id === "casos" && hasCasos) {
+      activeNavs.push({ href: '#casos', label: isClinica ? 'Casos Clínicos' : 'Mis casos', icon: 'casos', id: 'casos' });
+    } else if (sec.id === "opiniones" && hasResenas) {
+      activeNavs.push({ href: '#resenas', label: 'Opiniones', icon: 'opiniones', id: 'resenas' });
+    } else if (sec.id === "galeria" && hasInstalaciones) {
+      activeNavs.push({ href: '#instalaciones', label: 'Galería', icon: 'clinica', id: 'instalaciones' });
+    } else if (sec.id === "faqs" && hasFaq) {
+      activeNavs.push({ href: '#faq', label: 'Preguntas', icon: 'faq', id: 'faq' });
+    } else if (sec.id === "blog" && hasBlog) {
+      activeNavs.push({ href: '#blog', label: 'Blog', icon: 'blog', id: 'blog' });
+    } else if (sec.id === "guias" && hasGuias) {
+      activeNavs.push({ href: '#guias-pacientes', label: 'Guías', icon: 'guias', id: 'guias-pacientes' });
+    }
+  });
+
+  if (!activeNavs.some(n => n.id === 'agendar')) {
+    activeNavs.push({ href: '#agendar', label: 'Cita', icon: 'cita', id: 'agendar' });
   }
-  activeNavs.push({ href: '#agendar', label: 'Cita', icon: 'cita' });
 
   const finalMobileNavs = activeNavs.slice(0, 5);
 
@@ -1003,7 +1166,7 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
           <path stroke-linecap="round" stroke-linejoin="round" d="M19 11a2 2 0 012 2v1a2 2 0 01-2 2h-1a2 2 0 01-2-2v-1a2 2 0 012-2h1z" />
         </svg>
       </div>
-      <span class="text-[10px] font-extrabold tracking-tight">Doctor</span>
+      <span class="text-[10px] font-extrabold tracking-tight">${isClinica ? "Nosotros" : "Doctor"}</span>
     </a>`;
     } else if (nav.icon === 'servicios') {
       return `
@@ -1105,16 +1268,28 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
     </li>`
   ).join("\n          ");
 
-  // Render de los 5 servicios principales en la página de inicio (con H2 para SEO y soporte de imagen destacada)
-  const serviciosPrincipales = (data.servicios || []).slice(0, 5);
-  const serviciosHtml = serviciosPrincipales.map((srv) => {
+  // Render de los servicios principales en la página de inicio (6 en desktop, 4 en mobile/tablet con H2 para SEO y soporte de imagen destacada)
+  const serviciosPrincipales = (data.servicios || []).slice(0, 6);
+  const serviciosHtml = serviciosPrincipales.map((srv, idx) => {
     const hasImage = srv.mostrarImagen !== false && Boolean(srv.imagenUrl);
-    return `<article class="p-6 sm:p-7 rounded-3xl bg-white shadow-sm border border-slate-200/80 hover:border-clinical-300 hover:shadow-lg transition-all duration-300 group flex flex-col justify-between overflow-hidden">
+    const isDestacado = Boolean(srv.destacado);
+    const badgeText = srv.badgeEtiqueta || (isDestacado ? "DESTACADO" : "");
+    const badgeHtml = badgeText
+      ? (isDestacado 
+          ? `<span class="bg-amber-300 text-amber-950 border border-amber-400 text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-xs uppercase tracking-wide">⭐ ${badgeText}</span>`
+          : `<span class="bg-white/90 text-slate-800 border border-slate-200/90 text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-2xs uppercase tracking-wide">${badgeText}</span>`)
+      : '';
+
+    const visibilityClass = idx >= 4 ? "hidden lg:flex" : "flex";
+
+    return `<article class="${visibilityClass} p-6 sm:p-7 rounded-3xl bg-white shadow-sm border border-slate-200/80 hover:border-clinical-300 hover:shadow-lg transition-all duration-300 group flex-col justify-between overflow-hidden">
       <div class="space-y-4">
         ${hasImage ? `
           <div class="relative w-full aspect-[5/4] rounded-2xl overflow-hidden bg-slate-100 border border-slate-100 shadow-2xs group-hover:scale-[1.015] transition-transform duration-300">
             <img src="${srv.imagenUrl}" alt="${srv.titulo}" class="w-full h-full object-cover" loading="lazy" decoding="async" />
-            ${srv.destacado ? `<span class="absolute top-3 right-3 bg-amber-50/95 backdrop-blur-xs text-amber-800 border border-amber-200/90 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full shadow-xs">⭐ Destacado</span>` : ''}
+            <div class="absolute top-3 right-3 flex flex-col items-end gap-1 z-10">
+              ${badgeHtml}
+            </div>
           </div>
         ` : `
           <div class="flex items-center justify-between">
@@ -1123,7 +1298,9 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
                 ${getMedicalIconSvg(srv.icono)}
               </svg>
             </div>
-            ${srv.destacado ? `<span class="text-[10px] font-extrabold text-amber-700 bg-amber-50 border border-amber-200/80 px-2.5 py-0.5 rounded-full">⭐ Destacado</span>` : ''}
+            <div class="flex flex-col items-end gap-1">
+              ${badgeHtml}
+            </div>
           </div>
         `}
 
@@ -1135,24 +1312,30 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
           <p class="text-slate-600 text-xs sm:text-sm leading-relaxed mt-2.5">${srv.descripcion}</p>
         </div>
 
-        <!-- Badges de precio, duración y recuperación -->
+        <!-- Badges de precio, duración, recuperación y modalidad (Ficha Técnica) -->
         <div class="flex flex-wrap gap-2 pt-1">
           ${srv.precio ? `
-            <span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/70 px-2.5 py-1 rounded-lg">
+            <span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/70 px-2.5 py-1 rounded-lg" title="Inversión Estimada">
               <svg class="w-3 h-3 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
               ${srv.precio}
             </span>
           ` : ''}
           ${srv.duracion ? `
-            <span class="inline-flex items-center gap-1 text-[11px] font-bold text-blue-800 bg-blue-50 border border-blue-200/70 px-2.5 py-1 rounded-lg">
+            <span class="inline-flex items-center gap-1 text-[11px] font-bold text-blue-800 bg-blue-50 border border-blue-200/70 px-2.5 py-1 rounded-lg" title="Duración de Cita">
               <svg class="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              ${srv.duracion}
+              ⏳ ${srv.duracion}
             </span>
           ` : ''}
           ${srv.recuperacion ? `
-            <span class="inline-flex items-center gap-1 text-[11px] font-bold text-purple-800 bg-purple-50 border border-purple-200/70 px-2.5 py-1 rounded-lg">
+            <span class="inline-flex items-center gap-1 text-[11px] font-bold text-purple-800 bg-purple-50 border border-purple-200/70 px-2.5 py-1 rounded-lg" title="Tiempo de Recuperación">
               <svg class="w-3 h-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-              ${srv.recuperacion}
+              ⏱️ ${srv.recuperacion}
+            </span>
+          ` : ''}
+          ${srv.modalidad ? `
+            <span class="inline-flex items-center gap-1 text-[11px] font-bold text-teal-800 bg-teal-50 border border-teal-200/70 px-2.5 py-1 rounded-lg" title="Modalidad">
+              <svg class="w-3 h-3 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+              🏥 ${srv.modalidad}
             </span>
           ` : ''}
         </div>
@@ -1171,13 +1354,23 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
   // Render de TODOS los servicios para el Modal "Mis Servicios" (con H2 e imagen/icono estilizado)
   const todosServiciosModalHtml = (data.servicios || []).map((srv) => {
     const hasImage = srv.mostrarImagen !== false && Boolean(srv.imagenUrl);
+    const isDestacado = Boolean(srv.destacado);
+    const badgeText = srv.badgeEtiqueta || (isDestacado ? "DESTACADO" : "");
+    const badgeHtml = badgeText
+      ? (isDestacado 
+          ? `<span class="bg-amber-300 text-amber-950 border border-amber-400 text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-xs uppercase tracking-wide">⭐ ${badgeText}</span>`
+          : `<span class="bg-white/90 text-slate-800 border border-slate-200/90 text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-2xs uppercase tracking-wide">${badgeText}</span>`)
+      : '';
+
     return `<article class="service-modal-item p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs hover:border-clinical-400 hover:shadow-lg transition-all duration-300 flex flex-col justify-between space-y-4 group overflow-hidden" data-service-title="${srv.titulo.toLowerCase()}" data-service-desc="${srv.descripcion.toLowerCase()}">
       <div class="space-y-3.5">
         ${hasImage ? `
           <div class="relative w-full aspect-[5/4] rounded-xl overflow-hidden bg-slate-100 border border-slate-200/80 shadow-2xs group-hover:scale-[1.02] transition-transform duration-300">
             <img src="${srv.imagenUrl}" alt="${srv.titulo}" class="w-full h-full object-cover" loading="lazy" decoding="async" />
             <div class="absolute inset-0 bg-gradient-to-t from-slate-950/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-            ${srv.destacado ? `<span class="absolute top-2.5 right-2.5 text-[10px] font-extrabold text-amber-800 bg-amber-50/95 backdrop-blur-xs border border-amber-200/90 px-2.5 py-0.5 rounded-full shadow-xs">⭐ Destacado</span>` : ''}
+            <div class="absolute top-2.5 right-2.5 flex flex-col items-end gap-1 z-10">
+              ${badgeHtml}
+            </div>
           </div>
         ` : `
           <div class="relative w-full h-36 sm:h-40 rounded-xl bg-gradient-to-br from-clinical-50/90 via-slate-50 to-blue-50/70 border border-clinical-100/80 flex items-center justify-center overflow-hidden group-hover:border-clinical-300 transition-all duration-300">
@@ -1186,7 +1379,9 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
                 ${getMedicalIconSvg(srv.icono)}
               </svg>
             </div>
-            ${srv.destacado ? `<span class="absolute top-2.5 right-2.5 text-[10px] font-extrabold text-amber-800 bg-amber-50/95 backdrop-blur-xs border border-amber-200/90 px-2.5 py-0.5 rounded-full shadow-xs">⭐ Destacado</span>` : ''}
+            <div class="absolute top-2.5 right-2.5 flex flex-col items-end gap-1 z-10">
+              ${badgeHtml}
+            </div>
           </div>
         `}
 
@@ -1198,11 +1393,12 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
           <p class="text-xs sm:text-sm text-slate-600 leading-relaxed line-clamp-3">${srv.descripcion}</p>
         </div>
 
-        <!-- Badges informativos -->
+        <!-- Badges informativos (Ficha Técnica) -->
         <div class="flex flex-wrap gap-1.5 pt-1">
           ${srv.precio ? `<span class="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200/60">${srv.precio}</span>` : ''}
-          ${srv.duracion ? `<span class="text-[10px] font-bold text-blue-800 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200/60">${srv.duracion}</span>` : ''}
-          ${srv.recuperacion ? `<span class="text-[10px] font-bold text-purple-800 bg-purple-50 px-2.5 py-1 rounded-md border border-purple-200/60">${srv.recuperacion}</span>` : ''}
+          ${srv.duracion ? `<span class="text-[10px] font-bold text-blue-800 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200/60">⏳ ${srv.duracion}</span>` : ''}
+          ${srv.recuperacion ? `<span class="text-[10px] font-bold text-purple-800 bg-purple-50 px-2.5 py-1 rounded-md border border-purple-200/60">⏱️ ${srv.recuperacion}</span>` : ''}
+          ${srv.modalidad ? `<span class="text-[10px] font-bold text-teal-800 bg-teal-50 px-2.5 py-1 rounded-md border border-teal-200/60">🏥 ${srv.modalidad}</span>` : ''}
         </div>
       </div>
 
@@ -1241,11 +1437,22 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
         <span class="absolute top-3 right-3 bg-emerald-600/90 text-white text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-sm pointer-events-auto">Después</span>
 
         <!-- Línea y Manilla del Slider -->
-        <div class="absolute top-0 bottom-0 w-0.5 bg-white cursor-ew-resize flex items-center justify-center will-change-transform slider-handle" style="left: 50%; transform: translateX(-50%)">
-          <div class="w-8 h-8 rounded-full bg-white text-clinical-600 shadow-xl flex items-center justify-center border border-gray-200 pointer-events-none">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 9l-4 4 4 4m8 0l4-4-4-4" />
+        <div id="before-after-slider" class="absolute top-0 bottom-0 w-0.5 bg-white cursor-ew-resize flex items-center justify-center will-change-transform slider-handle z-20 group/slider-handle" style="left: 50%; transform: translateX(-50%)">
+          <!-- Anillo exterior con pulso / brillo animado -->
+          <span class="absolute w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-blue-500/30 animate-ping opacity-75 pointer-events-none"></span>
+          <span class="absolute w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-r from-blue-500/20 via-cyan-400/30 to-blue-500/20 animate-pulse pointer-events-none blur-xs"></span>
+
+          <!-- Botón principal del manipulador con borde reluciente -->
+          <div class="relative w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white text-blue-600 shadow-xl flex items-center justify-center border-2 border-blue-500/90 group-hover/slider-handle:border-blue-600 group-hover/slider-handle:scale-110 active:scale-95 transition-all duration-300 pointer-events-none ring-4 ring-blue-500/25 group-hover/slider-handle:ring-blue-500/50">
+            <!-- Flechas animadas parpadeando horizontalmente -->
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 sm:w-5 sm:h-5 animate-pulse shrink-0 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 9l-4 4 4 4m8 0l4-4-4-4" />
             </svg>
+          </div>
+
+          <!-- Indicador flotante animado de indicación de arrastre -->
+          <div class="absolute -top-7 px-2 py-0.5 rounded-md bg-slate-900/95 text-white text-[9px] sm:text-[10px] font-extrabold tracking-wider uppercase backdrop-blur-xs shadow-md border border-white/20 whitespace-nowrap opacity-90 group-hover/slider-handle:opacity-100 transition-opacity pointer-events-none animate-bounce">
+            ◄ Arrastra ►
           </div>
         </div>
       </div>
@@ -1372,6 +1579,71 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
     </article>`;
   }).join("\n        ");
 
+  // Render de Guías y Fichas para Pacientes (Recursos Médicos & Ebooks)
+  const guiasPacientesHtml = (data.guiasPacientes || []).map((guia, idx) => {
+    const deliveryMethod = guia.metodoEntrega || "todos";
+
+    // Enlace de WhatsApp
+    const phoneClean = (data.telefonoGBP || "").replace(/[^0-9]/g, "");
+    const waMessage = encodeURIComponent(`Hola ${data.nombreMedico}, me gustaría solicitar la guía descargable: "${guia.titulo}"`);
+    const waUrl = data.whatsappUrl && data.whatsappUrl.startsWith("http")
+      ? data.whatsappUrl
+      : `https://wa.me/${phoneClean || "593991234567"}?text=${waMessage}`;
+    
+    // Enlace de Correo
+    const mailUrl = `mailto:${data.emailContacto || "contacto@medico.com"}?subject=${encodeURIComponent(`Solicitud de Guía: ${guia.titulo}`)}&body=${encodeURIComponent(`Hola ${data.nombreMedico},\n\nDesearía recibir la guía médica "${guia.titulo}" en PDF.\n\nSaludos.`)}`;
+
+    return `<div class="p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-blue-300 shadow-2xs hover:shadow-md transition-all duration-300 flex flex-col justify-between gap-3.5 group relative text-left">
+      <div class="space-y-3">
+        ${guia.imagenPortadaUrl ? `
+        <div class="w-full h-36 sm:h-44 rounded-xl overflow-hidden border border-slate-100 shadow-2xs group-hover:shadow-xs transition-shadow">
+          <img src="${guia.imagenPortadaUrl}" alt="${guia.titulo}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
+        </div>
+        ` : ''}
+
+        <div class="flex items-center justify-between gap-2 flex-wrap">
+          <span class="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-800 border border-blue-200/80">
+            ${guia.categoria || "Guía Médica"}
+          </span>
+
+          <span class="text-[11px] text-slate-500 font-semibold flex items-center gap-1">
+            <svg class="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+            ${guia.formato || "PDF"} • ${guia.tamano || "1.8 MB"}
+          </span>
+        </div>
+
+        <h3 class="text-base font-extrabold text-slate-900 group-hover:text-blue-600 transition-colors leading-snug">
+          ${guia.titulo}
+        </h3>
+
+        ${guia.descripcion ? `<p class="text-xs text-slate-600 leading-relaxed font-normal">${guia.descripcion}</p>` : ''}
+      </div>
+
+      <div class="pt-3 border-t border-slate-100 flex flex-col sm:flex-row flex-wrap items-center gap-2.5">
+        ${(deliveryMethod === "todos" || deliveryMethod === "descarga_directa") ? `
+        <button type="button" onclick="handleGuideDownload(${idx})" class="group/btn px-4 py-2.5 rounded-xl bg-clinical-600 hover:bg-clinical-700 text-white font-extrabold text-xs shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer flex-1 min-w-[130px]">
+          <svg class="w-4 h-4 group-hover/btn:translate-y-0.5 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+          <span>Descarga Directa</span>
+        </button>
+        ` : ''}
+
+        ${(deliveryMethod === "todos" || deliveryMethod === "whatsapp") ? `
+        <a href="${waUrl}" target="_blank" rel="noopener noreferrer" class="group/btn px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 flex-1 min-w-[140px]">
+          <svg class="w-4 h-4 group-hover/btn:scale-110 transition-transform duration-200" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.717-1.454L0 24zm6.59-2.635c1.6.95 3.51 1.45 5.48 1.45 5.86 0 10.63-4.77 10.63-10.63 0-2.84-1.1-5.51-3.11-7.51a10.522 10.522 0 00-7.52-3.12c-5.87 0-10.64 4.77-10.64 10.64 0 2.05.54 4.05 1.56 5.81L1.92 22.2l4.727-1.242c1.7.93 3.59 1.41 5.4 1.41z"/></svg>
+          <span>Solicitar por WhatsApp</span>
+        </a>
+        ` : ''}
+
+        ${(deliveryMethod === "todos" || deliveryMethod === "email") ? `
+        <a href="${mailUrl}" class="group/btn px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-extrabold text-xs shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 flex-1 min-w-[130px]">
+          <svg class="w-4 h-4 group-hover/btn:scale-110 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+          <span>Solicitar por Email</span>
+        </a>
+        ` : ''}
+      </div>
+    </div>`;
+  }).join("\n        ");
+
   // Galería de Fotos del Consultorio / Instalaciones (Carrusel Elegante)
   const fotosConsultorioList = (data.fotosConsultorio && data.fotosConsultorio.length > 0)
     ? data.fotosConsultorio
@@ -1405,6 +1677,28 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
   // Obtener estado en tiempo real inicial
   const initialLiveStatus = getLiveConsultationStatus(data.horarios);
 
+  const footerAuthorityBadges = (data.backlinksAutoridad || [])
+    .filter(b => b && b.mostrarEnFooter && b.portalNombre && b.urlDestino)
+    .filter(b => {
+      const lower = b.portalNombre.toLowerCase();
+      return !lower.includes("doctoralia") && !lower.includes("topdoctors") && !lower.includes("tusalud");
+    });
+
+  const footerAuthorityBadgesHtml = footerAuthorityBadges.length > 0 ? `
+    <!-- Citaciones & Acreditaciones de Autoridad Médica (Oculto visualmente para el usuario, preservado internamente para SEO, Schema y Autoridad Médica E-E-A-T) -->
+    <div class="hidden" style="display: none !important;" aria-hidden="true" itemprop="knowsAbout">
+      <span>Citaciones & Acreditaciones de Autoridad:</span>
+      ${footerAuthorityBadges.map(b => `
+        <a href="${b.urlDestino}" rel="noopener noreferrer" itemprop="sameAs">
+          <span>${b.portalNombre}</span>
+        </a>
+      `).join('')}
+    </div>
+  ` : '';
+
+  const activeFavicon = getActiveFaviconUrl(data);
+  const activeOgImage = getActiveOgImageUrl(data);
+
   return `<!DOCTYPE html>
 <html lang="es" class="scroll-smooth">
 <head>
@@ -1413,8 +1707,9 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
   <title>${data.metaTitulo || `${data.nombreMedico} | ${data.especialidad} en ${data.ciudad}, Ecuador`}</title>
   <meta name="description" content="${data.metaDescripcion || `Consulta médica con ${data.nombreMedico}, especialista en ${data.especialidad} en ${data.ciudad}, Ecuador (${data.estadoRegion}). Registro MSP y SENESCYT. Facturación SRI y seguros médicos.`}">
   
-  <!-- Favicon Personalizado -->
-  ${data.faviconUrl ? `<link rel="icon" href="${data.faviconUrl.startsWith('data:') ? data.faviconUrl : `${data.faviconUrl}${data.faviconUrl.includes('?') ? '&' : '?'}v=${uniqueVersion}`}">` : `<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>🩺</text></svg>">`}
+  <!-- Favicon Personalizado / Ícono PWA -->
+  ${activeFavicon ? `<link rel="icon" href="${activeFavicon.startsWith('data:') ? activeFavicon : `${activeFavicon}${activeFavicon.includes('?') ? '&' : '?'}v=${uniqueVersion}`}">
+  <link rel="apple-touch-icon" href="${activeFavicon}">` : `<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>🩺</text></svg>">`}
   
   <!-- URL Canónica & Enlace a Sitemap XML -->
   <link rel="canonical" href="${cleanAppUrl}/">
@@ -1431,19 +1726,20 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
   <meta name="geo.position" content="${data.latitud};${data.longitud}">
   <meta name="ICBM" content="${data.latitud}, ${data.longitud}">
   
-  <!-- Open Graph / Redes Sociales -->
+  <!-- Open Graph / Redes Sociales (WhatsApp, Facebook, Twitter, LinkedIn) -->
   <meta property="og:title" content="${data.metaTitulo || `${data.nombreMedico} | ${data.especialidad} en ${data.ciudad}, Ecuador`}">
   <meta property="og:description" content="${data.metaDescripcion || `Agenda tu consulta médica con un especialista certificado en ${data.ciudad}, Ecuador. Más de ${data.anosExperiencia} años de trayectoria médica.`}">
   <meta property="og:url" content="${cleanAppUrl}">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="es_EC">
-  <meta property="og:image" content="${data.fotoUrl}">
+  <meta property="og:image" content="${activeOgImage}">
+  <meta property="og:image:secure_url" content="${activeOgImage}">
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="${data.metaTitulo || `${data.nombreMedico} | ${data.especialidad} en ${data.ciudad}, Ecuador`}">
   <meta name="twitter:description" content="${data.metaDescripcion || `Consulta médica con ${data.nombreMedico}, especialista en ${data.especialidad} en ${data.ciudad}, Ecuador.`}">
-  <meta name="twitter:image" content="${data.fotoUrl}">
+  <meta name="twitter:image" content="${activeOgImage}">
   <meta name="twitter:url" content="${cleanAppUrl}">
   
   <!-- CSS Framework (Tailwind CSS CDN para portabilidad e independencia) -->
@@ -1454,34 +1750,43 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
         extend: {
           colors: {
             clinical: {
-              50: 'var(--clinical-50)',
-              100: 'var(--clinical-100)',
-              200: 'var(--clinical-200)',
-              500: 'var(--clinical-500)',
-              600: 'var(--clinical-600)',
-              700: 'var(--clinical-700)',
-              800: 'var(--clinical-800)',
-              900: 'var(--clinical-900)'
+              50: 'var(--color-primary-50, var(--clinical-50))',
+              100: 'var(--color-primary-100, var(--clinical-100))',
+              200: 'var(--color-primary-200, var(--clinical-200))',
+              300: 'var(--color-primary-300)',
+              400: 'var(--color-primary-400)',
+              500: 'var(--color-primary-500, var(--clinical-500))',
+              600: 'var(--color-primary-600, var(--clinical-600))',
+              700: 'var(--color-primary-700, var(--clinical-700))',
+              800: 'var(--color-primary-800, var(--clinical-800))',
+              900: 'var(--color-primary-900, var(--clinical-900))',
+              950: 'var(--color-primary-950)'
             },
             secondary: {
-              50: 'var(--secondary-50)',
-              100: 'var(--secondary-100)',
-              200: 'var(--secondary-200)',
-              500: 'var(--secondary-500)',
-              600: 'var(--secondary-600)',
-              700: 'var(--secondary-700)',
-              800: 'var(--secondary-800)',
-              900: 'var(--secondary-900)'
+              50: 'var(--color-secondary-50, var(--secondary-50))',
+              100: 'var(--color-secondary-100, var(--secondary-100))',
+              200: 'var(--color-secondary-200, var(--secondary-200))',
+              300: 'var(--color-secondary-300)',
+              400: 'var(--color-secondary-400)',
+              500: 'var(--color-secondary-500, var(--secondary-500))',
+              600: 'var(--color-secondary-600, var(--secondary-600))',
+              700: 'var(--color-secondary-700, var(--secondary-700))',
+              800: 'var(--color-secondary-800, var(--secondary-800))',
+              900: 'var(--color-secondary-900, var(--secondary-900))',
+              950: 'var(--color-secondary-950)'
             },
             accent: {
-              50: 'var(--accent-50)',
-              100: 'var(--accent-100)',
-              200: 'var(--accent-200)',
-              500: 'var(--accent-500)',
-              600: 'var(--accent-600)',
-              700: 'var(--accent-700)',
-              800: 'var(--accent-800)',
-              900: 'var(--accent-900)'
+              50: 'var(--color-accent-50, var(--accent-50))',
+              100: 'var(--color-accent-100, var(--accent-100))',
+              200: 'var(--color-accent-200, var(--accent-200))',
+              300: 'var(--color-accent-300)',
+              400: 'var(--color-accent-400)',
+              500: 'var(--color-accent-500, var(--accent-500))',
+              600: 'var(--color-accent-600, var(--accent-600))',
+              700: 'var(--color-accent-700, var(--accent-700))',
+              800: 'var(--color-accent-800, var(--accent-800))',
+              900: 'var(--color-accent-900, var(--accent-900))',
+              950: 'var(--color-accent-950)'
             }
           },
           borderRadius: {
@@ -1513,65 +1818,8 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
   <link rel="stylesheet" href="estilos-config.css?v=${uniqueVersion}">
   
   <style>
-    :root {
-      --clinical-50: ${selectedPalette["50"]};
-      --clinical-100: ${selectedPalette["100"]};
-      --clinical-200: ${selectedPalette["200"]};
-      --clinical-500: ${selectedPalette["500"]};
-      --clinical-600: ${selectedPalette["600"]};
-      --clinical-700: ${selectedPalette["700"]};
-      --clinical-800: ${selectedPalette["800"]};
-      --clinical-900: ${selectedPalette["900"]};
+    ${generateDynamicStylesCss(data)}
 
-      --secondary-50: ${selectedSecondaryPalette["50"]};
-      --secondary-100: ${selectedSecondaryPalette["100"]};
-      --secondary-200: ${selectedSecondaryPalette["200"]};
-      --secondary-500: ${selectedSecondaryPalette["500"]};
-      --secondary-600: ${selectedSecondaryPalette["600"]};
-      --secondary-700: ${selectedSecondaryPalette["700"]};
-      --secondary-800: ${selectedSecondaryPalette["800"]};
-      --secondary-900: ${selectedSecondaryPalette["900"]};
-
-      --accent-50: ${selectedAccentPalette["50"]};
-      --accent-100: ${selectedAccentPalette["100"]};
-      --accent-200: ${selectedAccentPalette["200"]};
-      --accent-500: ${selectedAccentPalette["500"]};
-      --accent-600: ${selectedAccentPalette["600"]};
-      --accent-700: ${selectedAccentPalette["700"]};
-      --accent-800: ${selectedAccentPalette["800"]};
-      --accent-900: ${selectedAccentPalette["900"]};
-
-${generateLandingStyleCssVariables(selectedStylePreset)}
-      --landing-font-display: ${data.fuenteTitulos || selectedStylePreset.fontDisplay};
-      --landing-font-body: ${data.fuenteParrafos || selectedStylePreset.fontBody};
-    }
-    body {
-      font-family: var(--landing-font-body);
-      letter-spacing: var(--landing-letter-spacing);
-      text-rendering: optimizeLegibility;
-      -webkit-font-smoothing: antialiased;
-    }
-    h1, h2, h3, h4, h5, h6, .font-display {
-      font-family: var(--landing-font-display);
-      letter-spacing: var(--landing-letter-spacing);
-    }
-    /* Adaptación Dinámica de Bordes y Radios según Preset de Estilo */
-    .rounded-3xl, .rounded-2xl, .rounded-\\[2\\.5rem\\], .rounded-\\[2rem\\] {
-      border-radius: var(--landing-radius-lg) !important;
-    }
-    .rounded-xl {
-      border-radius: var(--landing-radius) !important;
-    }
-    .rounded-lg {
-      border-radius: var(--landing-radius-sm) !important;
-    }
-    .rounded-md {
-      border-radius: var(--landing-radius-sm) !important;
-    }
-    /* Elevación y Sombras Adaptativas */
-    .shadow-lg, .shadow-xl, .shadow-2xl {
-      box-shadow: var(--landing-shadow) !important;
-    }
     /* Optimizaciones de Renderizado Core Web Vitals (INP / TBT / FCP) */
     .cv-auto {
       content-visibility: auto;
@@ -1829,93 +2077,47 @@ ${jsonLd}
       </div>
       
       <!-- Navegación Escritorio según versión seleccionada -->
-      ${(data.estiloMenuDesktop || "capsula") === "minimalista" ? `
-      <nav class="hidden md:flex items-center gap-6 ml-auto mr-6" id="desktop-nav">
-        <a href="#inicio" class="nav-item py-1 text-[14px] font-black text-slate-950 border-b-2 border-clinical-600 transition-all active-nav" data-section="inicio">Inicio</a>
-        ${hasNosotros ? `<a href="#nosotros" class="nav-item py-1 text-[14px] font-extrabold text-slate-600 hover:text-slate-950 hover:border-slate-300 border-b-2 border-transparent transition-all" data-section="nosotros">Nosotros</a>` : ''}
-        ${hasServicios ? `<a href="#servicios" class="nav-item py-1 text-[14px] font-extrabold text-slate-600 hover:text-slate-950 hover:border-slate-300 border-b-2 border-transparent transition-all" data-section="servicios">Tratamientos</a>` : ''}
-        ${hasRedesSociales ? `<a href="#redes-sociales" class="nav-item py-1 text-[14px] font-extrabold text-slate-600 hover:text-slate-950 hover:border-slate-300 border-b-2 border-transparent transition-all" data-section="redes-sociales">Redes Sociales</a>` : ''}
-        ${hasInstalaciones ? `<a href="#instalaciones" class="nav-item py-1 text-[14px] font-extrabold text-slate-600 hover:text-slate-950 hover:border-slate-300 border-b-2 border-transparent transition-all" data-section="instalaciones">Galería</a>` : ''}
-        ${hasCasos ? `<a href="#casos" class="nav-item py-1 text-[14px] font-extrabold text-slate-600 hover:text-slate-950 hover:border-slate-300 border-b-2 border-transparent transition-all" data-section="casos">Mis casos</a>` : ''}
-        ${hasFaq ? `<a href="#faq" class="nav-item py-1 text-[14px] font-extrabold text-slate-600 hover:text-slate-950 hover:border-slate-300 border-b-2 border-transparent transition-all" data-section="faq">Preguntas</a>` : ''}
-        ${hasResenas ? `<a href="#resenas" class="nav-item py-1 text-[14px] font-extrabold text-slate-600 hover:text-slate-950 hover:border-slate-300 border-b-2 border-transparent transition-all" data-section="resenas">Opiniones</a>` : ''}
-        ${hasBlog ? `<a href="#blog" class="nav-item py-1 text-[14px] font-extrabold text-slate-600 hover:text-slate-950 hover:border-slate-300 border-b-2 border-transparent transition-all" data-section="blog">Blog</a>` : ''}
-      </nav>
-      ` : (data.estiloMenuDesktop === "ejecutivo") ? `
-      <nav class="hidden md:flex items-center gap-1.5 ml-auto mr-4" id="desktop-nav">
-        <a href="#inicio" class="nav-item px-3.5 py-1.5 text-[13px] font-black rounded-xl bg-clinical-50 text-clinical-700 border border-clinical-200 transition-all active-nav" data-section="inicio">Inicio</a>
-        ${hasNosotros ? `<a href="#nosotros" class="nav-item px-3.5 py-1.5 text-[13px] font-extrabold text-slate-700 hover:border-slate-200 hover:bg-slate-100/80 rounded-xl border border-transparent transition-all" data-section="nosotros">Nosotros</a>` : ''}
-        ${hasServicios ? `<a href="#servicios" class="nav-item px-3.5 py-1.5 text-[13px] font-extrabold text-slate-700 hover:border-slate-200 hover:bg-slate-100/80 rounded-xl border border-transparent transition-all" data-section="servicios">Tratamientos</a>` : ''}
-        ${hasRedesSociales ? `<a href="#redes-sociales" class="nav-item px-3.5 py-1.5 text-[13px] font-extrabold text-slate-700 hover:border-slate-200 hover:bg-slate-100/80 rounded-xl border border-transparent transition-all" data-section="redes-sociales">Redes Sociales</a>` : ''}
-        ${hasInstalaciones ? `<a href="#instalaciones" class="nav-item px-3.5 py-1.5 text-[13px] font-extrabold text-slate-700 hover:border-slate-200 hover:bg-slate-100/80 rounded-xl border border-transparent transition-all" data-section="instalaciones">Galería</a>` : ''}
-        ${hasCasos ? `<a href="#casos" class="nav-item px-3.5 py-1.5 text-[13px] font-extrabold text-slate-700 hover:border-slate-200 hover:bg-slate-100/80 rounded-xl border border-transparent transition-all" data-section="casos">Mis casos</a>` : ''}
-        ${hasFaq ? `<a href="#faq" class="nav-item px-3.5 py-1.5 text-[13px] font-extrabold text-slate-700 hover:border-slate-200 hover:bg-slate-100/80 rounded-xl border border-transparent transition-all" data-section="faq">Preguntas</a>` : ''}
-        ${hasResenas ? `<a href="#resenas" class="nav-item px-3.5 py-1.5 text-[13px] font-extrabold text-slate-700 hover:border-slate-200 hover:bg-slate-100/80 rounded-xl border border-transparent transition-all" data-section="resenas">Opiniones</a>` : ''}
-        ${hasBlog ? `<a href="#blog" class="nav-item px-3.5 py-1.5 text-[13px] font-extrabold text-slate-700 hover:border-slate-200 hover:bg-slate-100/80 rounded-xl border border-transparent transition-all" data-section="blog">Blog</a>` : ''}
-      </nav>
-      ` : (data.estiloMenuDesktop === "modern_dock") ? `
-      <nav class="hidden md:flex items-center gap-1.5 bg-white/90 backdrop-blur-xl border border-slate-300/80 p-1.5 rounded-2xl shadow-sm mx-auto" id="desktop-nav">
-        <a href="#inicio" class="nav-item px-3.5 py-1.5 text-[13px] font-black rounded-xl text-white bg-clinical-600 shadow-xs transition-all active-nav" data-section="inicio">Inicio</a>
-        ${hasNosotros ? `<a href="#nosotros" class="nav-item px-3.5 py-1.5 text-[13px] font-extrabold text-slate-700 hover:text-slate-950 hover:bg-slate-100/90 rounded-xl transition-all" data-section="nosotros">Nosotros</a>` : ''}
-        ${hasServicios ? `<a href="#servicios" class="nav-item px-3.5 py-1.5 text-[13px] font-extrabold text-slate-700 hover:text-slate-950 hover:bg-slate-100/90 rounded-xl transition-all" data-section="servicios">Tratamientos</a>` : ''}
-        ${hasRedesSociales ? `<a href="#redes-sociales" class="nav-item px-3.5 py-1.5 text-[13px] font-extrabold text-slate-700 hover:text-slate-950 hover:bg-slate-100/90 rounded-xl transition-all" data-section="redes-sociales">Redes Sociales</a>` : ''}
-        ${hasInstalaciones ? `<a href="#instalaciones" class="nav-item px-3.5 py-1.5 text-[13px] font-extrabold text-slate-700 hover:text-slate-950 hover:bg-slate-100/90 rounded-xl transition-all" data-section="instalaciones">Galería</a>` : ''}
-        ${hasCasos ? `<a href="#casos" class="nav-item px-3.5 py-1.5 text-[13px] font-extrabold text-slate-700 hover:text-slate-950 hover:bg-slate-100/90 rounded-xl transition-all" data-section="casos">Mis casos</a>` : ''}
-        ${hasFaq ? `<a href="#faq" class="nav-item px-3.5 py-1.5 text-[13px] font-extrabold text-slate-700 hover:text-slate-950 hover:bg-slate-100/90 rounded-xl transition-all" data-section="faq">Preguntas</a>` : ''}
-        ${hasResenas ? `<a href="#resenas" class="nav-item px-3.5 py-1.5 text-[13px] font-extrabold text-slate-700 hover:text-slate-950 hover:bg-slate-100/90 rounded-xl transition-all" data-section="resenas">Opiniones</a>` : ''}
-        ${hasBlog ? `<a href="#blog" class="nav-item px-3.5 py-1.5 text-[13px] font-extrabold text-slate-700 hover:text-slate-950 hover:bg-slate-100/90 rounded-xl transition-all" data-section="blog">Blog</a>` : ''}
-      </nav>
-      ` : (data.estiloMenuDesktop === "split_centrado") ? `
-      <nav class="hidden md:flex items-center gap-1.5 ml-auto mr-4" id="desktop-nav">
-        <a href="#inicio" class="nav-item px-3.5 py-1.5 text-[13px] font-black rounded-xl bg-clinical-50 text-clinical-700 border border-clinical-200 transition-all active-nav" data-section="inicio">Inicio</a>
-        ${hasNosotros ? `<a href="#nosotros" class="nav-item px-3.5 py-1.5 text-[13px] font-extrabold text-slate-700 hover:border-slate-200 hover:bg-slate-100/80 rounded-xl border border-transparent transition-all" data-section="nosotros">Nosotros</a>` : ''}
-        ${hasServicios ? `<a href="#servicios" class="nav-item px-3.5 py-1.5 text-[13px] font-extrabold text-slate-700 hover:border-slate-200 hover:bg-slate-100/80 rounded-xl border border-transparent transition-all" data-section="servicios">Tratamientos</a>` : ''}
-        ${hasRedesSociales ? `<a href="#redes-sociales" class="nav-item px-3.5 py-1.5 text-[13px] font-extrabold text-slate-700 hover:border-slate-200 hover:bg-slate-100/80 rounded-xl border border-transparent transition-all" data-section="redes-sociales">Redes Sociales</a>` : ''}
-        ${hasInstalaciones ? `<a href="#instalaciones" class="nav-item px-3.5 py-1.5 text-[13px] font-extrabold text-slate-700 hover:border-slate-200 hover:bg-slate-100/80 rounded-xl border border-transparent transition-all" data-section="instalaciones">Galería</a>` : ''}
-        ${hasCasos ? `<a href="#casos" class="nav-item px-3.5 py-1.5 text-[13px] font-extrabold text-slate-700 hover:border-slate-200 hover:bg-slate-100/80 rounded-xl border border-transparent transition-all" data-section="casos">Mis casos</a>` : ''}
-        ${hasFaq ? `<a href="#faq" class="nav-item px-3.5 py-1.5 text-[13px] font-extrabold text-slate-700 hover:border-slate-200 hover:bg-slate-100/80 rounded-xl border border-transparent transition-all" data-section="faq">Preguntas</a>` : ''}
-        ${hasResenas ? `<a href="#resenas" class="nav-item px-3.5 py-1.5 text-[13px] font-extrabold text-slate-700 hover:border-slate-200 hover:bg-slate-100/80 rounded-xl border border-transparent transition-all" data-section="resenas">Opiniones</a>` : ''}
-        ${hasBlog ? `<a href="#blog" class="nav-item px-3.5 py-1.5 text-[13px] font-extrabold text-slate-700 hover:border-slate-200 hover:bg-slate-100/80 rounded-xl border border-transparent transition-all" data-section="blog">Blog</a>` : ''}
-      </nav>
-      ` : (data.estiloMenuDesktop === "institucional") ? `
-      <div class="hidden md:flex items-center gap-3 ml-auto mr-2" id="desktop-nav">
-        <a href="tel:${(data.telefonoGBP || '').replace(/\s+/g, '')}" title="Hacer clic para llamar directamente" class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 transition-all shadow-2xs group shrink-0">
-          <span class="p-1 rounded-lg bg-emerald-600 text-white group-hover:bg-emerald-700 transition-colors shrink-0 shadow-2xs">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/><path d="M14.05 2a9 9 0 0 1 8 7.94"/><path d="M14.05 6a5 5 0 0 1 4 3.9"/></svg>
-          </span>
-          <span class="flex flex-col text-left leading-none">
-            <span class="text-[9px] text-emerald-800 uppercase font-black tracking-wider">Llamar Directo</span>
-            <strong class="text-[12px] font-mono font-extrabold text-slate-900 mt-0.5">${data.telefonoGBP}</strong>
-          </span>
-        </a>
+      ${(() => {
+        const style = data.estiloMenuDesktop || "capsula";
+        if (style === "minimalista") {
+          return `<nav class="hidden md:flex items-center gap-6 ml-auto mr-6" id="desktop-nav">
+            ${activeNavs.map((n, i) => `<a href="${n.href}" class="nav-item py-1 text-[14px] ${i === 0 ? 'font-black text-slate-950 border-b-2 border-clinical-600 active-nav' : 'font-extrabold text-slate-600 hover:text-slate-950 hover:border-slate-300 border-b-2 border-transparent'} transition-all" data-section="${n.id}">${n.label}</a>`).join('\n            ')}
+          </nav>`;
+        }
+        if (style === "ejecutivo" || style === "split_centrado") {
+          return `<nav class="hidden md:flex items-center gap-1.5 ml-auto mr-4" id="desktop-nav">
+            ${activeNavs.map((n, i) => `<a href="${n.href}" class="nav-item px-3.5 py-1.5 text-[13px] ${i === 0 ? 'font-black rounded-xl bg-clinical-50 text-clinical-700 border border-clinical-200 active-nav' : 'font-extrabold text-slate-700 hover:border-slate-200 hover:bg-slate-100/80 rounded-xl border border-transparent'} transition-all" data-section="${n.id}">${n.label}</a>`).join('\n            ')}
+          </nav>`;
+        }
+        if (style === "modern_dock") {
+          return `<nav class="hidden md:flex items-center gap-1.5 bg-white/90 backdrop-blur-xl border border-slate-300/80 p-1.5 rounded-2xl shadow-sm mx-auto" id="desktop-nav">
+            ${activeNavs.map((n, i) => `<a href="${n.href}" class="nav-item px-3.5 py-1.5 text-[13px] ${i === 0 ? 'font-black rounded-xl text-white bg-clinical-600 shadow-xs active-nav' : 'font-extrabold text-slate-700 hover:text-slate-950 hover:bg-slate-100/90 rounded-xl'} transition-all" data-section="${n.id}">${n.label}</a>`).join('\n            ')}
+          </nav>`;
+        }
+        if (style === "institucional") {
+          return `<div class="hidden md:flex items-center gap-3 ml-auto mr-2" id="desktop-nav">
+            <a href="tel:${(data.telefonoGBP || '').replace(/\s+/g, '')}" title="Hacer clic para llamar directamente" class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 transition-all shadow-2xs group shrink-0">
+              <span class="p-1 rounded-lg bg-emerald-600 text-white group-hover:bg-emerald-700 transition-colors shrink-0 shadow-2xs">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/><path d="M14.05 2a9 9 0 0 1 8 7.94"/><path d="M14.05 6a5 5 0 0 1 4 3.9"/></svg>
+              </span>
+              <span class="flex flex-col text-left leading-none">
+                <span class="text-[9px] text-emerald-800 uppercase font-black tracking-wider">Llamar Directo</span>
+                <strong class="text-[12px] font-mono font-extrabold text-slate-900 mt-0.5">${data.telefonoGBP}</strong>
+              </span>
+            </a>
 
-        <div class="h-6 w-px bg-slate-200"></div>
+            <div class="h-6 w-px bg-slate-200"></div>
 
-        <nav class="flex items-center gap-1 bg-slate-100/90 border border-slate-200/90 p-1 rounded-xl shadow-2xs">
-          <a href="#inicio" class="nav-item px-3 py-1.5 text-[13px] font-black rounded-lg text-white bg-clinical-600 shadow-xs transition-all active-nav" data-section="inicio">Inicio</a>
-          ${hasNosotros ? `<a href="#nosotros" class="nav-item px-3 py-1.5 text-[13px] font-extrabold text-slate-700 hover:text-slate-950 hover:bg-white/80 rounded-lg transition-all" data-section="nosotros">Nosotros</a>` : ''}
-          ${hasServicios ? `<a href="#servicios" class="nav-item px-3 py-1.5 text-[13px] font-extrabold text-slate-700 hover:text-slate-950 hover:bg-white/80 rounded-lg transition-all" data-section="servicios">Tratamientos</a>` : ''}
-          ${hasRedesSociales ? `<a href="#redes-sociales" class="nav-item px-3 py-1.5 text-[13px] font-extrabold text-slate-700 hover:text-slate-950 hover:bg-white/80 rounded-lg transition-all" data-section="redes-sociales">Redes Sociales</a>` : ''}
-          ${hasInstalaciones ? `<a href="#instalaciones" class="nav-item px-3 py-1.5 text-[13px] font-extrabold text-slate-700 hover:text-slate-950 hover:bg-white/80 rounded-lg transition-all" data-section="instalaciones">Galería</a>` : ''}
-          ${hasCasos ? `<a href="#casos" class="nav-item px-3 py-1.5 text-[13px] font-extrabold text-slate-700 hover:text-slate-950 hover:bg-white/80 rounded-lg transition-all" data-section="casos">Mis casos</a>` : ''}
-          ${hasFaq ? `<a href="#faq" class="nav-item px-3 py-1.5 text-[13px] font-extrabold text-slate-700 hover:text-slate-950 hover:bg-white/80 rounded-lg transition-all" data-section="faq">Preguntas</a>` : ''}
-          ${hasResenas ? `<a href="#resenas" class="nav-item px-3 py-1.5 text-[13px] font-extrabold text-slate-700 hover:text-slate-950 hover:bg-white/80 rounded-lg transition-all" data-section="resenas">Opiniones</a>` : ''}
-          ${hasBlog ? `<a href="#blog" class="nav-item px-3 py-1.5 text-[13px] font-extrabold text-slate-700 hover:text-slate-950 hover:bg-white/80 rounded-lg transition-all" data-section="blog">Blog</a>` : ''}
-        </nav>
-      </div>
-      ` : `
-      <nav class="hidden md:flex items-center gap-1.5 bg-slate-100/90 border border-slate-200/80 p-1.5 rounded-full text-[14px] font-bold text-slate-700 shadow-2xs" id="desktop-nav">
-        <a href="#inicio" class="nav-item px-4 py-1.5 rounded-full transition-all text-white bg-clinical-600 shadow-xs font-extrabold active-nav" data-section="inicio">Inicio</a>
-        ${hasNosotros ? `<a href="#nosotros" class="nav-item px-4 py-1.5 rounded-full hover:text-slate-950 hover:bg-white/90 text-slate-700 transition-all font-bold" data-section="nosotros">Nosotros</a>` : ''}
-        ${hasServicios ? `<a href="#servicios" class="nav-item px-4 py-1.5 rounded-full hover:text-slate-950 hover:bg-white/90 text-slate-700 transition-all font-bold" data-section="servicios">Tratamientos</a>` : ''}
-        ${hasRedesSociales ? `<a href="#redes-sociales" class="nav-item px-4 py-1.5 rounded-full hover:text-slate-950 hover:bg-white/90 text-slate-700 transition-all font-bold" data-section="redes-sociales">Redes Sociales</a>` : ''}
-        ${hasInstalaciones ? `<a href="#instalaciones" class="nav-item px-4 py-1.5 rounded-full hover:text-slate-950 hover:bg-white/90 text-slate-700 transition-all font-bold" data-section="instalaciones">Galería</a>` : ''}
-        ${hasCasos ? `<a href="#casos" class="nav-item px-4 py-1.5 rounded-full hover:text-slate-950 hover:bg-white/90 text-slate-700 transition-all font-bold" data-section="casos">Mis casos</a>` : ''}
-        ${hasFaq ? `<a href="#faq" class="nav-item px-4 py-1.5 rounded-full hover:text-slate-950 hover:bg-white/90 text-slate-700 transition-all font-bold" data-section="faq">Preguntas</a>` : ''}
-        ${hasResenas ? `<a href="#resenas" class="nav-item px-4 py-1.5 rounded-full hover:text-slate-950 hover:bg-white/90 text-slate-700 transition-all font-bold" data-section="resenas">Opiniones</a>` : ''}
-        ${hasBlog ? `<a href="#blog" class="nav-item px-4 py-1.5 rounded-full hover:text-slate-950 hover:bg-white/90 text-slate-700 transition-all font-bold" data-section="blog">Blog</a>` : ''}
-      </nav>
-      `}
+            <nav class="flex items-center gap-1 bg-slate-100/90 border border-slate-200/90 p-1 rounded-xl shadow-2xs">
+              ${activeNavs.map((n, i) => `<a href="${n.href}" class="nav-item px-3 py-1.5 text-[13px] ${i === 0 ? 'font-black rounded-lg text-white bg-clinical-600 shadow-xs active-nav' : 'font-extrabold text-slate-700 hover:text-slate-950 hover:bg-white/80 rounded-lg'} transition-all" data-section="${n.id}">${n.label}</a>`).join('\n              ')}
+            </nav>
+          </div>`;
+        }
+        // capsula (default)
+        return `<nav class="hidden md:flex items-center gap-1.5 bg-slate-100/90 border border-slate-200/80 p-1.5 rounded-full text-[14px] font-bold text-slate-700 shadow-2xs" id="desktop-nav">
+          ${activeNavs.map((n, i) => `<a href="${n.href}" class="nav-item px-4 py-1.5 rounded-full transition-all ${i === 0 ? 'text-white bg-clinical-600 shadow-xs font-extrabold active-nav' : 'hover:text-slate-950 hover:bg-white/90 text-slate-700 font-bold'} " data-section="${n.id}">${n.label}</a>`).join('\n          ')}
+        </nav>`;
+      })()}
 
       <div class="flex items-center gap-2">
         <a href="#agendar" aria-label="Agendar Cita" title="Agendar Cita" class="w-10 h-10 sm:w-11 sm:h-11 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-full flex items-center justify-center shadow-md hover:shadow-lg transition-all duration-300 text-center shrink-0 hover:scale-105">
@@ -1938,63 +2140,46 @@ ${jsonLd}
     </div>
 
     <!-- Panel Desplegable Móvil -->
-    <div id="mobile-nav-panel" class="hidden md:hidden border-t border-slate-100 bg-white/95 backdrop-blur-xl px-4 py-3 shadow-lg">
-      <nav class="flex flex-col gap-1.5 bg-slate-50/90 p-2.5 rounded-2xl border border-slate-200/70">
-        <a href="#inicio" onclick="closeMobileMenu()" class="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-800 hover:bg-white hover:text-slate-950 transition-colors">
-          <svg class="w-4.5 h-4.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
-          <span>Inicio</span>
-        </a>
-        ${hasNosotros ? `
-        <a href="#nosotros" onclick="closeMobileMenu()" class="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-800 hover:bg-white hover:text-slate-950 transition-colors">
-          <svg class="w-4.5 h-4.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-          <span>Sobre el Doctor</span>
-        </a>` : ''}
-        ${hasServicios ? `
-        <a href="#servicios" onclick="closeMobileMenu()" class="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-800 hover:bg-white hover:text-slate-950 transition-colors">
-          <svg class="w-4.5 h-4.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-          <span>Tratamientos</span>
-        </a>` : ''}
-        ${hasRedesSociales ? `
-        <a href="#redes-sociales" onclick="closeMobileMenu()" class="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-800 hover:bg-white hover:text-slate-950 transition-colors">
-          <svg class="w-4.5 h-4.5 text-pink-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-          <span>Redes & Videos</span>
-        </a>` : ''}
-        ${hasInstalaciones ? `
-        <a href="#instalaciones" onclick="closeMobileMenu()" class="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-800 hover:bg-white hover:text-slate-950 transition-colors">
-          <svg class="w-4.5 h-4.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-          <span>Galería</span>
-        </a>` : ''}
-        ${hasCasos ? `
-        <a href="#casos" onclick="closeMobileMenu()" class="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-800 hover:bg-white hover:text-slate-950 transition-colors">
-          <svg class="w-4.5 h-4.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
-          <span>Mis casos</span>
-        </a>` : ''}
-        ${hasFaq ? `
-        <a href="#faq" onclick="closeMobileMenu()" class="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-800 hover:bg-white hover:text-slate-950 transition-colors">
-          <svg class="w-4.5 h-4.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          <span>Preguntas Frecuentes</span>
-        </a>` : ''}
-        ${hasResenas ? `
-        <a href="#resenas" onclick="closeMobileMenu()" class="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-800 hover:bg-white hover:text-slate-950 transition-colors">
-          <svg class="w-4.5 h-4.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
-          <span>Opiniones</span>
-        </a>` : ''}
-        ${hasBlog ? `
-        <a href="#blog" onclick="closeMobileMenu()" class="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-800 hover:bg-white hover:text-slate-950 transition-colors">
-          <svg class="w-4.5 h-4.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" /></svg>
-          <span>Blog</span>
-        </a>` : ''}
-        <a href="#agendar" onclick="closeMobileMenu()" class="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-extrabold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 transition-colors mt-1 border border-emerald-200/60">
-          <svg class="w-4.5 h-4.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-          <span>Agendar Consulta</span>
-        </a>
+    <div id="mobile-nav-panel" class="hidden md:hidden overflow-hidden max-w-full w-full border-t border-slate-100 bg-white/95 backdrop-blur-xl px-3 py-3 shadow-lg">
+      <nav class="flex flex-wrap items-center justify-center gap-2 bg-slate-50/90 p-2.5 rounded-2xl border border-slate-200/70 max-w-full overflow-hidden">
+        ${activeNavs.map(item => {
+          let svgIcon = '';
+          if (item.icon === 'home') {
+            svgIcon = `<svg class="w-4 h-4 text-slate-600 shrink-0 min-w-[16px] min-h-[16px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>`;
+          } else if (item.icon === 'doctor') {
+            svgIcon = `<svg class="w-4 h-4 text-slate-600 shrink-0 min-w-[16px] min-h-[16px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>`;
+          } else if (item.icon === 'servicios') {
+            svgIcon = `<svg class="w-4 h-4 text-slate-600 shrink-0 min-w-[16px] min-h-[16px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>`;
+          } else if (item.icon === 'video') {
+            svgIcon = `<svg class="w-4 h-4 text-pink-600 shrink-0 min-w-[16px] min-h-[16px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>`;
+          } else if (item.icon === 'clinica') {
+            svgIcon = `<svg class="w-4 h-4 text-slate-600 shrink-0 min-w-[16px] min-h-[16px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>`;
+          } else if (item.icon === 'casos') {
+            svgIcon = `<svg class="w-4 h-4 text-slate-600 shrink-0 min-w-[16px] min-h-[16px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>`;
+          } else if (item.icon === 'faq') {
+            svgIcon = `<svg class="w-4 h-4 text-slate-600 shrink-0 min-w-[16px] min-h-[16px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+          } else if (item.icon === 'opiniones') {
+            svgIcon = `<svg class="w-4 h-4 text-amber-500 shrink-0 min-w-[16px] min-h-[16px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>`;
+          } else if (item.icon === 'blog') {
+            svgIcon = `<svg class="w-4 h-4 text-slate-600 shrink-0 min-w-[16px] min-h-[16px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" /></svg>`;
+          } else if (item.icon === 'guias') {
+            svgIcon = `<svg class="w-4 h-4 text-emerald-600 shrink-0 min-w-[16px] min-h-[16px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>`;
+          } else {
+            svgIcon = `<svg class="w-4 h-4 text-emerald-600 shrink-0 min-w-[16px] min-h-[16px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>`;
+          }
+          const isCita = item.id === 'agendar';
+          return `<a href="${item.href}" onclick="closeMobileMenu()" class="flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs sm:text-sm ${isCita ? 'font-extrabold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 transition-all border border-emerald-200/80' : 'font-bold text-slate-800 bg-white border border-slate-200/60 hover:bg-slate-100 hover:text-slate-950'} transition-all shrink-0">
+            ${svgIcon}
+            <span class="whitespace-nowrap font-bold">${item.label}</span>
+          </a>`;
+        }).join('\n        ')}
       </nav>
     </div>
   </header>
 
   <!-- HERO SECTION (Diseño Mobile First: 100% ancho, 80% alto responsivo, fondo dinámico, foto circular con halo, nombre, especialidad, ciudad, CTA y redes) -->
   ${hasHero ? `
-  <section id="inicio" class="relative w-full min-h-[80vh] md:min-h-[80vh] flex flex-col justify-center items-center py-10 md:py-16 overflow-hidden text-white" style="${(() => {
+  <section id="inicio" class="relative w-full min-h-[80vh] md:min-h-[80vh] flex flex-col justify-center items-center pt-5 pb-8 sm:py-10 md:py-16 overflow-hidden text-white" style="${(() => {
     const bgType = data.tipoFondoHero || (data.imagenFondoHero ? "imagen" : "gradiente");
     if (bgType === "imagen" && data.imagenFondoHero) {
       return `background-image: url('${data.imagenFondoHero}'); background-size: cover; background-position: center;`;
@@ -2024,11 +2209,11 @@ ${jsonLd}
       const isInvertido = disenoHeroDesktop === "invertido";
 
       return `
-    <div class="${isCentrado ? "max-w-4xl" : "max-w-5xl"} mx-auto px-4 sm:px-6 lg:px-8 relative z-10 my-auto w-full">
-      <div class="grid grid-cols-1 lg:grid-cols-12 items-center gap-6 lg:gap-12 text-center ${isCentrado ? "lg:text-center" : "lg:text-left"}">
+    <div class="${isCentrado ? "max-w-4xl" : "max-w-5xl"} mx-auto px-4 sm:px-6 lg:px-8 relative z-10 my-auto -mt-3.5 sm:mt-0 w-full">
+      <div class="grid grid-cols-1 lg:grid-cols-12 items-center gap-4 sm:gap-6 lg:gap-12 text-center ${isCentrado ? "lg:text-center" : "lg:text-left"}">
         
         <!-- 1. LOGOTIPO (Únicamente en Mobile y Tablet, Oculto en Desktop) -->
-        <div class="col-span-1 lg:hidden w-full flex justify-center -mt-2 sm:-mt-3 pt-0 pb-0.5 hero-animate-logo">
+        <div class="col-span-1 lg:hidden w-full flex justify-center -mt-2 sm:-mt-2 pt-0 pb-0 hero-animate-logo">
           ${data.logoUrl ? `
             <img 
               src="${data.logoUrl}" 
@@ -2077,7 +2262,7 @@ ${jsonLd}
                   }
                 }
               </style>
-              <div class="relative my-0.5 group mx-auto lg:mx-0 max-w-full hero-animate-image">
+              <div class="relative -mt-0.5 mb-1 sm:my-0.5 group mx-auto lg:mx-0 max-w-full hero-animate-image">
                 <div id="hero-parallax-wrapper" class="w-full h-full transition-transform duration-100 ease-out will-change-transform">
                   ${
                     !isSinBorde
@@ -2126,18 +2311,19 @@ ${jsonLd}
               <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-100 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
               </svg>
-              <span>${isCentrado ? "Verificado" : "Médico Certificado"}</span>
+              <span>${isCentrado ? "Verificado" : (isClinica ? "Centro Acreditado" : "Médico Certificado")}</span>
             </div>
           </div>
 
           <!-- NOMBRE Y ESPECIALIDAD -->
           <div class="space-y-0.5 w-full px-2 ${isCentrado ? "" : "lg:px-0"}">
-            <h1 class="text-lg sm:text-xl md:text-2xl lg:text-4xl font-medium leading-tight tracking-normal drop-shadow-md truncate max-w-full font-display hero-animate-title ${data.tipoOverlayHero === "claro" ? "text-slate-900" : "text-white"}">
+            <h2 class="text-2xl sm:text-3xl md:text-3xl lg:text-4xl font-bold leading-tight tracking-tight drop-shadow-md break-words max-w-full font-display hero-animate-title ${data.tipoOverlayHero === "claro" ? "text-slate-900" : "text-white"}">
               ${data.nombreMedico}
+            </h2>
+            <h1 class="text-sm sm:text-base md:text-lg ${data.tipoOverlayHero === "claro" ? "text-blue-700 font-extrabold" : "text-cyan-300 font-semibold"} uppercase tracking-wide sm:tracking-wider leading-snug drop-shadow-xs break-words max-w-full hero-animate-specialty">
+              <span id="hero-specialty-typewriter" data-full-text="${data.especialidad}">${data.especialidad}</span>
+              <span class="sr-only"> en ${data.ciudad || "Ecuador"}</span>
             </h1>
-            <p id="hero-specialty-typewriter" data-full-text="${data.especialidad}" class="text-xs sm:text-sm ${data.tipoOverlayHero === "claro" ? "text-blue-700 font-extrabold" : "text-cyan-300 font-semibold"} uppercase tracking-wide sm:tracking-wider drop-shadow-xs truncate max-w-full hero-animate-specialty">
-              ${data.especialidad}
-            </p>
           </div>
 
           <!-- CIUDAD / UBICACIÓN -->
@@ -2154,28 +2340,29 @@ ${jsonLd}
             </a>
           </div>
 
-          <!-- REDES SOCIALES -->
+          <!-- REDES SOCIALES (Orden: 1. Facebook, 2. Instagram, 3. TikTok, 4. Llamar, 5. Compartir) -->
           <div class="flex items-center justify-center ${isCentrado ? "" : "lg:justify-start"} gap-2.5 pt-1 flex-wrap hero-animate-social">
-            ${data.whatsappUrl ? `
-              <a href="${data.whatsappUrl}" target="_blank" rel="noopener noreferrer" class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-white flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all border border-white/20" aria-label="WhatsApp" title="WhatsApp Directo">
-                <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.717-1.454L0 24zm6.59-2.635c1.6.95 3.51 1.45 5.48 1.45 5.86 0 10.63-4.77 10.63-10.63 0-2.84-1.1-5.51-3.11-7.51a10.522 10.522 0 00-7.52-3.12c-5.87 0-10.64 4.77-10.64 10.64 0 2.05.54 4.05 1.56 5.81L1.92 22.2l4.727-1.242c1.7.93 3.59 1.41 5.4 1.41z" /></svg>
-              </a>
-            ` : ''}
-            ${data.instagramUrl ? `
-              <a href="${data.instagramUrl}" target="_blank" rel="noopener noreferrer" class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all border border-white/20" aria-label="Instagram" title="Instagram">
-                <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" /></svg>
-              </a>
-            ` : ''}
-            ${data.facebookUrl ? `
-              <a href="${data.facebookUrl}" target="_blank" rel="noopener noreferrer" class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#1877F2] hover:bg-[#166fe5] text-white flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all border border-white/20" aria-label="Facebook" title="Facebook">
-                <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" /></svg>
-              </a>
-            ` : ''}
-            ${data.telefonoGBP ? `
-              <a href="tel:${data.telefonoGBP}" class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#0288D1] hover:bg-[#0277bd] text-white flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all border border-white/20" aria-label="Llamar" title="Llamada Directa">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 fill-none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.94.725l.548 2.2a1 1 0 01-.321.988l-1.305.98a10.582 10.582 0 004.872 4.872l.98-1.305a1 1 0 01.988-.321l2.2.548a1 1 0 01.725.94V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-              </a>
-            ` : ''}
+            <!-- 1. Facebook -->
+            <a href="${data.facebookUrl || '#'}" target="_blank" rel="noopener noreferrer" class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#1877F2] hover:bg-[#166fe5] text-white flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all border border-white/20" aria-label="Facebook" title="Facebook">
+              <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" /></svg>
+            </a>
+
+            <!-- 2. Instagram -->
+            <a href="${data.instagramUrl || '#'}" target="_blank" rel="noopener noreferrer" class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all border border-white/20" aria-label="Instagram" title="Instagram">
+              <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" /></svg>
+            </a>
+
+            <!-- 3. TikTok -->
+            <a href="${data.tiktokUrl || '#'}" target="_blank" rel="noopener noreferrer" class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-slate-900 hover:bg-black text-white flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all border border-white/20" aria-label="TikTok" title="TikTok">
+              <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.298 0 .59.043.87.126V9.4a6.33 6.33 0 0 0-.87-.06A6.34 6.34 0 0 0 3 15.68a6.34 6.34 0 0 0 10.82 4.48c.18-.18.34-.37.49-.57V10.7a8.28 8.28 0 0 0 5.28 1.93v-3.45a4.84 4.84 0 0 1-3.23-.97c-.01-.01-.02-.02-.04-.03l3.27-1.49z"/></svg>
+            </a>
+
+            <!-- 4. Llamar -->
+            <a href="${data.telefonoGBP ? `tel:${data.telefonoGBP}` : '#'}" class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#0288D1] hover:bg-[#0277bd] text-white flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all border border-white/20" aria-label="Llamar" title="Llamada Directa">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 fill-none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.94.725l.548 2.2a1 1 0 01-.321.988l-1.305.98a10.582 10.582 0 004.872 4.872l.98-1.305a1 1 0 01.988-.321l2.2.548a1 1 0 01.725.94V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+            </a>
+
+            <!-- 5. Compartir -->
             <button onclick="openProfileModal()" class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all border border-white/20 cursor-pointer" aria-label="Compartir perfil" title="Compartir Perfil Médico">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 fill-none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
             </button>
@@ -2218,9 +2405,9 @@ ${jsonLd}
     <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 text-center sm:text-left">
       
       <div class="space-y-4 max-w-3xl mx-auto text-center">
-        <span class="text-xs font-extrabold text-clinical-600 uppercase tracking-widest bg-clinical-50 px-3.5 py-1 rounded-full inline-block">Sobre el Especialista</span>
+        <span class="text-xs font-extrabold text-clinical-600 uppercase tracking-widest bg-clinical-50 px-3.5 py-1 rounded-full inline-block">${isClinica ? "Sobre Nosotros / Centro Médico" : "Sobre el Especialista"}</span>
         <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 leading-tight">
-          Trayectoria y formación
+          ${isClinica ? "Trayectoria e Instalaciones" : "Trayectoria y formación"}
         </h2>
         <p class="text-gray-600 leading-relaxed text-base sm:text-lg">
           ${data.biografiaCurta}
@@ -2247,7 +2434,7 @@ ${jsonLd}
                 Años Exp.
               </span>
             </div>
-            <p class="text-[11px] sm:text-xs font-bold text-slate-800 tracking-wide mt-1 leading-snug">Trayectoria Médica Acreditada</p>
+            <p class="text-[11px] sm:text-xs font-bold text-slate-800 tracking-wide mt-1 leading-snug">${isClinica ? "Trayectoria Institucional Acreditada" : "Trayectoria Médica Acreditada"}</p>
             <p class="text-[10px] sm:text-[11px] text-slate-500 font-medium truncate mt-0.5 hidden sm:block">Experiencia clínica y actualización continua</p>
           </div>
         </div>
@@ -2429,17 +2616,17 @@ ${jsonLd}
     </div>
 
     <!-- Botón de apertura de Catálogo Completo "Mis Servicios" -->
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 text-center">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 text-center flex flex-col items-center justify-center">
       <button
         type="button"
         onclick="openServicesModal()"
-        class="inline-flex items-center justify-center gap-3 px-8 py-4 rounded-2xl bg-clinical-600 hover:bg-clinical-700 active:bg-clinical-800 text-white font-extrabold text-sm sm:text-base shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
+        class="w-[90%] max-w-lg inline-flex items-center justify-center gap-2 sm:gap-3 px-4 sm:px-8 py-3.5 sm:py-4 rounded-2xl bg-clinical-600 hover:bg-clinical-700 active:bg-clinical-800 text-white font-extrabold text-xs sm:text-base tracking-wider uppercase shadow-lg shadow-clinical-600/25 hover:shadow-2xl hover:shadow-clinical-600/40 hover:scale-[1.03] active:scale-[0.97] transition-all duration-300 cursor-pointer group animate-heartbeat hover:animate-none"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-white/90 group-hover:rotate-12 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 sm:w-5 h-4 sm:h-5 text-white/90 group-hover:rotate-12 transition-transform duration-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
         </svg>
-        <span>Mis servicios</span>
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-white/80 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+        <span class="whitespace-nowrap">Mis servicios</span>
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-white/80 group-hover:translate-x-1 transition-transform duration-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
         </svg>
       </button>
@@ -2619,6 +2806,31 @@ ${jsonLd}
   </section>
   ` : ''}
 
+  <!-- SECCIÓN GUÍAS, EBOOKS & FICHAS PARA PACIENTES (PDF LEAD MAGNET) -->
+  ${hasGuias ? `
+  <section id="guias-pacientes" class="p-6 sm:p-8 md:p-10 bg-white text-slate-900 border-t border-slate-200/80 space-y-8 text-left relative overflow-hidden" aria-label="Guías y fichas para pacientes">
+    <div id="guias" className="absolute -top-10 left-0"></div>
+    <div class="max-w-7xl mx-auto relative z-10">
+      <div class="text-center max-w-3xl mx-auto space-y-3 mb-8">
+        <span class="text-[11px] font-extrabold text-blue-800 uppercase tracking-widest bg-blue-50 border border-blue-200/80 px-3.5 py-1 rounded-full inline-flex items-center gap-1.5 shadow-2xs">
+          <svg class="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+          Recursos Médicos & Ebooks (${(data.guiasPacientes || []).length})
+        </span>
+        <h2 class="text-xl sm:text-2xl md:text-3xl font-extrabold text-slate-950 tracking-tight">
+          Guías, Ebooks y Fichas para Pacientes
+        </h2>
+        <p class="text-xs sm:text-sm text-slate-700/80 font-medium leading-relaxed max-w-2xl mx-auto">
+          Material educativo en PDF para orientación y preparación antes y después de tu consulta médica.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6 max-w-5xl mx-auto">
+        ${guiasPacientesHtml}
+      </div>
+    </div>
+  </section>
+  ` : ''}
+
   <!-- SECCIÓN AGENDAR / CONTACTO Y LOCALIZACIÓN (Renderizado Optimizado) -->
   ${hasHorariosUbicacion ? `
   <section id="agendar" class="py-16 md:py-24 bg-white cv-auto">
@@ -2779,6 +2991,19 @@ ${jsonLd}
                 placeholder="ej. María Gómez"
                 class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none bg-slate-50/60 font-medium text-slate-800"
               />
+            </div>
+
+            <!-- Detalles de la consulta opcional -->
+            <div class="flex flex-col gap-1">
+              <label for="agenda-details" class="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                <span>Detalles de la consulta (opcional)</span>
+              </label>
+              <textarea
+                id="agenda-details"
+                placeholder="ej. Dolor de espalda, chequeo anual, renovación de receta..."
+                rows="2"
+                class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none bg-slate-50/60 font-medium text-slate-800 resize-none"
+              ></textarea>
             </div>
           </div>
         </div>
@@ -2947,7 +3172,8 @@ ${jsonLd}
 
       <!-- Registro Sanitario / Cédula Profesional (Preservado en código para SEO/Schema): ${data.cedulaProfesional} -->
       <meta itemprop="identifier" content="${data.cedulaProfesional}">
-      <div class="flex flex-col sm:flex-row items-center justify-between text-xs text-gray-500 gap-2">
+      ${footerAuthorityBadgesHtml}
+      <div class="flex flex-col sm:flex-row items-center justify-between text-xs text-gray-500 gap-2 mt-4">
         <p>&copy; ${new Date().getFullYear()} Todos los derechos reservados.</p>
         <p class="mt-2 sm:mt-0 text-gray-400 font-medium">
           Desarrollado por <a href="https://medico.ec/" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-300 hover:underline transition-colors font-semibold">médico Ec</a> y <a href="https://mantaconect.com/" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-300 hover:underline transition-colors font-semibold">MC</a>
@@ -3061,6 +3287,15 @@ ${jsonLd}
           </span>
         </div>
 
+        <!-- Detalles de la Consulta -->
+        <div id="modal-app-detalles-container" class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-col gap-1 hidden">
+          <div class="flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+            <span class="text-xs font-bold text-slate-600">Detalles:</span>
+          </div>
+          <p id="modal-app-detalles" class="text-xs font-semibold text-slate-800 break-words pl-6"></p>
+        </div>
+
         <!-- Valor de Consulta & Pagos -->
         <div class="p-3.5 rounded-2xl bg-amber-50/50 border border-amber-200/80 space-y-2">
           <div class="flex items-center justify-between">
@@ -3155,6 +3390,55 @@ ${jsonLd}
 
       <!-- Contenido del Modal -->
       <div class="p-5 sm:p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+        ${(data.mision || data.vision || (data.valores && data.valores.filter(v => v && v.trim()).length > 0)) ? `
+        <!-- Misión, Visión y Valores -->
+        <div class="space-y-3 pb-2 border-b border-slate-100">
+          <h4 class="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+            <svg class="w-4 h-4 text-clinical-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+            ${isClinica ? "Misión, Visión & Valores Institucionales" : "Misión, Visión & Valores Médicos"}
+          </h4>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            ${data.mision ? `
+              <div class="p-3.5 rounded-2xl bg-purple-50/70 border border-purple-100/90 text-left space-y-1 shadow-2xs">
+                <div class="flex items-center gap-1.5 text-xs font-black uppercase text-purple-900 tracking-wide">
+                  <svg class="w-3.5 h-3.5 text-purple-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                  <span>Misión</span>
+                </div>
+                <p class="text-xs text-purple-950 leading-relaxed font-medium">${data.mision}</p>
+              </div>
+            ` : ''}
+
+            ${data.vision ? `
+              <div class="p-3.5 rounded-2xl bg-blue-50/70 border border-blue-100/90 text-left space-y-1 shadow-2xs">
+                <div class="flex items-center gap-1.5 text-xs font-black uppercase text-blue-900 tracking-wide">
+                  <svg class="w-3.5 h-3.5 text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                  <span>Visión</span>
+                </div>
+                <p class="text-xs text-blue-950 leading-relaxed font-medium">${data.vision}</p>
+              </div>
+            ` : ''}
+          </div>
+
+          ${(data.valores && data.valores.filter(v => v && v.trim()).length > 0) ? `
+            <div class="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-100/90 space-y-2 text-left shadow-2xs">
+              <div class="flex items-center gap-1.5 text-xs font-black uppercase text-emerald-900 tracking-wide">
+                <svg class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.684a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
+                <span>Valores Fundamentales</span>
+              </div>
+              <div class="flex flex-wrap gap-1.5">
+                ${data.valores.filter(v => v && v.trim()).map(val => `
+                  <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white text-emerald-900 text-xs font-bold border border-emerald-200 shadow-2xs">
+                    <svg class="w-3 h-3 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                    ${val}
+                  </span>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+        </div>
+        ` : ''}
+
         <!-- Hospitales de Operación -->
         <div>
           <h4 class="text-xs font-black uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5">
@@ -3360,6 +3644,81 @@ ${jsonLd}
           </button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- MODAL LEAD MAGNET: DESCARGA DE GUÍAS PARA PACIENTES -->
+  <div id="patient-guide-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex items-center justify-center p-4 overflow-y-auto" onclick="closePatientGuideModal(event)">
+    <div class="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-200 text-left my-auto" onclick="event.stopPropagation()">
+      <!-- Cabecera del modal -->
+      <div class="bg-gradient-to-r from-emerald-800 to-slate-900 p-5 text-white flex items-center justify-between gap-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-400">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+          </div>
+          <div>
+            <span class="text-[10px] font-black uppercase tracking-widest text-emerald-300 block">Descarga Oficial</span>
+            <h3 class="text-base font-extrabold text-white leading-tight">Acceso a la Guía Médica</h3>
+          </div>
+        </div>
+        <button
+          type="button"
+          onclick="closePatientGuideModal()"
+          class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 active:bg-white/30 text-white flex items-center justify-center transition-colors cursor-pointer"
+        >
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+      </div>
+
+      <!-- Formulario Lead Magnet -->
+      <form id="guide-lead-form" onsubmit="submitGuideLead(event)" class="p-6 space-y-4">
+        <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
+          <p id="modal-guide-title" class="text-xs font-bold text-slate-900"></p>
+          <p id="modal-guide-desc" class="text-[11px] text-slate-500 line-clamp-2"></p>
+        </div>
+
+        <p class="text-xs text-slate-600 leading-relaxed font-normal">
+          Ingresa tus datos para recibir el enlace de descarga oficial y una copia directa a tu WhatsApp:
+        </p>
+
+        <div class="space-y-3">
+          <div class="space-y-1">
+            <label class="text-[11px] font-extrabold text-slate-700">Nombre Completo</label>
+            <input
+              type="text"
+              id="guide-lead-name"
+              required
+              placeholder="Ej. María Fernanda Morales"
+              class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none text-slate-900 font-medium"
+            />
+          </div>
+
+          <div class="space-y-1">
+            <label class="text-[11px] font-extrabold text-slate-700">Número de WhatsApp / Teléfono</label>
+            <input
+              type="tel"
+              id="guide-lead-contact"
+              required
+              placeholder="Ej. +593 99 123 4567"
+              class="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none text-slate-900 font-medium"
+            />
+          </div>
+        </div>
+
+        <div class="pt-2">
+          <button
+            type="submit"
+            id="guide-lead-submit-btn"
+            class="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-extrabold text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+            <span>Descargar Guía Inmediata</span>
+          </button>
+          <p class="text-[10px] text-slate-400 text-center mt-2">
+            Tus datos son 100% confidenciales según la ley médica de protección de datos.
+          </p>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -3676,6 +4035,94 @@ ${jsonLd}
       document.body.style.overflow = '';
     }
 
+    // 4.1. Modal y Lógica de Descarga de Guías para Pacientes (Lead Magnet)
+    const patientGuidesData = ${JSON.stringify(data.guiasPacientes || [])};
+    let currentSelectedGuide = null;
+
+    function handleGuideDownload(index) {
+      const guide = patientGuidesData[index];
+      if (!guide) return;
+      currentSelectedGuide = guide;
+
+      if (guide.requiereRegistro) {
+        // Abrir modal de captura de leads
+        document.getElementById('modal-guide-title').innerText = guide.titulo;
+        document.getElementById('modal-guide-desc').innerText = guide.descripcion || (guide.categoria + ' • Formato ' + (guide.formato || 'PDF'));
+        const modal = document.getElementById('patient-guide-modal');
+        if (modal) {
+          modal.classList.remove('hidden');
+          document.body.style.overflow = 'hidden';
+        }
+      } else {
+        // Descarga directa
+        triggerDirectDownload(guide);
+      }
+    }
+
+    function closePatientGuideModal(e) {
+      if (e && e.target !== e.currentTarget && e.target.id !== 'patient-guide-modal') {
+        return;
+      }
+      const modal = document.getElementById('patient-guide-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+        document.body.style.overflow = '';
+      }
+    }
+
+    function submitGuideLead(e) {
+      e.preventDefault();
+      if (!currentSelectedGuide) return;
+
+      const name = document.getElementById('guide-lead-name').value.trim();
+      const contact = document.getElementById('guide-lead-contact').value.trim();
+      const btn = document.getElementById('guide-lead-submit-btn');
+
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="animate-pulse">Preparando archivo...</span>';
+      }
+
+      // Simular guardado de lead y envío/descarga
+      setTimeout(() => {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>Descargar Guía Inmediata</span>';
+        }
+        closePatientGuideModal();
+        triggerDirectDownload(currentSelectedGuide, name, contact);
+      }, 700);
+    }
+
+    function triggerDirectDownload(guide, leadName, leadContact) {
+      const fileTarget = guide.rutaCpanel || guide.archivoUrl;
+      if (fileTarget && fileTarget.length > 0) {
+        window.open(fileTarget, '_blank');
+      } else {
+        // Generar un documento informativo descargable
+        const content = 'GUÍA MÉDICA OFICIAL\\n' +
+          '===============================\\n' +
+          'Título: ' + guide.titulo + '\\n' +
+          'Especialista: ${data.nombreMedico}\\n' +
+          'Especialidad: ${data.especialidad}\\n' +
+          'Ciudad: ${data.ciudad}, Ecuador\\n' +
+          'Teléfono / WhatsApp: ${data.telefonoGBP}\\n' +
+          '===============================\\n\\n' +
+          (guide.descripcion || 'Pautas y recomendaciones preparatorias para pacientes.') + '\\n\\n' +
+          'Para agendar una cita o resolver dudas, comunícate al ' + '${data.telefonoGBP}' + '.\\n';
+        
+        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = (guide.titulo.toLowerCase().replace(/[^a-z0-9]/g, '_')) + '.txt';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    }
+
     // 3. Sliders Comparativos de Antes/Después (Optimizado con requestAnimationFrame & Passive Listeners)
     document.querySelectorAll('.clinical-slider-container').forEach((slider) => {
       const beforeWrapper = slider.querySelector('.before-image-wrapper');
@@ -3731,10 +4178,13 @@ ${jsonLd}
       const dateInput = document.getElementById('agenda-date');
       const timeSelect = document.getElementById('agenda-time');
       const nameInput = document.getElementById('agenda-name');
+      const detailsInput = document.getElementById('agenda-details');
       const appointmentModal = document.getElementById('appointment-modal');
       const modalFecha = document.getElementById('modal-app-fecha');
       const modalHora = document.getElementById('modal-app-hora');
       const modalPaciente = document.getElementById('modal-app-paciente');
+      const modalDetalles = document.getElementById('modal-app-detalles');
+      const modalDetallesContainer = document.getElementById('modal-app-detalles-container');
       const modalWhatsappBtn = document.getElementById('modal-confirm-whatsapp-btn');
 
       if (!dateInput) return;
@@ -3776,6 +4226,7 @@ ${jsonLd}
         const valDate = dateInput.value;
         const valTime = timeSelect ? timeSelect.value : '10:30 AM';
         const valName = nameInput && nameInput.value.trim() ? ' Mi nombre es ' + nameInput.value.trim() + '.' : '';
+        const valDetailsText = detailsInput && detailsInput.value.trim() ? ' Detalles de la consulta: ' + detailsInput.value.trim() + '.' : '';
 
         const fechaTexto = formatReadableDate(valDate);
 
@@ -3787,11 +4238,16 @@ ${jsonLd}
                  .replace(/\{\{clinica\}\}/gi, clinicaName)
                  .replace(/\{\{fecha\}\}/gi, fechaTexto)
                  .replace(/\{\{hora\}\}/gi, valTime)
-                 .replace(/\{\{nombre\}\}/gi, valName);
+                 .replace(/\{\{nombre\}\}/gi, valName)
+                 .replace(/\{\{detalles\}\}/gi, detailsInput && detailsInput.value.trim() ? 'Detalles: ' + detailsInput.value.trim() : '');
 
         // Fallback si la plantilla no incluía tags
         if (valName && !plantillaMsg.includes('{{nombre}}') && !msg.includes(valName)) {
           msg += valName;
+        }
+
+        if (detailsInput && detailsInput.value.trim() && !plantillaMsg.includes('{{detalles}}') && !msg.includes(detailsInput.value.trim())) {
+          msg += valDetailsText;
         }
 
         return rawWhatsappBase + '?text=' + encodeURIComponent(msg);
@@ -3802,10 +4258,20 @@ ${jsonLd}
         const valDate = dateInput.value;
         const valTime = timeSelect ? timeSelect.value : '10:30 AM';
         const valPatient = nameInput && nameInput.value.trim() ? nameInput.value.trim() : 'A coordinar en recepción';
+        const valDetails = detailsInput && detailsInput.value.trim() ? detailsInput.value.trim() : '';
 
         if (modalFecha) modalFecha.textContent = formatReadableDate(valDate);
         if (modalHora) modalHora.textContent = valTime;
         if (modalPaciente) modalPaciente.textContent = valPatient;
+
+        if (modalDetallesContainer && modalDetalles) {
+          if (valDetails) {
+            modalDetalles.textContent = valDetails;
+            modalDetallesContainer.classList.remove('hidden');
+          } else {
+            modalDetallesContainer.classList.add('hidden');
+          }
+        }
 
         if (modalWhatsappBtn) {
           modalWhatsappBtn.href = buildDynamicWhatsAppUrl();
@@ -4081,6 +4547,26 @@ ${jsonLd}
       }
     })();
 
+    // Sincronización en Tiempo Real con el Generador para Pestañas de Vista Previa
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        var syncChannel = new BroadcastChannel('medical_landing_preview_sync');
+        syncChannel.onmessage = function(event) {
+          if (event.data && event.data.type === 'DATA_UPDATED') {
+            console.log('🔄 Cambios detectados en el editor. Actualizando vista previa...');
+            window.location.reload();
+          }
+        };
+      }
+      window.addEventListener('storage', function(e) {
+        if (e.key === 'medical_landing_generator_state') {
+          console.log('🔄 Estado de localStorage actualizado. Recargando vista previa...');
+          window.location.reload();
+        }
+      });
+    } catch (e) {
+      console.warn('Sync listener notice:', e);
+    }
   </script>
 </body>
 </html>`;
@@ -4091,21 +4577,24 @@ ${jsonLd}
  */
 export function generateManifestJson(data: MedicalLandingData): string {
   const cleanAppUrl = normalizeDomainUrl(data.dominioWeb);
+  const activeIcon = getActiveFaviconUrl(data) || data.fotoUrl || "https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=512&auto=format&fit=crop";
+  const appShortName = (data.pwaAppTitle && data.pwaAppTitle.trim()) ? data.pwaAppTitle.trim() : (data.nombreMedico || data.especialidad).slice(0, 16);
+  
   const manifest = {
     "id": `${cleanAppUrl}/`,
-    "short_name": data.especialidad.slice(0, 12),
+    "short_name": appShortName,
     "name": `${data.nombreMedico} | ${data.especialidad}`,
-    "description": data.filosofia,
+    "description": data.filosofia || data.metaDescripcion,
     "icons": [
       {
-        "src": "https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=192&auto=format&fit=crop",
-        "type": "image/png",
+        "src": activeIcon,
+        "type": activeIcon.startsWith("data:image/svg") ? "image/svg+xml" : "image/png",
         "sizes": "192x192",
         "purpose": "any maskable"
       },
       {
-        "src": "https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=512&auto=format&fit=crop",
-        "type": "image/png",
+        "src": activeIcon,
+        "type": activeIcon.startsWith("data:image/svg") ? "image/svg+xml" : "image/png",
         "sizes": "512x512",
         "purpose": "any maskable"
       }
@@ -4114,7 +4603,7 @@ export function generateManifestJson(data: MedicalLandingData): string {
     "scope": "/",
     "background_color": "#ffffff",
     "display": "standalone",
-    "theme_color": "#1e6fd9",
+    "theme_color": data.colorPrimarioHex || "#1e6fd9",
     "orientation": "portrait-primary"
   };
 

@@ -181,6 +181,44 @@
             "name": "{{ASOCIACION_MEDICA_2}}"
           }
         ],
+        "hasCredential": [
+          {
+            "@type": "EducationalOccupationalCredential",
+            "credentialCategory": "Licencia Médica / Cédula Profesional",
+            "identifier": "{{CEDULA_PROFESIONAL}}",
+            "name": "Cédula Profesional Médica: {{CEDULA_PROFESIONAL}}"
+          }
+        ],
+        "hospitalAffiliation": [
+          {
+            "@type": "Hospital",
+            "name": "{{HOSPITAL_DONDE_OPERA_1}}"
+          },
+          {
+            "@type": "Hospital",
+            "name": "{{HOSPITAL_DONDE_OPERA_2}}"
+          }
+        ],
+        "citation": [
+          {
+            "@type": "WebPage",
+            "name": "Ministerio de Salud Pública del Ecuador (MSP)",
+            "url": "https://www.salud.gob.ec/",
+            "publisher": {
+              "@type": "Organization",
+              "name": "Ministerio de Salud Pública del Ecuador"
+            }
+          },
+          {
+            "@type": "WebPage",
+            "name": "SENESCYT Registro de Títulos Médicos",
+            "url": "https://www.senescyt.gob.ec/",
+            "publisher": {
+              "@type": "Organization",
+              "name": "SENESCYT Ecuador"
+            }
+          }
+        ],
         "knowsAbout": ["{{ESPECIALIDAD}}", "{{TITULO_SERVICIO_1}}", "{{TITULO_SERVICIO_2}}", "{{TITULO_SERVICIO_3}}"]
       },
       {
@@ -1096,6 +1134,13 @@
           </address>
         </div>
 
+      </div>
+
+      <!-- Citaciones & Acreditaciones de Autoridad Médica (Oculto visualmente para el usuario, preservado internamente para SEO, Schema y Autoridad Médica E-E-A-T) -->
+      <div class="hidden" style="display: none !important;" aria-hidden="true" itemprop="knowsAbout">
+        <span>Citaciones & Acreditaciones de Autoridad Médica:</span>
+        <a href="https://www.salud.gob.ec/" rel="noopener noreferrer" itemprop="sameAs">Ministerio de Salud Pública del Ecuador</a>
+        <a href="https://www.senescyt.gob.ec/" rel="noopener noreferrer" itemprop="sameAs">SENESCYT Registro de Títulos</a>
       </div>
 
       <div class="flex flex-col sm:flex-row items-center justify-between text-xs text-gray-500">

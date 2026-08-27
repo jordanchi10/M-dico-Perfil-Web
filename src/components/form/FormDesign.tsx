@@ -1234,7 +1234,7 @@ export function FormDesign({
               <input
                 type="range"
                 min="100"
-                max="280"
+                max="340"
                 step="4"
                 value={data.fotoTamanoMobile || 176}
                 onChange={(e) => updateField("fotoTamanoMobile", parseInt(e.target.value))}
@@ -1242,7 +1242,7 @@ export function FormDesign({
               />
               <div className="flex justify-between text-[9px] text-slate-400 font-mono">
                 <span>100px</span>
-                <span>280px</span>
+                <span>340px</span>
               </div>
             </div>
 
@@ -1260,7 +1260,7 @@ export function FormDesign({
               <input
                 type="range"
                 min="150"
-                max="420"
+                max="500"
                 step="4"
                 value={data.fotoTamanoTablet || 240}
                 onChange={(e) => updateField("fotoTamanoTablet", parseInt(e.target.value))}
@@ -1268,7 +1268,7 @@ export function FormDesign({
               />
               <div className="flex justify-between text-[9px] text-slate-400 font-mono">
                 <span>150px</span>
-                <span>420px</span>
+                <span>500px</span>
               </div>
             </div>
 
@@ -1286,7 +1286,7 @@ export function FormDesign({
               <input
                 type="range"
                 min="200"
-                max="550"
+                max="640"
                 step="4"
                 value={data.fotoTamanoDesktop || 320}
                 onChange={(e) => updateField("fotoTamanoDesktop", parseInt(e.target.value))}
@@ -1294,7 +1294,7 @@ export function FormDesign({
               />
               <div className="flex justify-between text-[9px] text-slate-400 font-mono">
                 <span>200px</span>
-                <span>550px</span>
+                <span>640px</span>
               </div>
             </div>
           </div>
