@@ -74,13 +74,13 @@ export const LAYOUT_PRESETS: LayoutPreset[] = [
       { id: "hero", visible: true },
       { id: "eeat", visible: true },
       { id: "servicios", visible: true },
+      { id: "redes_sociales", visible: true },
       { id: "casos", visible: true },
       { id: "opiniones", visible: true },
-      { id: "galeria", visible: true },
-      { id: "faqs", visible: true },
-      { id: "tarifas", visible: true },
-      { id: "horarios_ubicacion", visible: true },
       { id: "blog", visible: true },
+      { id: "guias", visible: true },
+      { id: "horarios_ubicacion", visible: true },
+      { id: "faqs", visible: true },
     ]
   },
   {
@@ -94,11 +94,11 @@ export const LAYOUT_PRESETS: LayoutPreset[] = [
       { id: "opiniones", visible: true },
       { id: "horarios_ubicacion", visible: true },
       { id: "eeat", visible: false },
+      { id: "redes_sociales", visible: false },
       { id: "casos", visible: false },
-      { id: "galeria", visible: false },
-      { id: "faqs", visible: false },
-      { id: "tarifas", visible: false },
       { id: "blog", visible: false },
+      { id: "guias", visible: false },
+      { id: "faqs", visible: false },
     ]
   },
   {
@@ -111,11 +111,11 @@ export const LAYOUT_PRESETS: LayoutPreset[] = [
       { id: "eeat", visible: true },
       { id: "servicios", visible: true },
       { id: "casos", visible: true },
-      { id: "galeria", visible: true },
       { id: "opiniones", visible: true },
-      { id: "faqs", visible: true },
+      { id: "guias", visible: true },
       { id: "horarios_ubicacion", visible: true },
-      { id: "tarifas", visible: true },
+      { id: "faqs", visible: true },
+      { id: "redes_sociales", visible: false },
       { id: "blog", visible: false },
     ]
   },
@@ -129,12 +129,12 @@ export const LAYOUT_PRESETS: LayoutPreset[] = [
       { id: "eeat", visible: true },
       { id: "opiniones", visible: true },
       { id: "servicios", visible: true },
-      { id: "galeria", visible: true },
       { id: "blog", visible: true },
-      { id: "faqs", visible: true },
       { id: "horarios_ubicacion", visible: true },
-      { id: "tarifas", visible: false },
+      { id: "faqs", visible: true },
+      { id: "redes_sociales", visible: false },
       { id: "casos", visible: false },
+      { id: "guias", visible: false },
     ]
   },
   {
@@ -145,13 +145,13 @@ export const LAYOUT_PRESETS: LayoutPreset[] = [
     order: [
       { id: "hero", visible: true },
       { id: "servicios", visible: true },
-      { id: "tarifas", visible: true },
       { id: "opiniones", visible: true },
-      { id: "faqs", visible: true },
       { id: "horarios_ubicacion", visible: true },
+      { id: "guias", visible: true },
+      { id: "faqs", visible: true },
       { id: "eeat", visible: false },
+      { id: "redes_sociales", visible: false },
       { id: "casos", visible: false },
-      { id: "galeria", visible: false },
       { id: "blog", visible: false },
     ]
   }
@@ -162,13 +162,15 @@ interface FormDesignProps {
   onChange: (newData: MedicalLandingData | ((prev: MedicalLandingData) => MedicalLandingData)) => void;
   updateField: (field: keyof MedicalLandingData, value: any) => void;
   updateFields?: (fields: Partial<MedicalLandingData>) => void;
+  subSection?: "colores" | "hero" | "secciones" | "all";
 }
 
 export function FormDesign({
   data,
   onChange,
   updateField,
-  updateFields
+  updateFields,
+  subSection = "all"
 }: FormDesignProps) {
   const applyFields = (fields: Partial<MedicalLandingData>) => {
     if (updateFields) {
@@ -347,22 +349,61 @@ export function FormDesign({
     });
   };
 
+  const showColores = subSection === "all" || subSection === "colores";
+  const showHero = subSection === "all" || subSection === "hero";
+  const showSecciones = subSection === "all" || subSection === "secciones";
+
   return (
     <div id="form-design-section" className="space-y-6">
-      {/* CABECERA DE SECCIÓN */}
+      {/* CABECERA DE SECCIÓN DINÁMICA SEGÚN SUBSECCIÓN */}
       <div className="border-b border-slate-100 pb-3 flex items-start justify-between">
         <div>
-          <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-            <Palette className="w-4 h-4 text-blue-600" />
-            Diseño, Colores & Estilo Visual
-          </h3>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Personaliza la paleta cromática, estilo de interfaz, llamadas a la acción (CTA) y orden de las secciones.
-          </p>
+          {subSection === "colores" ? (
+            <>
+              <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                <Palette className="w-4 h-4 text-blue-600" />
+                Paleta Cromática & Tipografías de Marca
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Personaliza la paleta médica, colores primario y secundario con contraste dinámico WCAG y las fuentes para títulos y párrafos.
+              </p>
+            </>
+          ) : subSection === "hero" ? (
+            <>
+              <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                <Monitor className="w-4 h-4 text-emerald-600" />
+                Cabecera, Menú Desktop & Sección Hero
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Personaliza el estilo de menú de navegación en escritorio, distribución visual del hero, foto médica y fondos dinámicos.
+              </p>
+            </>
+          ) : subSection === "secciones" ? (
+            <>
+              <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                <Layers className="w-4 h-4 text-purple-600" />
+                Botones CTA & Organizador de Secciones
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Configura los botones de llamado a la acción (CTA) flotantes o fijos y organiza la secuencia y visibilidad de las secciones de tu web.
+              </p>
+            </>
+          ) : (
+            <>
+              <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                <Palette className="w-4 h-4 text-blue-600" />
+                Diseño, Colores & Estilo Visual
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Personaliza la paleta cromática, estilo de interfaz, llamadas a la acción (CTA) y orden de las secciones.
+              </p>
+            </>
+          )}
         </div>
       </div>
 
       {/* 1. IDENTIDAD CROMÁTICA, PALETA DE COLORES & TIPOGRAFÍA DE MARCA */}
+      {showColores && (
       <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-5">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div>
@@ -670,8 +711,12 @@ export function FormDesign({
           </div>
         </div>
       </div>
+      )}
 
-      {/* 2. ESTILO VISUAL DE LANDING PAGE */}
+      {/* 2. ESTILO VISUAL DE LANDING PAGE, MENÚ DESKTOP, CABECERA HERO & FOTO */}
+      {showHero && (
+      <>
+      {/* 2.1 ESTILO VISUAL DE LANDING PAGE */}
       <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3">
         <label className="text-xs font-extrabold text-slate-900 uppercase tracking-wide flex items-center gap-1.5">
           <Layout className="w-4 h-4 text-indigo-600" />
@@ -811,46 +856,31 @@ export function FormDesign({
             },
             {
               id: "split_centrado",
-              title: "v5. Doble Barra Médica Light (Light Bar)",
-              badge: "Top Info Claro",
-              description: "Doble barra en tono claro con badges de contacto (Llamar Ahora, Ubicación, Horarios, Citas) + Barra de navegación principal.",
+              title: "v5. Pediátrico Colorido con Iconos 3D",
+              badge: "Kids & Color 3D",
+              description: "Diseño alegre, colorido y amigable ideal para pediatría y salud infantil. Iconos 3D limpios directamente junto a cada sección, sin burbujas extras.",
               renderPreview: () => (
-                <div className="w-full h-11 bg-slate-100 rounded-lg p-1 flex flex-col justify-between border border-slate-200/80 overflow-hidden">
-                  <div className="w-full h-3.5 bg-slate-200/90 rounded-t-xs px-1 flex items-center justify-between border-b border-slate-300/60">
-                    <div className="flex items-center gap-1">
-                      <div className="w-4 h-1.5 bg-emerald-600 rounded-xs"></div>
-                      <div className="w-4 h-1.5 bg-blue-600 rounded-xs"></div>
-                    </div>
-                    <div className="w-8 h-1.5 bg-emerald-600 rounded-full"></div>
+                <div className="w-full h-11 bg-slate-50 rounded-xl p-1.5 flex items-center justify-between border border-slate-200/90 shadow-2xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm leading-none">🧸</span>
+                    <div className="w-8 h-3 bg-slate-800 rounded-md"></div>
                   </div>
-                  <div className="w-full h-6 px-1 flex items-center justify-between">
-                    <div className="w-10 h-3 bg-slate-800 rounded-md"></div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-4 h-2.5 bg-blue-600 rounded-xs"></div>
-                      <div className="w-4 h-2.5 bg-slate-300 rounded-xs"></div>
-                      <div className="w-8 h-3.5 bg-emerald-600 rounded-md"></div>
+                  <div className="h-8 bg-white/95 rounded-xl px-2 border border-slate-200 shadow-2xs flex items-center gap-2">
+                    <div className="h-6 px-2 bg-blue-600 rounded-lg flex items-center gap-1 text-white shadow-2xs">
+                      <span className="text-xs leading-none">🏠</span>
+                      <div className="w-3 h-1.5 bg-white rounded-xs"></div>
+                    </div>
+                    <div className="flex items-center gap-1 px-1">
+                      <span className="text-xs">🩺</span>
+                      <div className="w-3.5 h-1.5 bg-slate-400 rounded-xs"></div>
+                    </div>
+                    <div className="flex items-center gap-1 px-1">
+                      <span className="text-xs">⭐</span>
+                      <div className="w-3.5 h-1.5 bg-slate-400 rounded-xs"></div>
                     </div>
                   </div>
-                </div>
-              )
-            },
-            {
-              id: "institucional",
-              title: "v6. Flotante Moderno Premium Blanco",
-              badge: "Isla Premium",
-              description: "Menú flotante blanco de lujo con elevación suave, bordes definidos, badges de alta confianza y llamado a la acción directo.",
-              renderPreview: () => (
-                <div className="w-full h-11 bg-slate-200/60 rounded-lg p-1 flex items-center justify-center">
-                  <div className="w-11/12 h-9 bg-white rounded-2xl px-2 shadow-md border border-slate-200 flex items-center justify-between">
-                    <div className="flex items-center gap-1">
-                      <div className="w-8 h-3 bg-slate-900 rounded-xs"></div>
-                      <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-3.5 h-2 bg-blue-600 rounded-2xs"></div>
-                      <div className="w-3.5 h-2 bg-slate-300 rounded-2xs"></div>
-                    </div>
-                    <div className="w-7 h-3.5 bg-emerald-600 rounded-md"></div>
+                  <div className="h-7 px-2 bg-blue-600 rounded-lg shadow-xs flex items-center gap-1 text-xs text-white">
+                    <span>📅</span>
                   </div>
                 </div>
               )
@@ -1030,6 +1060,154 @@ export function FormDesign({
             <strong>Información importante:</strong> La versión v3 Centrada oculta la foto en Mobile, Tablet y Desktop y cambia el badge a "Verificado" para enfocar la landing en el centro médico. Para las versiones v1 y v2, en Mobile y Tablet se mantiene la foto del profesional.
           </span>
         </div>
+      </div>
+
+      {/* 2.6. POPUP DE BIENVENIDA & FRANJA DE SALUDO PERSONALIZADO */}
+      <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-0.5">
+              <label className="text-xs font-extrabold text-slate-800 uppercase flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-amber-500" />
+                Popup de Bienvenida Minimalista & Saludo al Paciente
+              </label>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                😊 Cara Feliz 3D & Minimalista
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500">
+              Modal ultra-limpio y minimalista con icono de cara feliz en 3D que solicita amablemente el nombre al visitante, muestra una franja sin fondo bajo el Hero y auto-completa el formulario de citas.
+            </p>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              id="toggle-popup-bienvenida"
+              checked={data.habilitarPopupBienvenida ?? true}
+              onChange={(e) => updateField("habilitarPopupBienvenida", e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+          </label>
+        </div>
+
+        {(data.habilitarPopupBienvenida ?? true) && (
+          <div className="space-y-3 pt-2 border-t border-slate-100 animate-in fade-in duration-200">
+            {/* Selector de Icono 3D para el Popup y Franja */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-slate-700 block">
+                Selecciona el Icono 3D del Popup y Franja de Saludo
+              </label>
+              <div className="flex flex-wrap gap-2 items-center">
+                {[
+                  { emoji: "😊", label: "Cara Feliz" },
+                  { emoji: "👋", label: "Saludo Mano" },
+                  { emoji: "🩺", label: "Estetoscopio" },
+                  { emoji: "✨", label: "Destello" },
+                  { emoji: "🧸", label: "Pediatría / Osito" },
+                  { emoji: "🌟", label: "Estrella" },
+                  { emoji: "💙", label: "Corazón Médico" },
+                  { emoji: "🏥", label: "Clínica" },
+                  { emoji: "👨‍⚕️", label: "Doctor" },
+                  { emoji: "👩‍⚕️", label: "Doctora" },
+                ].map((item) => {
+                  const isSelected = (data.popupBienvenidaIcono || "😊") === item.emoji;
+                  return (
+                    <button
+                      key={item.emoji}
+                      type="button"
+                      onClick={() => updateField("popupBienvenidaIcono", item.emoji)}
+                      className={`px-2.5 py-1.5 rounded-xl border text-sm flex items-center gap-1.5 transition-all cursor-pointer ${
+                        isSelected
+                          ? "border-emerald-600 bg-emerald-50 text-emerald-950 font-bold shadow-xs ring-2 ring-emerald-500/20"
+                          : "border-slate-200 hover:border-slate-300 bg-slate-50/60 text-slate-700"
+                      }`}
+                      title={item.label}
+                    >
+                      <span className="text-base select-none filter drop-shadow-xs">{item.emoji}</span>
+                      <span className="text-[11px] font-medium hidden sm:inline">{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-700 block">
+                  Título del Popup de Bienvenida
+                </label>
+                <input
+                  type="text"
+                  value={data.popupBienvenidaTitulo ?? "¡Bienvenido(a) a mi consulta!"}
+                  onChange={(e) => updateField("popupBienvenidaTitulo", e.target.value)}
+                  placeholder="¡Bienvenido(a) a mi consulta!"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-slate-50/50"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-700 block">
+                  Texto del Botón Continuar
+                </label>
+                <input
+                  type="text"
+                  value={data.popupBienvenidaBoton ?? "Comenzar recorrido"}
+                  onChange={(e) => updateField("popupBienvenidaBoton", e.target.value)}
+                  placeholder="Comenzar recorrido"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-slate-50/50"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-700 block">
+                Mensaje Amable / Petición de Nombre (Subtítulo)
+              </label>
+              <input
+                type="text"
+                value={data.popupBienvenidaSubtitulo ?? "Me encantaría conocerte. ¿Cuál es tu nombre para brindarte una mejor atención?"}
+                onChange={(e) => updateField("popupBienvenidaSubtitulo", e.target.value)}
+                placeholder="Me encantaría conocerte. ¿Cuál es tu nombre para brindarte una mejor atención?"
+                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-slate-50/50"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-700 block">
+                Texto de Sugerencia del Input (Placeholder)
+              </label>
+              <input
+                type="text"
+                value={data.popupBienvenidaPlaceholder ?? "Ingresa tu nombre aquí..."}
+                onChange={(e) => updateField("popupBienvenidaPlaceholder", e.target.value)}
+                placeholder="Ingresa tu nombre aquí..."
+                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-slate-50/50"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-bold text-slate-700 block">
+                  Franja de Saludo debajo del Hero (Sin fondo)
+                </label>
+                <span className="text-[10px] text-emerald-700 font-mono font-semibold bg-emerald-50 px-1.5 py-0.5 rounded">
+                  Usa {"{nombre}"} para el nombre dinámico
+                </span>
+              </div>
+              <input
+                type="text"
+                value={data.franjaSaludoHeroTexto ?? "¡Hola {nombre}, te muestro un poco de mi!"}
+                onChange={(e) => updateField("franjaSaludoHeroTexto", e.target.value)}
+                placeholder="¡Hola {nombre}, te muestro un poco de mi!"
+                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-slate-50/50 font-medium text-slate-800"
+              />
+              <p className="text-[10px] text-slate-500">
+                Ejemplo resultante: <em>"¡Hola Jordan, te muestro un poco de mi!"</em> (o saludo cordial si el usuario no ingresa su nombre).
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 3. FOTO PROFESIONAL DEL MÉDICO & CONFIGURACIÓN DE MARCO */}
@@ -1737,8 +1915,13 @@ export function FormDesign({
           </div>
         </div>
       </div>
+      </>
+      )}
 
-      {/* 3. ESTILO DE BOTÓN DE ACCIÓN (CTA) */}
+      {/* 3. BOTONES DE ACCIÓN (CTA) & ORGANIZADOR DE SECCIONES */}
+      {showSecciones && (
+      <>
+      {/* 3.1 ESTILO DE BOTÓN DE ACCIÓN (CTA) */}
       <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3">
         <label className="text-xs font-extrabold text-slate-900 uppercase tracking-wide flex items-center gap-1.5">
           <MousePointerClick className="w-4 h-4 text-emerald-600" />
@@ -1979,6 +2162,8 @@ export function FormDesign({
           })}
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }

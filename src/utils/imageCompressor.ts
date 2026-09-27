@@ -24,15 +24,16 @@ export interface CompressResult {
 
 /**
  * Convierte y comprime una imagen (File o DataURL) al formato WebP de alto rendimiento SEO.
+ * Preserva 100% la relación de aspecto original sin recortar (a menos que squareCrop sea true).
  */
 export async function compressAndConvertToWebP(
   input: File | string,
   options: CompressOptions = {}
 ): Promise<CompressResult> {
   const {
-    maxWidth = 1000,
-    maxHeight = 1000,
-    quality = 0.82,
+    maxWidth = 1400,
+    maxHeight = 1400,
+    quality = 0.80,
     format = "image/webp",
     squareCrop = false
   } = options;
@@ -63,7 +64,7 @@ export async function compressAndConvertToWebP(
         let sourceWidth = width;
         let sourceHeight = height;
 
-        // Recorte cuadrado opcional (para foto de perfil 1:1)
+        // Recorte cuadrado opcional (solo para foto de perfil 1:1 si se solicita explícitamente)
         if (squareCrop) {
           const minDim = Math.min(width, height);
           sourceX = (width - minDim) / 2;
@@ -72,17 +73,12 @@ export async function compressAndConvertToWebP(
           sourceHeight = minDim;
           width = minDim;
           height = minDim;
-        }
-
-        // Escalado proporcional si excede límites máximos
-        if (width > maxWidth || height > maxHeight) {
-          const aspect = width / height;
-          if (width > height) {
-            width = maxWidth;
-            height = Math.round(maxWidth / aspect);
-          } else {
-            height = maxHeight;
-            width = Math.round(maxHeight * aspect);
+        } else {
+          // Escalado proporcional perfecto que NUNCA recorta la imagen
+          if (width > maxWidth || height > maxHeight) {
+            const scale = Math.min(maxWidth / width, maxHeight / height);
+            width = Math.round(width * scale);
+            height = Math.round(height * scale);
           }
         }
 
@@ -96,7 +92,7 @@ export async function compressAndConvertToWebP(
           return;
         }
 
-        // Renderizado con máxima calidad de suavizado
+        // Renderizado con máxima calidad de suavizado bicúbico
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = "high";
 
@@ -106,7 +102,7 @@ export async function compressAndConvertToWebP(
           ctx.fillRect(0, 0, width, height);
         }
 
-        // Dibujar en canvas
+        // Dibujar en canvas preservando la imagen completa
         ctx.drawImage(
           img,
           sourceX,

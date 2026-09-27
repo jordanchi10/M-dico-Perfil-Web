@@ -206,21 +206,108 @@ export function FormDoctorProfile({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-slate-700 uppercase" htmlFor="cedulaProfesional">
-              {isClinica ? "Permiso Sanitario / Registro MSP" : "Registro SENESCYT / MSP"}
+        {/* Registros Sanitarios & Acreditación Médica (SENESCYT & MSP / ACESS Ecuador) */}
+        <div className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200/90 space-y-3.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-200/70">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center justify-center font-bold text-xs">
+                🛡️
+              </div>
+              <div>
+                <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wide">
+                  Sello de Acreditación Médica & E-E-A-T (Ecuador)
+                </h4>
+                <p className="text-[11px] text-slate-500">
+                  Registros oficiales requeridos por Google para posicionamiento prioritario YMYL / Salud.
+                </p>
+              </div>
+            </div>
+
+            <label className="inline-flex items-center gap-2 cursor-pointer bg-white px-2.5 py-1.5 rounded-xl border border-slate-200 shadow-2xs text-[11px] font-bold text-slate-700 hover:bg-slate-50 transition-all">
+              <input
+                type="checkbox"
+                checked={data.mostrarRegistroPublico ?? false}
+                onChange={(e) => updateField("mostrarRegistroPublico", e.target.checked)}
+                className="w-3.5 h-3.5 text-blue-600 rounded-md focus:ring-blue-500"
+              />
+              <span>{data.mostrarRegistroPublico ? "👁️ Visible en Diseño Público" : "🔒 Oculto en Diseño (Solo Indexable SEO)"}</span>
             </label>
-            <input
-              id="cedulaProfesional"
-              type="text"
-              value={data.cedulaProfesional ?? ""}
-              onChange={(e) => updateField("cedulaProfesional", e.target.value)}
-              placeholder="ej. 1005-2018-984321"
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all font-mono font-bold text-slate-800"
-            />
           </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-extrabold text-slate-700 uppercase" htmlFor="registroSenescyt">
+                1. Registro SENESCYT
+              </label>
+              <input
+                id="registroSenescyt"
+                type="text"
+                value={data.registroSenescyt ?? ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  updateField("registroSenescyt", val);
+                  // Sync cedulaProfesional combined string
+                  const combined = [
+                    data.codigoAcessMsp ? `MSP Reg. ${data.codigoAcessMsp}` : '',
+                    val ? `SENESCYT ${val}` : ''
+                  ].filter(Boolean).join(" / ");
+                  if (combined) updateField("cedulaProfesional", combined);
+                }}
+                placeholder="ej. 1005-2015-884920"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all font-mono font-bold text-slate-800 bg-white"
+              />
+              <span className="text-[10px] text-slate-500">Número de Título Profesional SENESCYT</span>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-extrabold text-slate-700 uppercase" htmlFor="codigoAcessMsp">
+                2. Código MSP / ACESS
+              </label>
+              <input
+                id="codigoAcessMsp"
+                type="text"
+                value={data.codigoAcessMsp ?? ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  updateField("codigoAcessMsp", val);
+                  // Sync cedulaProfesional combined string
+                  const combined = [
+                    val ? `MSP Reg. ${val}` : '',
+                    data.registroSenescyt ? `SENESCYT ${data.registroSenescyt}` : ''
+                  ].filter(Boolean).join(" / ");
+                  if (combined) updateField("cedulaProfesional", combined);
+                }}
+                placeholder="ej. 171829401-2"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all font-mono font-bold text-slate-800 bg-white"
+              />
+              <span className="text-[10px] text-slate-500">Habilitación Sanitaria MSP Ecuador</span>
+            </div>
+
+            <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-1">
+              <label className="text-[11px] font-extrabold text-slate-700 uppercase" htmlFor="cedulaProfesional">
+                3. Registro Combinado / Cédula
+              </label>
+              <input
+                id="cedulaProfesional"
+                type="text"
+                value={data.cedulaProfesional ?? ""}
+                onChange={(e) => updateField("cedulaProfesional", e.target.value)}
+                placeholder="ej. MSP Reg. 171829401-2 / SENESCYT 1005-2015-884920"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all font-mono font-bold text-slate-800 bg-white"
+              />
+              <span className="text-[10px] text-slate-500">Texto completo inyectado en Schema.org</span>
+            </div>
+          </div>
+
+          <div className="p-2.5 rounded-xl bg-blue-50/80 border border-blue-100 flex items-start gap-2 text-[11px] text-blue-900 leading-relaxed">
+            <span className="shrink-0 text-xs">🔒</span>
+            <div>
+              <strong>Protección de Privacidad & Garantía SEO:</strong> Esta información se inyecta de forma limpia e invisible en el código fuente estructurado (Schema.org JSON-LD <code className="bg-blue-100 px-1 py-0.5 rounded font-mono text-[10px]">EducationalOccupationalCredential</code>) para certificar la legitimidad médica ante los algoritmos YMYL de Google sin exponer datos confidenciales a simple vista a los visitantes.
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-bold text-slate-700 uppercase" htmlFor="anosExperiencia">
               {isClinica ? "Trayectoria (Años)" : "Años de Experiencia"}
@@ -695,6 +782,9 @@ export function FormDoctorProfile({
           <div className="flex flex-wrap gap-1.5">
             {[
               { tag: "{{medico}}", label: "Médico" },
+              { tag: "{{servicio}}", label: "Servicio / Tratamiento" },
+              { tag: "{{modalidad}}", label: "Modalidad" },
+              { tag: "{{precio}}", label: "Tarifa / Precio" },
               { tag: "{{especialidad}}", label: "Especialidad" },
               { tag: "{{ciudad}}", label: "Ciudad" },
               { tag: "{{clinica}}", label: "Clínica" },
@@ -706,12 +796,13 @@ export function FormDoctorProfile({
                 key={item.tag}
                 type="button"
                 onClick={() => {
-                  const current = data.whatsappMensajePlantilla ?? "Hola Dr(a). {{medico}}, deseo agendar una consulta médica de {{especialidad}} para el día {{fecha}} a las {{hora}}.{{nombre}} Por favor me confirma disponibilidad.";
+                  const current = data.whatsappMensajePlantilla ?? "Hola Dr(a). {{medico}}, deseo agendar una valoración médica para {{servicio}} en modalidad {{modalidad}} el día {{fecha}} a las {{hora}}.{{nombre}} Por favor me confirma disponibilidad.";
                   updateField("whatsappMensajePlantilla", `${current} ${item.tag}`);
                 }}
                 className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 border border-slate-200 shadow-2xs transition-all cursor-pointer"
               >
                 <span className="font-mono text-emerald-600">{item.tag}</span>
+                <span className="text-[9px] text-slate-500 font-normal">({item.label})</span>
               </button>
             ))}
           </div>
@@ -727,18 +818,18 @@ export function FormDoctorProfile({
                 onClick={() => {
                   updateField(
                     "whatsappMensajePlantilla",
-                    "Hola Dr(a). {{medico}}, deseo agendar una consulta médica de {{especialidad}} para el día {{fecha}} a las {{hora}}.{{nombre}} Por favor me confirma disponibilidad."
+                    "Hola Dr(a). {{medico}}, deseo agendar una valoración médica para {{servicio}} en modalidad {{modalidad}} el día {{fecha}} a las {{hora}}.{{nombre}} Por favor me confirma disponibilidad."
                   );
                 }}
                 className="text-[10px] font-bold text-slate-500 hover:text-blue-600 flex items-center gap-1 cursor-pointer"
               >
-                <RotateCcw className="w-2.5 h-2.5" /> Restablecer
+                <RotateCcw className="w-2.5 h-2.5" /> Restablecer Plantilla
               </button>
             </div>
             <textarea
               id="whatsappMensajePlantilla"
               rows={2}
-              value={data.whatsappMensajePlantilla ?? "Hola Dr(a). {{medico}}, deseo agendar una consulta médica de {{especialidad}} para el día {{fecha}} a las {{hora}}.{{nombre}} Por favor me confirma disponibilidad."}
+              value={data.whatsappMensajePlantilla ?? "Hola Dr(a). {{medico}}, deseo agendar una valoración médica para {{servicio}} en modalidad {{modalidad}} el día {{fecha}} a las {{hora}}.{{nombre}} Por favor me confirma disponibilidad."}
               onChange={(e) => updateField("whatsappMensajePlantilla", e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none resize-none bg-white"
             />
@@ -747,12 +838,17 @@ export function FormDoctorProfile({
           {/* Micro preview de WhatsApp */}
           <div className="p-3 rounded-xl bg-[#e5ddd5] dark:bg-slate-900 border border-slate-300/80 dark:border-slate-800 space-y-1">
             <span className="text-[9px] font-extrabold uppercase text-slate-600 dark:text-slate-400 block">
-              Vista previa para el paciente:
+              Vista previa para el paciente al hacer clic en un servicio:
             </span>
             {(() => {
-              const template = data.whatsappMensajePlantilla ?? "Hola Dr(a). {{medico}}, deseo agendar una consulta médica de {{especialidad}} para el día {{fecha}} a las {{hora}}.{{nombre}} Por favor me confirma disponibilidad.";
+              const template = data.whatsappMensajePlantilla ?? "Hola Dr(a). {{medico}}, deseo agendar una valoración médica para {{servicio}} en modalidad {{modalidad}} el día {{fecha}} a las {{hora}}.{{nombre}} Por favor me confirma disponibilidad.";
+              const sampleService = data.servicios?.[0]?.titulo || "Consulta Médica de Especialidad";
               const evaluated = template
                 .replace(/\{\{medico\}\}/gi, data.nombreMedico || "Dr. Especialista")
+                .replace(/\{\{servicio\}\}/gi, sampleService)
+                .replace(/\{\{tratamiento\}\}/gi, sampleService)
+                .replace(/\{\{modalidad\}\}/gi, "Presencial (Consultorio)")
+                .replace(/\{\{precio\}\}/gi, data.precioConsulta || "$50 USD")
                 .replace(/\{\{especialidad\}\}/gi, data.especialidad || "Medicina")
                 .replace(/\{\{ciudad\}\}/gi, data.ciudad || "Quito")
                 .replace(/\{\{clinica\}\}/gi, data.nombreClinicaGBP || "Consultorio")

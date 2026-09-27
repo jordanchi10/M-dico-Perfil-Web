@@ -1,6 +1,6 @@
 /**
  * Service Worker de Marca Blanca para Landing Pages Médicas
- * Estrategia: Offline-first con cacheo inteligente y base para recordatorios Push de citas.
+ * Estrategia: Offline-first con cacheo inteligente de recursos estáticos.
  */
 
 const CACHE_NAME = 'med-landing-cache-v1';
@@ -71,63 +71,4 @@ self.addEventListener('fetch', (event) => {
         });
       })
   );
-});
-
-// Base para recibir Notificaciones Push de Recordatorios de Citas
-self.addEventListener('push', (event) => {
-  let notificationData = {
-    title: 'Recordatorio de Consulta Médica',
-    body: 'Mañana tienes una consulta programada. Haz clic para ver detalles y ubicación.',
-    icon: '{{FOTO_URL_O_ICONO_192}}',
-    badge: '{{FOTO_URL_O_ICONO_96}}'
-  };
-
-  if (event.data) {
-    try {
-      const dataText = event.data.text();
-      notificationData = JSON.parse(dataText);
-    } catch (e) {
-      notificationData.body = event.data.text();
-    }
-  }
-
-  const options = {
-    body: notificationData.body,
-    icon: notificationData.icon,
-    badge: notificationData.badge,
-    vibrate: [100, 50, 100],
-    data: {
-      dateOfArrival: Date.now(),
-      primaryKey: '1'
-    },
-    actions: [
-      { action: 'explore', title: 'Ver Ubicación', icon: '' },
-      { action: 'close', title: 'Cerrar', icon: '' }
-    ]
-  };
-
-  event.waitUntil(
-    self.registration.showNotification(notificationData.title, options)
-  );
-});
-
-// Manejo del click en las notificaciones
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-
-  if (event.action === 'explore') {
-    event.waitUntil(
-      clients.matchAll({ type: 'window' }).then((windowClients) => {
-        for (let i = 0; i < windowClients.length; i++) {
-          const client = windowClients[i];
-          if (client.url === '/' && 'focus' in client) {
-            return client.focus();
-          }
-        }
-        if (clients.openWindow) {
-          return clients.openWindow('/#agendar');
-        }
-      })
-    );
-  }
 });

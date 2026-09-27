@@ -137,7 +137,13 @@ export const PatientGuideModal: React.FC<PatientGuideModalProps> = ({
             <div className="flex items-center gap-3.5">
               {data.logoUrl ? (
                 <div className="h-12 max-w-[160px] flex items-center justify-center p-1 rounded-xl bg-slate-50 border border-slate-200/80 shrink-0">
-                  <img src={data.logoUrl} alt="Logotipo" className="max-h-full max-w-full object-contain" />
+                  <img 
+                    src={data.logoUrl || undefined} 
+                    alt="Logotipo" 
+                    loading="lazy"
+                    decoding="async"
+                    className="max-h-full max-w-full object-contain" 
+                  />
                 </div>
               ) : (
                 <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black text-xl shadow-md shrink-0">
@@ -185,7 +191,7 @@ export const PatientGuideModal: React.FC<PatientGuideModalProps> = ({
             {guide.imagenPortadaUrl && (
               <div className="w-full h-40 sm:h-52 rounded-xl overflow-hidden border border-slate-200/80 shadow-2xs">
                 <img
-                  src={guide.imagenPortadaUrl}
+                  src={guide.imagenPortadaUrl || undefined}
                   alt={guide.titulo}
                   className="w-full h-full object-cover"
                 />

@@ -31,17 +31,17 @@ export interface SectionOrderItem {
 
 export const DEFAULT_SECTION_ORDER: SectionOrderItem[] = [
   { id: "hero", label: "Cabecera & Presentación (Hero)", visible: true },
-  { id: "eeat", label: "Autoridad E-E-A-T (Aseguradoras, Hospitales, Colegios)", visible: true },
+  { id: "eeat", label: "Sobre el Médico / Nosotros (E-E-A-T & Galería)", visible: true },
   { id: "servicios", label: "Servicios & Procedimientos Clínicos", visible: true },
   { id: "redes_sociales", label: "Redes Sociales & Reels / Videos (Instagram, TikTok, Facebook)", visible: true },
   { id: "casos", label: "Casos Clínicos & Evolución Médica", visible: true },
   { id: "opiniones", label: "Opiniones de Pacientes & Google Reviews", visible: true },
-  { id: "galeria", label: "Galería de Instalaciones & Consultorio", visible: true },
-  { id: "faqs", label: "Preguntas Frecuentes (FAQs)", visible: true },
-  { id: "tarifas", label: "Valor de Consulta & Métodos de Pago", visible: true },
-  { id: "horarios_ubicacion", label: "Horarios de Atención & Ubicación NAP", visible: true },
   { id: "blog", label: "Blog Médico & Artículos de Salud", visible: true },
   { id: "guias", label: "Guías & Fichas para Pacientes (PDF Lead Magnet)", visible: true },
+  { id: "horarios_ubicacion", label: "Horarios de Atención, Ubicación & Citas", visible: true },
+  { id: "tarifas", label: "Valor de Consulta & Métodos de Pago", visible: true },
+  { id: "faqs", label: "Preguntas Frecuentes & Asistente Virtual (FAQs)", visible: true },
+  { id: "galeria", label: "Galería de Instalaciones & Consultorio", visible: true },
 ];
 
 export interface PatientGuideItem {
@@ -64,7 +64,27 @@ export interface FAQItem {
   id: string;
   pregunta: string;
   respuesta: string;
+  enlaceUrl?: string; // URL o ancla interna (ej. "#preview-landing-services", "#servicios", "https://wa.me/...")
+  enlaceTexto?: string; // Texto del botón de acción (ej. "Ver Servicios y Precios", "Agendar por WhatsApp")
+  enlaceTipo?: "interno" | "externo" | "whatsapp" | "servicio";
+  categoria?: string; // Categoría (ej. "Consultas", "Precios", "Ubicación", "Seguros", "Horarios")
 }
+
+export interface QuickQuestionItem {
+  id: string;
+  label: string;
+  query: string;
+  icon?: string;
+}
+
+export const DEFAULT_QUICK_QUESTIONS: QuickQuestionItem[] = [
+  { id: "qq-1", label: "Tarifas de consulta", query: "¿Cuál es el valor de la consulta médica y qué formas de pago aceptan?", icon: "CreditCard" },
+  { id: "qq-2", label: "Ubicación & cómo llegar", query: "¿Dónde queda el consultorio y cuál es la dirección exacta?", icon: "MapPin" },
+  { id: "qq-3", label: "Seguros & reembolso", query: "¿Cómo funciona la facturación SRI para el reembolso con mi seguro?", icon: "ShieldCheck" },
+  { id: "qq-4", label: "Horarios de atención", query: "¿Cuáles son los horarios de atención y días disponibles?", icon: "Clock" },
+  { id: "qq-5", label: "Qué llevar a la cita", query: "¿Qué documentos o exámenes previos debo llevar a mi consulta?", icon: "Stethoscope" },
+  { id: "qq-6", label: "Agendar por WhatsApp", query: "¿Cómo puedo coordinar una cita médica de forma ágil?", icon: "Calendar" }
+];
 
 export interface ServiceItem {
   id: string;
@@ -78,8 +98,14 @@ export interface ServiceItem {
   duracion?: string; // ⏳ Duración de la Cita: ej. "30 min", "1 hora", "45 a 60 min"
   recuperacion?: string; // ⏱️ Tiempo de Recuperación: ej. "Ambulatorio", "24 horas", "3-5 días"
   modalidad?: string; // 🏥 Modalidad: ej. "En consultorio", "Quirófano", "Online / Telemedicina"
+  aplicaReembolso?: boolean; // 🛡️ Aplica reembolso con seguros privados (Factura SRI y Formulario CIE-10). Por defecto true.
   badgeEtiqueta?: string; // Badges de Destacado / Conversión (Superior Derecha): ej. "Novedad", "Más Solicitado", "Técnica Mínimamente Invasiva", "Procedimiento de Un Día"
   destacado?: boolean; // Marcar como servicio destacado
+  galeriaFotos?: string[]; // Fotografías clínicas adicionales del procedimiento (hasta 6)
+  videoUrl?: string; // URL de video explicativo (YouTube, Vimeo, MP4)
+  codigoEmbed?: string; // Código iframe/embed o enlace de reel (Instagram, TikTok, YouTube, Facebook)
+  reelUrl?: string; // URL directa de reel o video de redes sociales
+  codigosEmbed?: string[]; // Hasta 8 códigos embed o enlaces de video/reels
 }
 
 export interface ReviewItem {
@@ -143,7 +169,10 @@ export interface MedicalLandingData {
   tipoEnfoqueLanding?: "medico" | "clinica"; // Enfoque de presentación: "medico" (Especialista / Doctor Individual) o "clinica" (Centro Médico / Clínica / Policlínico / Empresa)
   nombreMedico: string; // ej. "Dr. Alejandro Ruiz" o "Clínica Santa Ana"
   especialidad: string; // ej. "Cardiólogo Pediatra"
-  cedulaProfesional: string; // ej. "12345678"
+  cedulaProfesional: string; // ej. "MSP Reg. 171485921-0 / SENESCYT 1005-2012-1148292"
+  registroSenescyt?: string; // ej. "1005-2012-1148292" (Número de título SENESCYT Ecuador)
+  codigoAcessMsp?: string; // ej. "171485921-0" (Código Habilitación Sanitaria MSP / ACESS Ecuador)
+  mostrarRegistroPublico?: boolean; // Si es false (por defecto), se mantiene oculto a simple vista y solo en metadatos indexables E-E-A-T/Schema.org. If true, muestra un distintivo discreto.
   universidad: string; // ej. "Universidad Nacional Autónoma de México"
   anosExperiencia: number; // ej. 15
   fotoUrl: string; // URL de la foto profesional
@@ -191,24 +220,46 @@ export interface MedicalLandingData {
   doctoraliaUrl: string; // Enlace de agenda previa (opcional)
   metaTitulo?: string; // Título SEO para Google
   metaDescripcion?: string; // Descripción SEO para Google
+  googleSiteVerification?: string; // Código o metaetiqueta de verificación de Google Search Console (ej: "abcdef1234567890" o `<meta name="google-site-verification" content="..." />`)
+  googleVerificationFileCode?: string; // Código para archivo HTML de verificación google[código].html (ej: "google1234567890abcdef.html" o "1234567890abcdef")
+  googleAnalyticsId?: string; // ID de Medición de Google Analytics 4 (ej: "G-XXXXXXXXXX" o script gtag.js completo)
   horarios: {
     semana: string; // ej. "Lunes a Viernes: 09:00 - 18:00"
     sabado: string; // ej. "Sábado: 09:00 - 14:00"
     domingo: string; // ej. "Domingo: Cerrado"
+    lunes?: string;
+    martes?: string;
+    miercoles?: string;
+    jueves?: string;
+    viernes?: string;
+    feriados?: string;
+    emergencias24h?: boolean;
+    previaCita?: boolean;
+    [key: string]: any;
   };
 
   // 3. Señales E-E-A-T (Autoridad & Backlinks)
   aseguradoras: string[]; // Aseguradoras asociadas
   hospitalesdondeOpera: string[]; // Hospitales donde opera
   asociaciones: string[]; // Certificaciones / Consejos / Asociaciones médicas
+  certificados?: string[]; // Certificados y cursos de especialización / actualización médica
+  reconocimientos?: string[]; // Premios, distinciones académicas y reconocimientos al mérito
   backlinksAutoridad?: BacklinkAuthorityItem[]; // Enlaces de autoridad para Schema sameAs y citaciones local E-E-A-T
 
   // 4. Servicios y Casos de Éxito
   servicios: ServiceItem[];
   casosAntesDespues: BeforeAfterCase[];
 
-  // 5. FAQs
+  // 5. FAQs & Configuración del Asistente
   faqs: FAQItem[];
+  asistenteFotoUrl?: string; // Foto del Asistente en formato 5:4
+  asistentePreguntas?: FAQItem[]; // Lista de preguntas y respuestas opcionales para el Asistente
+  asistentePreguntasRapidas?: QuickQuestionItem[]; // Preguntas rápidas sugeridas editables para los chips del asistente virtual
+  sincronizarFaqsAsistente?: boolean; // Mantiene sincronizadas las FAQs de landing y el Asistente
+  asistenteNombre?: string; // Nombre personalizado del Asistente (ej. "Valeria - Asistente")
+  asistenteMensajeBienvenida?: string; // Saludo inicial cuando el paciente abre el chat
+  asistenteTono?: "empatico" | "formal" | "directo" | "calido"; // Tono de voz del asistente
+  asistenteInstruccionesEspeciales?: string; // Indicaciones y conocimiento adicional para la IA (ej. reglas de preparación, urgencias)
 
   // 6. Reseñas de Pacientes & Integración Google Reviews / Maps
   resenas: ReviewItem[];
@@ -233,7 +284,11 @@ export interface MedicalLandingData {
   fuenteParrafos?: string; // Tipografía personalizada para párrafos (p, body)
   faviconUrl?: string; // URL del favicon personalizado
   pwaIconUrl?: string; // Ícono adaptado e independiente para Favicon y PWA (instalación de aplicación)
-  pwaAppTitle?: string; // Nombre corto de la aplicación PWA para la pantalla de inicio del teléfono
+  pwaAppTitle?: string; // Nombre completo de la aplicación PWA para la pantalla de inicio y splash screen
+  pwaShortName?: string; // Nombre corto para la etiqueta debajo del icono en la pantalla de inicio del teléfono (ej. "Dr. Ruiz")
+  pwaThemeColor?: string; // Color hexadecimal de tema para la barra de dirección del navegador móvil y marco PWA
+  pwaBackgroundColor?: string; // Color de fondo para la pantalla de carga (splash screen) de la PWA
+  pwaStatusBarStyle?: "default" | "black-translucent" | "black"; // Estilo de la barra de estado móvil (iOS/Android)
   ogImageUrl?: string; // URL de la imagen personalizada para previsualización en Redes Sociales (WhatsApp, Facebook, Twitter, Open Graph)
   ogImageSource?: "foto" | "logo" | "pwa_icon" | "custom"; // Origen de la imagen para compartir en redes sociales
 
@@ -241,7 +296,18 @@ export interface MedicalLandingData {
   precioConsulta?: string; // ej. "$50 USD"
   metodosPago?: string[]; // ej. ["Efectivo", "Transferencia bancaria", "Tarjetas de crédito"]
 
-  // 10. Galería de Fotos del Consultorio / Instalaciones (Hasta 5 fotos)
+  // Modalidad de Atención & Teleconsulta (CRO para pacientes de otras ciudades/provincias)
+  habilitarTeleconsulta?: boolean; // true para permitir consultas virtuales
+  precioTeleconsulta?: string; // ej. "$40 USD"
+  plataformasTeleconsulta?: string[]; // ej. ["Zoom", "Google Meet", "WhatsApp Video"]
+  requisitosTeleconsulta?: string; // ej. "Conexión a internet estable, espacio privado y documentos/estudios médicos previos digitales en PDF o fotos."
+  coberturaTeleconsulta?: string; // ej. "Atención para pacientes de todo el Ecuador y el exterior"
+  beneficiosTeleconsulta?: string[]; // ej. ["Receta Médica Digital con firma electrónica oficial", "Órdenes de laboratorio y exámenes en PDF", "Informe clínico de valoración"]
+
+  // 10. Galería de Fotos del Consultorio / Instalaciones (Hasta 12 fotos)
+  subtituloInstalaciones?: string; // ej. "Instalaciones & Tecnología"
+  tituloInstalaciones?: string; // ej. "Espacios Diseñados para tu Bienestar"
+  descripcionInstalaciones?: string; // ej. "Conoce nuestro consultorio, salas de atención..."
   fotosConsultorio?: ClinicGalleryImage[];
 
   // 11. Estilo de Llamado a la Acción (CTA Móvil & Agendamiento)
@@ -255,6 +321,15 @@ export interface MedicalLandingData {
 
   // 14. Guías Preparatorias y Fichas para Pacientes (Lead Magnet)
   guiasPacientes?: PatientGuideItem[];
+
+  // 15. Saludo Personalizado & Popup de Bienvenida (Engagement & CRO)
+  habilitarPopupBienvenida?: boolean; // Activar o desactivar el popup de saludo al ingresar
+  popupBienvenidaIcono?: string; // Emoji o icono en 3D ej. "😊", "👋", "🩺", "✨", "🧸", "💙"
+  popupBienvenidaTitulo?: string; // ej. "¡Bienvenido(a) a mi consulta médica!"
+  popupBienvenidaSubtitulo?: string; // ej. "¿Cómo te llamas? Me encantaría saludarte por tu nombre:"
+  popupBienvenidaBoton?: string; // ej. "Continuar", "Ingresar", "Conocer más"
+  popupBienvenidaPlaceholder?: string; // ej. "Escribe tu nombre aquí..."
+  franjaSaludoHeroTexto?: string; // ej. "¡Hola {nombre}, te muestro un poco de mi!"
 }
 
 export type DoctorProfile = MedicalLandingData;
@@ -269,6 +344,7 @@ export interface SavedClientProfile {
   fechaCreacion: string;
   fechaActualizacion: string;
   notasInternas?: string; // Para control de agencia (ej. "Cliente Plan Anual - Dominio: doctor-ruiz.ec")
+  etiquetaEspecialidad?: string; // Etiqueta editable para diferenciar y organizar por especialidad en catálogo y backup
   data: MedicalLandingData;
 }
 
@@ -277,6 +353,8 @@ export interface ProfileBackupPackage {
   tipoExportacion: "individual" | "lote_completo";
   fechaExportacion: string;
   perfilesCount: number;
+  resumenPorEspecialidad?: Record<string, number>; // Conteo de perfiles por cada especialidad/etiqueta
+  etiquetaFiltro?: string; // Especialidad filtrada en caso de exportar lote específico
   perfiles: SavedClientProfile[];
 }
 
@@ -455,6 +533,9 @@ export const defaultMedicalData: MedicalLandingData = {
   nombreMedico: "{{NOMBRE_MEDICO}}",
   especialidad: "{{ESPECIALIDAD}}",
   cedulaProfesional: "MSP Reg. 171485921-0 / SENESCYT 1005-2012-1148292",
+  registroSenescyt: "1005-2012-1148292",
+  codigoAcessMsp: "171485921-0",
+  mostrarRegistroPublico: false,
   universidad: "Universidad Central del Ecuador (UCE) / Posgrado USFQ",
   anosExperiencia: 15,
   fotoUrl: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=600&auto=format&fit=crop",
@@ -482,7 +563,7 @@ export const defaultMedicalData: MedicalLandingData = {
   longitud: "-78.4678",
   telefonoGBP: "+593 99 123 4567",
   whatsappUrl: "https://wa.me/593991234567",
-  whatsappMensajePlantilla: "Hola Dr(a). {{medico}}, deseo agendar una consulta médica de {{especialidad}} para el día {{fecha}} a las {{hora}}.{{nombre}} Por favor me confirma disponibilidad.",
+  whatsappMensajePlantilla: "Hola Dr(a). {{medico}}, deseo agendar una valoración médica para {{servicio}} en modalidad {{modalidad}} el día {{fecha}} a las {{hora}}.{{nombre}} Por favor me confirma disponibilidad.",
   facebookUrl: "https://facebook.com/drmedicoecuador",
   instagramUrl: "https://instagram.com/dr.medico.ecuador",
   tiktokUrl: "https://tiktok.com/@drmedicoecuador",
@@ -533,6 +614,16 @@ export const defaultMedicalData: MedicalLandingData = {
   aseguradoras: ["Saludsa", "Humana", "Ecuasanitas", "Confiamed", "Latina Seguros", "Seguros Equinoccial", "Best Doctors Ecuador", "BMI del Ecuador", "Bupa Ecuador", "IESS (Reembolso)"],
   hospitalesdondeOpera: ["Hospital Metropolitano (Quito)", "Hospital Vozandes Quito", "Omni Hospital (Guayaquil)", "Clínica Kennedy (Guayaquil)", "Hospital Santa Inés (Cuenca)"],
   asociaciones: ["Colegio de Médicos de Pichincha", "Federación Médica Ecuatoriana (FME)", "Sociedad Ecuatoriana de la Especialidad", "Ministerio de Salud Pública del Ecuador (MSP)"],
+  certificados: [
+    "Certificación Internacional en Procedimientos y Terapias Médicas Avanzadas",
+    "Soporte Vital Cardiovascular Avanzado (ACLS / BLS) Certificado",
+    "Diplomado en Actualización Continua y Seguridad del Paciente"
+  ],
+  reconocimientos: [
+    "Reconocimiento al Mérito Profesional y Calidad en Atención Médica",
+    "Miembro de Honor por Aportes a la Salud y Docencia Universitaria",
+    "Distinción a la Excelencia Clínica y Práctica Médica Ética"
+  ],
   backlinksAutoridad: [
     {
       id: "backlink-1",
@@ -803,44 +894,106 @@ export const defaultMedicalData: MedicalLandingData = {
     {
       id: "faq-1",
       pregunta: "¿Cómo agendo mi primera consulta médica?",
-      respuesta: "Puedes agendar tu cita en segundos a través de nuestro botón de WhatsApp o llamando a recepción. Te confirmaremos la disponibilidad de fecha y horario de inmediato."
+      respuesta: "Puedes agendar tu cita en segundos a través de nuestro botón de WhatsApp o llamando a recepción. Te confirmaremos la disponibilidad de fecha y horario de inmediato.",
+      enlaceUrl: "#preview-landing-booking",
+      enlaceTexto: "Agendar Cita Médica",
+      enlaceTipo: "interno",
+      categoria: "Citas & Horarios"
     },
     {
       id: "faq-2",
       pregunta: "¿Aceptan seguros médicos privados y trámites de reembolso?",
-      respuesta: "Sí, emitimos la Factura Electrónica SRI oficial y entregamos el informe médico firmado para que tramites tu reembolso sin inconvenientes en Saludsa, Humana, Ecuasanitas, BMI, Confiamed y demás aseguradoras."
+      respuesta: "Sí, emitimos la Factura Electrónica SRI oficial y entregamos el informe médico firmado para que tramites tu reembolso sin inconvenientes en Saludsa, Humana, Ecuasanitas, BMI, Confiamed y demás aseguradoras.",
+      enlaceUrl: "#preview-landing-eeat",
+      enlaceTexto: "Ver Aseguradoras Aceptadas",
+      enlaceTipo: "interno",
+      categoria: "Seguros & SRI"
     },
     {
       id: "faq-3",
       pregunta: "¿Cuáles son los métodos de pago disponibles en el consultorio?",
-      respuesta: "Aceptamos efectivo, transferencias bancarias directas (Banco Pichincha, Produbanco, Banco Guayaquil, DeUna) y tarjetas de crédito o débito con opción de diferidos."
+      respuesta: "Aceptamos efectivo, transferencias bancarias directas (Banco Pichincha, Produbanco, Banco Guayaquil, DeUna) y tarjetas de crédito o débito con opción de diferidos.",
+      enlaceUrl: "#preview-landing-services",
+      enlaceTexto: "Ver Tarifas de Servicios",
+      enlaceTipo: "interno",
+      categoria: "Costos & Pagos"
     },
     {
       id: "faq-4",
-      pregunta: "¿Qué documentos o exámenes debo llevar a mi primera cita?",
-      respuesta: "Te sugerimos traer tu documento de identidad, exámenes de laboratorio o imágenes previas relacionadas con tu motivo de consulta, y la lista de medicamentos que estés tomando actualmente."
+      pregunta: "¿Qué tratamientos y procedimientos médicos realizan?",
+      respuesta: "Ofrecemos una amplia gama de procedimientos especializados, valoraciones preventivas y tratamientos clínicos con tecnología avanzada.",
+      enlaceUrl: "#preview-landing-services",
+      enlaceTexto: "Explorar Lista de Servicios",
+      enlaceTipo: "servicio",
+      categoria: "Procedimientos"
     },
     {
       id: "faq-5",
       pregunta: "¿Dónde está ubicado el consultorio y cuenta con parqueadero?",
-      respuesta: "Nos encontramos en una zona médica de fácil acceso en {{CIUDAD}}, con instalaciones modernas y parqueadero seguro para la comodidad de nuestros pacientes."
+      respuesta: "Nos encontramos en una zona médica de fácil acceso en {{CIUDAD}}, con instalaciones modernas y parqueadero seguro para la comodidad de nuestros pacientes.",
+      enlaceUrl: "#preview-landing-map",
+      enlaceTexto: "Ver Ubicación en Google Maps",
+      enlaceTipo: "interno",
+      categoria: "Ubicación"
     },
     {
       id: "faq-6",
       pregunta: "¿Emiten factura electrónica autorizada por el SRI?",
-      respuesta: "Absolutamente. Todas nuestras atenciones incluyen factura electrónica enviada automáticamente a tu correo electrónico para la deducción de tus gastos personales de salud."
+      respuesta: "Absolutamente. Todas nuestras atenciones incluyen factura electrónica enviada automáticamente a tu correo electrónico para la deducción de tus gastos personales de salud.",
+      enlaceTexto: "Consultar Facturación por WhatsApp",
+      enlaceTipo: "whatsapp",
+      categoria: "Seguros & SRI"
     },
     {
       id: "faq-7",
       pregunta: "¿Atienden urgencias médicas o consultas fuera de horario habitual?",
-      respuesta: "Coordinamos atenciones prioritarias previa consulta y confirmación de disponibilidad por WhatsApp. En situaciones de emergencia vital, te recomendamos acudir de inmediato a la sala de urgencias hospitalarias más cercana."
+      respuesta: "Coordinamos atenciones prioritarias previa consulta y confirmación de disponibilidad por WhatsApp. En situaciones de emergencia vital, te recomendamos acudir de inmediato a la sala de urgencias hospitalarias más cercana.",
+      enlaceTexto: "Contactar Urgencias por WhatsApp",
+      enlaceTipo: "whatsapp",
+      categoria: "Citas & Horarios"
     },
     {
       id: "faq-8",
       pregunta: "¿Con cuánta anticipación puedo reprogramar o cancelar una cita?",
-      respuesta: "Te solicitamos notificar cualquier cambio o cancelación con al menos 24 horas de anticipación a través de WhatsApp para habilitar el turno a otro paciente que lo requiera."
+      respuesta: "Te solicitamos notificar cualquier cambio o cancelación con al menos 24 horas de anticipación a través de WhatsApp para habilitar el turno a otro paciente que lo requiera.",
+      enlaceTexto: "Gestionar Cita por WhatsApp",
+      enlaceTipo: "whatsapp",
+      categoria: "Citas & Horarios"
     }
   ],
+  asistentePreguntas: [
+    {
+      id: "asist-faq-1",
+      pregunta: "¿Cuánto cuesta la consulta médica y qué métodos de pago aceptan?",
+      respuesta: "La consulta médica de valoración presencial tiene un costo de {{PRECIO_CONSULTA}}. Aceptamos efectivo, transferencias bancarias directas y tarjetas de crédito o débito con opción a diferidos."
+    },
+    {
+      id: "asist-faq-2",
+      pregunta: "¿Dónde queda ubicado el consultorio exactamente?",
+      respuesta: "Nos encontramos ubicados en {{DIRECCION}}, en la ciudad de {{CIUDAD}}. Contamos con parqueadero seguro y facilidades de acceso."
+    },
+    {
+      id: "asist-faq-3",
+      pregunta: "¿Cómo funciona el reembolso de mi consulta con seguro médico?",
+      respuesta: "Al finalizar tu consulta, te entregamos la Factura Electrónica SRI oficial y el Formulario de Reclamo Médico firmado con código CIE-10 para tu reembolso en Saludsa, Humana, Ecuasanitas, BMI, Confiamed y demás aseguradoras."
+    },
+    {
+      id: "asist-faq-4",
+      pregunta: "¿Cuáles son los horarios de atención y días disponibles?",
+      respuesta: "Atendemos de {{HORARIOS_SEMANA}} mediante previa cita confirmada por WhatsApp para garantizar puntualidad y privacidad."
+    },
+    {
+      id: "asist-faq-5",
+      pregunta: "¿Atienden teleconsultas o consultas médicas virtuales?",
+      respuesta: "Sí, disponemos de atención médica virtual por Zoom, Google Meet o WhatsApp Video para pacientes de todo el Ecuador y el exterior, con envío de receta digital con firma electrónica autorizada."
+    }
+  ],
+  sincronizarFaqsAsistente: true,
+  asistenteFotoUrl: "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?q=80&w=800&auto=format&fit=crop",
+  asistenteNombre: "Valeria - Asistente",
+  asistenteMensajeBienvenida: "¡Hola! Soy la asistente. ¿En qué te puedo ayudar hoy?",
+  asistenteTono: "empatico",
+  asistenteInstruccionesEspeciales: "Priorizar el agendamiento directo por WhatsApp. Facilitar información clara sobre facturación electrónica SRI, estacionamiento y seguros médicos autorizados.",
 
   resenas: [
     {
@@ -931,10 +1084,31 @@ export const defaultMedicalData: MedicalLandingData = {
   faviconUrl: "",
   pwaIconUrl: "",
   pwaAppTitle: "",
+  pwaShortName: "",
+  pwaThemeColor: "#1e6fd9",
+  pwaBackgroundColor: "#ffffff",
+  pwaStatusBarStyle: "default",
   ogImageUrl: "",
   ogImageSource: "foto",
+  googleSiteVerification: "",
+  googleVerificationFileCode: "",
+  googleAnalyticsId: "",
   precioConsulta: "$50 USD",
   metodosPago: ["Efectivo", "Transferencia bancaria", "Tarjetas de crédito"],
+  habilitarTeleconsulta: true,
+  precioTeleconsulta: "$40 USD",
+  plataformasTeleconsulta: ["Zoom", "Google Meet", "WhatsApp Video"],
+  requisitosTeleconsulta: "Conexión a internet estable, espacio privado y documentos/estudios médicos previos digitales en PDF o fotos.",
+  coberturaTeleconsulta: "Nacional e Internacional (Todas las provincias del Ecuador y pacientes en el exterior)",
+  beneficiosTeleconsulta: [
+    "Receta Médica Digital con firma electrónica oficial autorizada",
+    "Órdenes de laboratorio y exámenes de diagnóstico en PDF",
+    "Informe clínico de valoración y plan de tratamiento",
+    "Revisión posterior de exámenes sin costo adicional"
+  ],
+  subtituloInstalaciones: "Instalaciones & Tecnología",
+  tituloInstalaciones: "Espacios Diseñados para tu Bienestar",
+  descripcionInstalaciones: "Conoce nuestro consultorio, salas de atención e instrumental médico preparado bajo los más estrictos protocolos de bioseguridad, privacidad y confort.",
   fotosConsultorio: [
     {
       id: "foto-cons-1",
@@ -953,12 +1127,6 @@ export const defaultMedicalData: MedicalLandingData = {
       url: "https://images.unsplash.com/photo-1516549655169-df83a0774514?q=80&w=800&auto=format&fit=crop",
       titulo: "Área de Evaluación Diagnóstica",
       descripcion: "Tecnología médica avanzada e instrumental clínico de máxima precisión."
-    },
-    {
-      id: "foto-cons-4",
-      url: "https://images.unsplash.com/photo-1586773860418-d37222d8fce3?q=80&w=800&auto=format&fit=crop",
-      titulo: "Sala de Procedimientos Menores",
-      descripcion: "Cumplimiento de los más rigurosos estándares de esterilización y bioseguridad."
     }
   ],
   estiloCta: "flotante",
@@ -992,5 +1160,12 @@ export const defaultMedicalData: MedicalLandingData = {
       tamano: "1.8 MB",
       requiereRegistro: true
     }
-  ]
+  ],
+  habilitarPopupBienvenida: true,
+  popupBienvenidaIcono: "😊",
+  popupBienvenidaTitulo: "¡Bienvenido(a) a mi consulta!",
+  popupBienvenidaSubtitulo: "Me encantaría conocerte. ¿Cuál es tu nombre para brindarte una mejor atención?",
+  popupBienvenidaBoton: "Comenzar recorrido",
+  popupBienvenidaPlaceholder: "Ingresa tu nombre aquí...",
+  franjaSaludoHeroTexto: "¡Hola {nombre}, te muestro un poco de mi!"
 };

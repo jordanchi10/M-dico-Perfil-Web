@@ -451,6 +451,151 @@ export function generateDoctorSummaryPrintHtml(data: MedicalLandingData, pageUrl
       gap: 8px;
     }
 
+    /* BLOQUE DE VALOR TÉCNICO: ARQUITECTURA EN CÓDIGO PURO (HTML5 / VANILLA JS) */
+    .pure-code-banner {
+      background: linear-gradient(135deg, #091a30 0%, #0d1e3d 100%);
+      color: #ffffff;
+      border-radius: 16px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      border: 1.5px solid #1e3a8a;
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+
+    .pure-code-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      border-bottom: 1.5px solid rgba(255,255,255,0.14);
+      padding-bottom: 8px;
+    }
+
+    .pure-code-title {
+      font-size: 10.5pt;
+      font-weight: 900;
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+    }
+
+    .pure-code-badge {
+      background: rgba(16, 185, 129, 0.22);
+      color: #6ee7b7;
+      border: 1px solid rgba(16, 185, 129, 0.45);
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 7.5pt;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .pure-code-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .pure-code-item {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 12px;
+      padding: 10px 14px;
+    }
+
+    .pure-code-item-title {
+      font-size: 9pt;
+      font-weight: 800;
+      color: #ffffff;
+      margin-bottom: 4px;
+    }
+
+    .pure-code-item-desc {
+      font-size: 8pt;
+      color: #cbd5e1;
+      line-height: 1.4;
+      margin: 0;
+    }
+
+    /* BLOQUE COMPACTO: POSICIONAMIENTO SEO MÉDICO & MOTORES IA (GEO) */
+    .seo-compact-banner {
+      background: linear-gradient(135deg, #091e3a 0%, #0f2d59 50%, #1e1b4b 100%);
+      color: #ffffff;
+      border-radius: 16px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      border: 1.5px solid #1e3a8a;
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+
+    .seo-compact-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.12);
+      padding-bottom: 8px;
+    }
+
+    .seo-compact-title {
+      font-size: 10pt;
+      font-weight: 900;
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+    }
+
+    .seo-compact-badge {
+      background: rgba(56, 189, 248, 0.2);
+      color: #7dd3fc;
+      border: 1px solid rgba(56, 189, 248, 0.45);
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 7.5pt;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .seo-compact-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .seo-compact-item {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 12px;
+      padding: 10px 14px;
+    }
+
+    .seo-compact-item-title {
+      font-size: 9pt;
+      font-weight: 800;
+      color: #ffffff;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .seo-compact-item-desc {
+      font-size: 8pt;
+      color: #cbd5e1;
+      line-height: 1.4;
+      margin: 0;
+    }
+
     /* 4. PIE DE PÁGINA CON LOGOTIPO ORIGINAL DE MEDICO.EC (REPLICA FIEL 100%) */
     .footer-accreditation-card {
       background: #ffffff;
@@ -564,6 +709,8 @@ export function generateDoctorSummaryPrintHtml(data: MedicalLandingData, pageUrl
       .doctor-top-branding-box,
       .score-banner,
       .card-box,
+      .pure-code-banner,
+      .seo-compact-banner,
       .reimbursement-box,
       .footer-accreditation-card,
       .grand-formal-slogan-box,
@@ -794,23 +941,125 @@ export function generateDoctorSummaryPrintHtml(data: MedicalLandingData, pageUrl
       </div>
     </div>
 
-    <!-- AUTORIDAD E-E-A-T & CITACIONES EN LA RED -->
-    ${backlinks.length > 0 ? `
+    <!-- AUTORIDAD E-E-A-T, ASOCIACIONES & CITACIONES EN LA RED -->
+    ${((data.certificados && data.certificados.length > 0) || (data.asociaciones && data.asociaciones.length > 0) || (data.reconocimientos && data.reconocimientos.length > 0) || backlinks.length > 0) ? `
       <div class="card-box" style="margin-bottom: 20px;">
         <div class="card-box-title">
-          <span>🏛️ Citaciones & Enlaces de Autoridad Médica E-E-A-T</span>
-          <span style="font-size:8pt; color:#047857; font-weight:700;">${backlinks.length} Registros</span>
+          <span>🏛️ Validación de Credenciales Médicas & Citaciones E-E-A-T</span>
+          <span style="font-size:8pt; color:#047857; font-weight:700;">Verificación Oficial ✓</span>
         </div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          ${(data.certificados || []).slice(0, 4).map(c => `
+            <div style="background:#f0fdf4; border:1.5px solid #bbf7d0; border-radius:8px; padding:6px 10px; font-size:8pt;">
+              <strong style="color:#166534;">📜 ${c}</strong>
+              <div style="color:#15803d; font-size:7.5pt;">Certificación Continua Acreditada</div>
+            </div>
+          `).join('')}
+          ${(data.asociaciones || []).slice(0, 4).map(a => `
+            <div style="background:#eff6ff; border:1.5px solid #bfdbfe; border-radius:8px; padding:6px 10px; font-size:8pt;">
+              <strong style="color:#1e40af;">🏛️ ${a}</strong>
+              <div style="color:#2563eb; font-size:7.5pt;">Sociedad Científica / Membresía</div>
+            </div>
+          `).join('')}
+          ${(data.reconocimientos || []).slice(0, 2).map(r => `
+            <div style="background:#fffbeb; border:1.5px solid #fde68a; border-radius:8px; padding:6px 10px; font-size:8pt;">
+              <strong style="color:#92400e;">🏆 ${r}</strong>
+              <div style="color:#b45309; font-size:7.5pt;">Distinción y Reconocimiento Médico</div>
+            </div>
+          `).join('')}
           ${backlinks.map(b => `
             <div style="background:#ffffff; border:1.5px solid #e2e8f0; border-radius:8px; padding:6px 10px; font-size:8pt;">
-              <strong style="color:#0f172a;">${b.portalNombre}</strong>
+              <strong style="color:#0f172a;">🔗 ${b.portalNombre}</strong>
               <div style="color:#64748b; font-size:7.5pt;" class="truncate">${b.urlDestino || "Perfil Verificado"}</div>
             </div>
           `).join('')}
         </div>
       </div>
     ` : ''}
+
+    <!-- 1. ARQUITECTURA EN CÓDIGO PURO (HTML5 / VANILLA JS) - EXACTO A LA FICHA ORIGINAL -->
+    <div class="pure-code-banner">
+      <div class="pure-code-header">
+        <div class="pure-code-title">
+          <span>⚡</span> Arquitectura en Código Puro (HTML5 / Vanilla JS)
+        </div>
+        <span class="pure-code-badge">
+          🛡️ GARANTÍA DE AUTONOMÍA 3+ AÑOS
+        </span>
+      </div>
+
+      <div class="pure-code-grid">
+        <div class="pure-code-item">
+          <div class="pure-code-item-title">⏳ Inmune al Paso del Tiempo</div>
+          <div class="pure-code-item-desc">
+            Estándar web universal W3C ("Don't Break The Web"). No se rompe por actualizaciones de temas ni versiones PHP.
+          </div>
+        </div>
+
+        <div class="pure-code-item">
+          <div class="pure-code-item-title">🛡️ Cero Mantenimiento & Sin Plugins</div>
+          <div class="pure-code-item-desc">
+            Sin plugins vulnerables ni cuotas mensuales por parches técnicos de emergencia.
+          </div>
+        </div>
+
+        <div class="pure-code-item">
+          <div class="pure-code-item-title">🚀 Velocidad Extrema (95–100 PageSpeed)</div>
+          <div class="pure-code-item-desc">
+            Carga en milisegundos desde cualquier teléfono móvil, maximizando el agendamiento directo por WhatsApp.
+          </div>
+        </div>
+
+        <div class="pure-code-item">
+          <div class="pure-code-item-title">🔒 Blindaje Total contra Hackeos</div>
+          <div class="pure-code-item-desc">
+            Sin bases de datos expuestas ni paneles de acceso atacables mediante fuerza bruta o inyecciones SQL.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. POSICIONAMIENTO SEO MÉDICO & MOTORES IA (GEO) - FORMATO RESUMIDO Y COMPACTO -->
+    <div class="seo-compact-banner">
+      <div class="seo-compact-header">
+        <div class="seo-compact-title">
+          <span>🎯</span> Posicionamiento SEO Médico & Motores de Búsqueda IA (GEO)
+        </div>
+        <span class="seo-compact-badge">
+          ⚡ ALTA VISIBILIDAD GOOGLE & LLMs
+        </span>
+      </div>
+
+      <div class="seo-compact-grid">
+        <div class="seo-compact-item">
+          <div class="seo-compact-item-title">📍 SEO Local & Google Maps</div>
+          <div class="seo-compact-item-desc">
+            Optimizado para <strong>"${specialty} en ${city}"</strong> con microformatos georreferenciados, coordenadas GPS y consistencia NAP en Ecuador.
+          </div>
+        </div>
+
+        <div class="seo-compact-item">
+          <div class="seo-compact-item-title">🩺 Alta Intención & Servicios</div>
+          <div class="seo-compact-item-desc">
+            Indexación para <strong>${mainServices.length > 0 ? mainServices.slice(0, 2).map(s => s.titulo).join(", ") : specialty}</strong>, precios y agendamiento directo por WhatsApp.
+          </div>
+        </div>
+
+        <div class="seo-compact-item">
+          <div class="seo-compact-item-title">🛡️ Seguros Médicos & Factura SRI</div>
+          <div class="seo-compact-item-desc">
+            Atención por reembolso de aseguradoras privadas (Saludsa, Humana, BMI) y Facturación Electrónica autorizada.
+          </div>
+        </div>
+
+        <div class="seo-compact-item">
+          <div class="seo-compact-item-title">🤖 Citación en Inteligencia Artificial</div>
+          <div class="seo-compact-item-desc">
+            Marcado <strong>Schema.org Physician</strong> y archivo <strong>llms.txt</strong> para citación en ChatGPT, Google Gemini, Perplexity y Claude.
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- 5. PIE DE PÁGINA: LOGOTIPO ORIGINAL Y OFICIAL DE MEDICO.EC (COPIA EXACTA DE Medico-ecWEB.png) -->
     <div class="footer-accreditation-card">

@@ -24,8 +24,18 @@ import {
   generateJsonLd,
   generateLlmsTxt,
   generateRobotsTxt,
-  generateSitemapXml
+  generateSitemapXml,
+  generateHtaccess,
+  generateServicePageHtml,
+  slugifyMedicalService,
+  normalizeDomainUrl,
+  extractGoogleVerificationCode,
+  getGoogleHtmlVerificationFilename,
+  getGoogleHtmlVerificationContent
 } from "./utils/generators";
+import { prepareDataForHostingExport } from "./utils/exportZipPacker";
+import { runLocalSeoAudit } from "./utils/localSeoAuditor";
+import { LocalSeoAuditModal } from "./components/LocalSeoAuditModal";
 import JSZip from "jszip";
 import { 
   getActiveProfileId, 
@@ -69,7 +79,17 @@ export default function App() {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (saved) {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        // Si tenía las 4 fotos iniciales de la plantilla previa, actualizar a las 3 por defecto
+        if (
+          parsed &&
+          Array.isArray(parsed.fotosConsultorio) &&
+          parsed.fotosConsultorio.length === 4 &&
+          parsed.fotosConsultorio[3]?.id === "foto-cons-4"
+        ) {
+          parsed.fotosConsultorio = parsed.fotosConsultorio.slice(0, 3);
+        }
+        return parsed;
       }
     } catch (error) {
       console.error("Error reading from localStorage:", error);
@@ -86,6 +106,7 @@ export default function App() {
   const [isClientManagerOpen, setIsClientManagerOpen] = useState(false);
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+  const [isLocalSeoAuditModalOpen, setIsLocalSeoAuditModalOpen] = useState(false);
   const [activeProfileId, setActiveProfileIdState] = useState<string | null>(getActiveProfileId);
   const [savedProfilesCount, setSavedProfilesCount] = useState<number>(0);
   const [quickSavedToast, setQuickSavedToast] = useState<string>("");
@@ -172,6 +193,42 @@ export default function App() {
     }
   }, [medicalData.pwaIconUrl, medicalData.faviconUrl, medicalData.logoUrl]);
 
+  // Mantener actualizado el script JSON-LD (Schema.org Physician + FAQPage) en el <head> del documento
+  useEffect(() => {
+    try {
+      let schemaScript = document.querySelector("#injected-schema-jsonld") as HTMLScriptElement;
+      if (!schemaScript) {
+        schemaScript = document.createElement("script");
+        schemaScript.id = "injected-schema-jsonld";
+        schemaScript.type = "application/ld+json";
+        document.head.appendChild(schemaScript);
+      }
+      schemaScript.textContent = generateJsonLd(medicalData);
+    } catch (e) {
+      console.error("Error updating JSON-LD in document head:", e);
+    }
+  }, [medicalData]);
+
+  // Mantener actualizada la metaetiqueta de verificación de Google Search Console en el <head>
+  useEffect(() => {
+    try {
+      const cleanCode = extractGoogleVerificationCode(medicalData.googleSiteVerification);
+      let metaEl = document.querySelector("meta[name='google-site-verification']") as HTMLMetaElement;
+      if (cleanCode) {
+        if (!metaEl) {
+          metaEl = document.createElement("meta");
+          metaEl.name = "google-site-verification";
+          document.head.appendChild(metaEl);
+        }
+        metaEl.content = cleanCode;
+      } else if (metaEl) {
+        metaEl.remove();
+      }
+    } catch (e) {
+      console.error("Error updating Google verification meta tag:", e);
+    }
+  }, [medicalData.googleSiteVerification]);
+
   const handleDataChange = (newData: MedicalLandingData | ((prev: MedicalLandingData) => MedicalLandingData)) => {
     setMedicalData(newData);
   };
@@ -199,7 +256,9 @@ export default function App() {
     const saved = saveProfile(
       medicalData,
       existing ? existing.nombreCliente : undefined,
-      activeProfileId || undefined
+      activeProfileId || undefined,
+      existing?.notasInternas,
+      existing?.etiquetaEspecialidad || medicalData.especialidad
     );
     
     setActiveProfileId(saved.id);
@@ -229,32 +288,86 @@ export default function App() {
   };
 
   const [isExportingZip, setIsExportingZip] = useState(false);
+  const [isOnline, setIsOnline] = useState(typeof navigator !== "undefined" ? navigator.onLine : true);
+  const [previewError, setPreviewError] = useState(false);
 
-  const handleExportZip = async () => {
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    try {
+      const appUrl = medicalData.dominioWeb || "https://tu-dominio.com";
+      generateHtmlFile(medicalData, appUrl, "status-check");
+      setPreviewError(false);
+    } catch {
+      setPreviewError(true);
+    }
+  }, [medicalData]);
+
+  const isPreviewLive = isOnline && !previewError;
+
+  const handleExportZip = async (overrideData?: MedicalLandingData, bypassAudit = false) => {
+    const dataToExport = overrideData || medicalData;
+
+    // 0. Auditoría de SEO Local obligatoria antes de permitir la descarga
+    if (!bypassAudit) {
+      const audit = runLocalSeoAudit(dataToExport);
+      if (!audit.isComplete) {
+        setIsLocalSeoAuditModalOpen(true);
+        return;
+      }
+    }
+
     try {
       setIsExportingZip(true);
       const zip = new JSZip();
-      
+      const activeDomain = normalizeDomainUrl(dataToExport.dominioWeb);
       const sharedVersion = Date.now().toString();
-      const htmlCode = generateHtmlFile(medicalData, "https://tu-dominio.com", sharedVersion);
-      const cssCode = generateDynamicStylesCss(medicalData);
-      const jsonldCode = generateJsonLd(medicalData);
-      const manifestCode = generateManifestJson(medicalData);
-      const swCode = generateServiceWorkerJs(medicalData, sharedVersion);
-      const llmsTxtCode = generateLlmsTxt(medicalData);
-      const robotsTxtCode = generateRobotsTxt(medicalData);
-      const sitemapXmlCode = generateSitemapXml(medicalData);
+
+      // 1. Procesar imágenes para almacenar físicamente en /img/ local
+      const { exportedData, assets } = await prepareDataForHostingExport(dataToExport);
+
+      if (assets.length > 0) {
+        const imgFolder = zip.folder("img");
+        if (imgFolder) {
+          assets.forEach(asset => {
+            const cleanFileName = asset.filename.replace(/^img\//, "");
+            imgFolder.file(cleanFileName, asset.blob);
+          });
+        }
+      }
+      
+      const htmlCode = generateHtmlFile(exportedData, activeDomain, sharedVersion);
+      const cssCode = generateDynamicStylesCss(exportedData);
+      const jsonldCode = generateJsonLd(exportedData, activeDomain);
+      const manifestCode = generateManifestJson(exportedData);
+      const swCode = generateServiceWorkerJs(exportedData, sharedVersion);
+      const llmsTxtCode = generateLlmsTxt(exportedData);
+      const robotsTxtCode = generateRobotsTxt(exportedData, activeDomain);
+      const sitemapXmlCode = generateSitemapXml(exportedData, activeDomain);
+      const htaccessCode = generateHtaccess(exportedData, activeDomain);
       const profileJsonCode = JSON.stringify({
-        version: "1.0",
+        version: "3.0",
         tipoExportacion: "individual",
         fechaExportacion: new Date().toISOString(),
         cliente: {
-          nombreMedico: medicalData.nombreMedico,
-          especialidad: medicalData.especialidad,
-          ciudad: medicalData.ciudad,
-          clinica: medicalData.nombreClinicaGBP
+          nombreMedico: dataToExport.nombreMedico,
+          especialidad: dataToExport.especialidad,
+          ciudad: dataToExport.ciudad,
+          clinica: dataToExport.nombreClinicaGBP,
+          dominioWeb: activeDomain
         },
-        data: medicalData
+        data: dataToExport
       }, null, 2);
 
       // Añadir archivos del proyecto
@@ -266,28 +379,55 @@ export default function App() {
       zip.file("llms.txt", llmsTxtCode);
       zip.file("robots.txt", robotsTxtCode);
       zip.file("sitemap.xml", sitemapXmlCode);
+      zip.file(".htaccess", htaccessCode);
       zip.file("config-perfil.json", profileJsonCode);
+
+      // Archivo HTML de verificación Google Search Console (si se configuró)
+      const gscVerifyFilename = getGoogleHtmlVerificationFilename(dataToExport.googleVerificationFileCode || dataToExport.googleSiteVerification);
+      if (gscVerifyFilename) {
+        const gscVerifyContent = getGoogleHtmlVerificationContent(gscVerifyFilename);
+        zip.file(gscVerifyFilename, gscVerifyContent);
+      }
+
+      // Páginas SEO dedicadas para cada servicio médico
+      const serviciosFolder = zip.folder("servicios");
+      (exportedData.servicios || []).forEach(srv => {
+        const slug = srv.slug || slugifyMedicalService(srv.titulo);
+        const serviceHtml = generateServicePageHtml(srv, exportedData, activeDomain, sharedVersion);
+        if (serviciosFolder) {
+          serviciosFolder.file(`${slug}.html`, serviceHtml);
+          serviciosFolder.file(`${slug}/index.html`, serviceHtml);
+        }
+      });
       
-      // README Informativo
-      const readmeContent = `# Despliegue de Landing Page Médica
+      // README Informativo Completo
+      const readmeContent = `# ${dataToExport.nombreMedico} - Landing Page Médica & PWA
+## Especialidad: ${dataToExport.especialidad} | ${dataToExport.ciudad}, Ecuador
+### Dominio Oficial Configurado: ${activeDomain}
 
 Este archivo ZIP contiene los entregables listos para producción para el especialista médico.
+Las imágenes están empaquetadas físicamente dentro de la carpeta local \`/img/\` para máxima velocidad, autonomía y durabilidad sin depender de servidores externos.
 
-## Contenido del Paquete:
-1. \`index.html\`: Código HTML5 semántico de alto rendimiento con diseño ultra-rápido, PWA integrado y optimización móvil.
-2. \`estilos-config.css\`: Hoja de estilos CSS dinámicos con variables CSS (:root) para fuentes, colores, radios y componentes.
-3. \`manifest.json\`: Archivo de configuración PWA para permitir la instalación en dispositivos móviles Android e iOS.
-4. \`service-worker.js\`: Script para cachear recursos de manera offline-first, garantizando velocidad instantánea.
-5. \`schema-physician-faq.json\`: Datos estructurados Schema.org listos para alimentar los motores de búsqueda de Google.
-6. \`config-perfil.json\`: Copia de respaldo de todos los datos para re-importar y editar este perfil médico en el generador en cualquier momento.
+## 📦 Contenido del Paquete:
+1. \`index.html\`: Código HTML5 semántico de alto rendimiento con diseño ultra-rápido, PWA integrado, URL canónica y optimización móvil.
+2. \`/img/\`: Carpeta que contiene las imágenes del médico comprimidas en formato WebP local.
+3. \`estilos-config.css\`: Hoja de estilos CSS dinámicos con variables CSS (:root) para fuentes, colores, radios y componentes.
+4. \`/servicios/\`: Páginas HTML independientes optimizadas para SEO y Schema.org MedicalProcedure por cada tratamiento.
+5. \`manifest.json\`: Archivo de configuración PWA para permitir la instalación en dispositivos móviles Android e iOS.
+6. \`service-worker.js\`: Script para cachear recursos de manera offline-first, garantizando velocidad instantánea.
+7. \`schema-physician-faq.json\`: Datos estructurados Schema.org listos para alimentar los motores de búsqueda de Google.
+8. \`sitemap.xml\`: Mapa del sitio XML con todas las URLs de servicios y páginas.
+9. \`robots.txt\`: Directivas de rastreo de motores de búsqueda.
+10. \`.htaccess\`: Configuración de compresión Gzip, tipos MIME, caché y redirección HTTPS para servidores Apache/LiteSpeed.
+11. \`config-perfil.json\`: Copia de respaldo de todos los datos para re-importar y editar este perfil médico en cualquier momento.
 
-## Instrucciones de Despliegue Directo:
-Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Netlify, Vercel, Firebase Hosting, Hostinger, Cloudflare Pages).
+## 🚀 Instrucciones de Despliegue Directo:
+Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Hostinger, cPanel / public_html, Cloudflare Pages, Netlify, Vercel).
 `;
       zip.file("README.md", readmeContent);
 
       const content = await zip.generateAsync({ type: "blob" });
-      const sanitizedName = medicalData.nombreMedico.toLowerCase()
+      const sanitizedName = dataToExport.nombreMedico.toLowerCase()
         .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // remover acentos
         .replace(/[^a-z0-9]+/g, "-") // caracteres no alfanuméricos por guion
         .replace(/(^-|-$)/g, ""); // guiones en extremos
@@ -303,7 +443,7 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Netlify
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
       
-      setQuickSavedToast("¡Proyecto descargado con éxito (.ZIP)!");
+      setQuickSavedToast("¡Proyecto descargado con éxito (.ZIP completo)! ");
       setTimeout(() => setQuickSavedToast(""), 3500);
     } catch (err) {
       console.error("Error al exportar el proyecto como .zip", err);
@@ -347,7 +487,6 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Netlify
             <div className="min-w-0">
               <h1 className="text-sm md:text-base font-extrabold text-slate-900 flex items-center gap-1.5 leading-tight truncate">
                 Creador de Consultorio Digital 3.0
-                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase tracking-wider border border-blue-100 hidden sm:inline-block">E-E-A-T & PWA</span>
                 <span className="text-[10px] font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 hidden md:inline-flex items-center gap-1">
                   🇪🇨 Exclusivo Ecuador
                 </span>
@@ -360,14 +499,30 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Netlify
           
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             
-            {/* BOTÓN PREVISUALIZAR EN NAVEGADOR EXTERNO */}
+            {/* BOTÓN PREVISUALIZAR EN NAVEGADOR EXTERNO CON INDICADOR DE ESTADO */}
             <button
               id="btn-main-open-browser"
               onClick={handleOpenExternalPreview}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-extrabold text-xs shadow-md shadow-blue-600/20 cursor-pointer transition-all hover:scale-105 border border-blue-500"
-              title="Abrir y previsualizar la web médica completa en una nueva pestaña del navegador para verla en pantalla completa"
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-extrabold text-xs shadow-md shadow-blue-600/20 cursor-pointer transition-all hover:scale-105 border border-blue-500"
+              title={
+                isPreviewLive
+                  ? "Previsualización activa en vivo (Conectado). Clic para abrir en una nueva pestaña del navegador."
+                  : "Estado inactivo o sin conexión a internet."
+              }
             >
-              <ExternalLink className="w-4 h-4 text-white" />
+              {/* Indicador de estado (punto verde si activo, gris si error de conexión) */}
+              <span className="relative flex h-2 w-2 shrink-0" aria-label={isPreviewLive ? "Estado: Activo" : "Estado: Desconectado"}>
+                {isPreviewLive ? (
+                  <>
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-80" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400 border border-emerald-100 shadow-xs" />
+                  </>
+                ) : (
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-slate-400 border border-slate-300" />
+                )}
+              </span>
+
+              <ExternalLink className="w-3.5 h-3.5 text-white shrink-0" />
               <span className="hidden sm:inline">Ver en Navegador</span>
               <span className="sm:hidden">Web</span>
             </button>
@@ -393,10 +548,14 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Netlify
             <button
               onClick={() => setIsGlobalIntakeModalOpen(true)}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-extrabold text-xs shadow-md shadow-emerald-600/20 cursor-pointer transition-all hover:scale-105 border border-emerald-500"
-              title="Descargar o copiar formulario de toma de datos para enviar a tus clientes médicos"
+              title={medicalData.tipoEnfoqueLanding === "clinica" 
+                ? "Descargar o copiar formulario de toma de datos para tu Centro Médico / Clínica"
+                : "Descargar o copiar formulario de toma de datos para enviar a tus clientes médicos"}
             >
               <ClipboardList className="w-4 h-4 text-white" />
-              <span className="hidden xl:inline">Formulario Médico</span>
+              <span className="hidden xl:inline">
+                {medicalData.tipoEnfoqueLanding === "clinica" ? "Formulario Clínica" : "Formulario Médico"}
+              </span>
               <span className="xl:hidden">Formulario</span>
             </button>
 
@@ -411,24 +570,19 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Netlify
               <span className="md:hidden">IA</span>
             </button>
 
-            {/* BOTÓN CONMUTADOR DE TEMA CLARO/OSCURO */}
+            {/* BOTÓN CONMUTADOR DE TEMA CLARO/OSCURO (SÓLO ICONO) */}
             <button
               id="btn-toggle-editor-theme"
               type="button"
               onClick={() => setEditorTheme(prev => prev === "light" ? "dark" : "light")}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 transition-all hover:scale-105 cursor-pointer shrink-0 font-bold text-xs"
-              title={editorTheme === "light" ? "Cambiar a Modo Oscuro para mayor ergonomía visual" : "Cambiar a Modo Claro"}
+              className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 transition-all hover:scale-105 cursor-pointer shrink-0 font-bold flex items-center justify-center"
+              title={editorTheme === "light" ? "Cambiar a Modo Oscuro" : "Cambiar a Modo Claro"}
+              aria-label={editorTheme === "light" ? "Cambiar a Modo Oscuro" : "Cambiar a Modo Claro"}
             >
               {editorTheme === "light" ? (
-                <>
-                  <Moon className="w-4 h-4 text-slate-700" />
-                  <span className="hidden lg:inline text-xs">Modo Oscuro</span>
-                </>
+                <Moon className="w-4 h-4 text-slate-700" />
               ) : (
-                <>
-                  <Sun className="w-4 h-4 text-amber-400" />
-                  <span className="hidden lg:inline text-xs">Modo Claro</span>
-                </>
+                <Sun className="w-4 h-4 text-amber-500" />
               )}
             </button>
 
@@ -475,15 +629,6 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Netlify
                     </p>
                   </div>
                 </div>
-
-                <button
-                  onClick={() => setIsClientManagerOpen(true)}
-                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1"
-                  title="Cambiar de perfil, importar otro archivo o ver biblioteca"
-                >
-                  <FolderArchive className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Cambiar</span>
-                </button>
               </div>
 
               {/* BARRA DE ACCIONES RÁPIDAS DE PERFIL */}
@@ -499,19 +644,10 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Netlify
                   </button>
 
                   <button
-                    onClick={() => setIsClientManagerOpen(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg transition-all font-bold cursor-pointer"
-                    title="Importar un archivo .json de otro médico"
-                  >
-                    <Upload className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Importar .JSON</span>
-                  </button>
-
-                  <button
-                    onClick={handleExportZip}
+                    onClick={() => handleExportZip()}
                     disabled={isExportingZip}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg transition-all font-black cursor-pointer shadow-md shadow-indigo-500/10 hover:shadow-indigo-500/20 disabled:opacity-50"
-                    title="Descargar todos los archivos listos para producción comprimidos en un archivo .ZIP"
+                    title="Descargar todos los archivos listos para producción comprimidos en un archivo .ZIP (Con auditoría previa de SEO Local)"
                   >
                     <FolderArchive className={`w-3.5 h-3.5 text-blue-100 ${isExportingZip ? "animate-spin" : ""}`} />
                     <span>{isExportingZip ? "Preparando..." : "Descargar ZIP"}</span>
@@ -628,6 +764,7 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Netlify
                 ) : rightTab === "code" ? (
                   <CodePanel 
                     data={medicalData} 
+                    onUpdateData={handleDataChange}
                   />
                 ) : (
                   <SeoAuditPanel 
@@ -690,6 +827,7 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Netlify
         isOpen={isGlobalIntakeModalOpen}
         onClose={() => setIsGlobalIntakeModalOpen(false)}
         onOpenAiIngestion={() => setIsGlobalAiModalOpen(true)}
+        isClinica={medicalData.tipoEnfoqueLanding === "clinica"}
       />
 
       {/* Modal Generador de Código QR */}
@@ -741,6 +879,19 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Netlify
           </div>
         </div>
       )}
+
+      {/* Modal de Auditoría de SEO Local antes de Descargar el Proyecto */}
+      <LocalSeoAuditModal
+        isOpen={isLocalSeoAuditModalOpen}
+        onClose={() => setIsLocalSeoAuditModalOpen(false)}
+        data={medicalData}
+        onSaveData={(updatedData) => {
+          handleDataChange(updatedData);
+        }}
+        onProceedDownload={(updatedData) => {
+          handleExportZip(updatedData || medicalData, true);
+        }}
+      />
 
     </div>
   );

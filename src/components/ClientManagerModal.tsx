@@ -8,6 +8,7 @@ import { MedicalLandingData, SavedClientProfile } from "../types";
 import { 
   getSavedProfiles, 
   saveProfile, 
+  updateProfileTag,
   deleteProfile, 
   duplicateProfile, 
   parseImportFile, 
@@ -15,7 +16,8 @@ import {
   downloadAllProfilesBackup, 
   importBatchProfiles,
   getActiveProfileId,
-  setActiveProfileId
+  setActiveProfileId,
+  createNewBlankProfile
 } from "../utils/profileStorage";
 import { motion, AnimatePresence } from "motion/react";
 import { 
@@ -42,7 +44,12 @@ import {
   Layers,
   Save,
   RotateCcw,
-  ExternalLink
+  ExternalLink,
+  UserPlus,
+  Tag,
+  Clock,
+  Edit3,
+  Filter
 } from "lucide-react";
 
 interface ClientManagerModalProps {
@@ -65,6 +72,12 @@ export function ClientManagerModal({
   const [searchQuery, setSearchQuery] = useState("");
   const [activeProfileIdState, setActiveProfileIdState] = useState<string | null>(null);
 
+  // Estados para filtro y edición de etiqueta de especialidad
+  const [selectedSpecialtyFilter, setSelectedSpecialtyFilter] = useState<string>("todas");
+  const [editingTagProfileId, setEditingTagProfileId] = useState<string | null>(null);
+  const [editingTagValue, setEditingTagValue] = useState("");
+  const [tagSaveSuccessId, setTagSaveSuccessId] = useState<string | null>(null);
+
   // Estados para Importación
   const [pastedJson, setPastedJson] = useState("");
   const [dragActive, setDragActive] = useState(false);
@@ -81,13 +94,56 @@ export function ClientManagerModal({
 
   // Estados para Guardar Cliente Actual
   const [saveClientName, setSaveClientName] = useState("");
+  const [saveClientSpecialtyTag, setSaveClientSpecialtyTag] = useState("");
   const [saveClientNotes, setSaveClientNotes] = useState("");
   const [saveSuccessMsg, setSaveSuccessMsg] = useState("");
   const [copiedJson, setCopiedJson] = useState(false);
   const [profileToDelete, setProfileToDelete] = useState<{ id: string; name: string } | null>(null);
 
+  // Estado para modal de "Crear Cliente Nuevo desde Cero"
+  const [isNewClientModalOpen, setIsNewClientModalOpen] = useState(false);
+  const [newClientForm, setNewClientForm] = useState({
+    nombreMedico: "",
+    especialidad: "",
+    etiquetaEspecialidad: "",
+    ciudad: "Quito",
+    tipoEnfoque: "medico" as "medico" | "clinica",
+    notas: ""
+  });
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const batchFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Formateadores de fecha y hora para auditoría visible
+  const formatDateTimeShort = (isoString?: string) => {
+    if (!isoString) return "--/--/----";
+    try {
+      const d = new Date(isoString);
+      if (isNaN(d.getTime())) return "--/--/----";
+      const day = String(d.getDate()).padStart(2, "0");
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const year = d.getFullYear();
+      const hours = String(d.getHours()).padStart(2, "0");
+      const minutes = String(d.getMinutes()).padStart(2, "0");
+      return `${day}/${month}/${year} ${hours}:${minutes}`;
+    } catch {
+      return "--/--/----";
+    }
+  };
+
+  const formatFullDateTime = (isoString?: string) => {
+    if (!isoString) return "";
+    try {
+      const d = new Date(isoString);
+      if (isNaN(d.getTime())) return "";
+      return d.toLocaleString("es-EC", {
+        dateStyle: "medium",
+        timeStyle: "short"
+      });
+    } catch {
+      return "";
+    }
+  };
 
   // Cargar lista de perfiles al abrir
   useEffect(() => {
@@ -98,6 +154,7 @@ export function ClientManagerModal({
       
       const defaultName = `${currentData.nombreMedico || "Dr. Médico"} - ${currentData.especialidad || "Especialidad"} (${currentData.ciudad || "Ecuador"})`;
       setSaveClientName(defaultName);
+      setSaveClientSpecialtyTag(currentData.especialidad || "Medicina General");
     }
   }, [isOpen, currentData]);
 
@@ -105,6 +162,38 @@ export function ClientManagerModal({
     const list = getSavedProfiles();
     setSavedProfiles(list);
   };
+
+  // Manejadores para edición inline de etiqueta de especialidad en tarjeta
+  const handleStartEditTag = (profile: SavedClientProfile) => {
+    setEditingTagProfileId(profile.id);
+    setEditingTagValue(profile.etiquetaEspecialidad || profile.especialidad || "");
+  };
+
+  const handleSaveTag = (profileId: string) => {
+    const cleanTag = editingTagValue.trim();
+    updateProfileTag(profileId, cleanTag);
+    refreshProfiles();
+    setEditingTagProfileId(null);
+    setTagSaveSuccessId(profileId);
+    setTimeout(() => setTagSaveSuccessId(null), 2500);
+  };
+
+  const handleCancelEditTag = () => {
+    setEditingTagProfileId(null);
+    setEditingTagValue("");
+  };
+
+  // Resumen estadístico agrupado de especialidades para organizar
+  const specialtyStats = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    savedProfiles.forEach(p => {
+      const tag = (p.etiquetaEspecialidad || p.especialidad || "Medicina General").trim();
+      counts[tag] = (counts[tag] || 0) + 1;
+    });
+    return counts;
+  }, [savedProfiles]);
+
+  const uniqueSpecialties = Object.keys(specialtyStats).sort();
 
   // Manejador para cargar un archivo
   const handleFileUpload = (file: File) => {
@@ -173,11 +262,12 @@ export function ClientManagerModal({
       currentData,
       saveClientName,
       undefined,
-      saveClientNotes
+      saveClientNotes,
+      saveClientSpecialtyTag
     );
     setActiveProfileIdState(saved.id);
     refreshProfiles();
-    setSaveSuccessMsg("¡Cliente guardado exitosamente en tu catálogo local!");
+    setSaveSuccessMsg("¡Cliente guardado exitosamente en tu catálogo local con su etiqueta!");
     setTimeout(() => setSaveSuccessMsg(""), 3500);
   };
 
@@ -191,7 +281,8 @@ export function ClientManagerModal({
       currentData,
       existing.nombreCliente,
       activeProfileIdState,
-      saveClientNotes || existing.notasInternas
+      saveClientNotes || existing.notasInternas,
+      saveClientSpecialtyTag || existing.etiquetaEspecialidad
     );
     refreshProfiles();
     setSaveSuccessMsg(`¡Cambios guardados en "${existing.nombreCliente}"!`);
@@ -228,14 +319,49 @@ export function ClientManagerModal({
     refreshProfiles();
   };
 
-  // Filtrado de perfiles
+  // Crear Cliente Nuevo desde Cero
+  const handleCreateNewClient = () => {
+    const doctorName = newClientForm.nombreMedico.trim() || (newClientForm.tipoEnfoque === "clinica" ? "Centro Médico Especializado" : "Dr. Nuevo Médico");
+    const especialidad = newClientForm.especialidad.trim() || (newClientForm.tipoEnfoque === "clinica" ? "Polivalente / Especialidades Médicas" : "Medicina General");
+    const etiquetaEspecialidad = newClientForm.etiquetaEspecialidad.trim() || especialidad;
+    const ciudad = newClientForm.ciudad.trim() || "Quito";
+
+    const newSavedProfile = createNewBlankProfile({
+      nombreMedico: doctorName,
+      especialidad: especialidad,
+      etiquetaEspecialidad: etiquetaEspecialidad,
+      ciudad: ciudad,
+      tipoEnfoque: newClientForm.tipoEnfoque,
+      notas: newClientForm.notas.trim() || undefined
+    });
+
+    refreshProfiles();
+    setActiveProfileIdState(newSavedProfile.id);
+    setActiveProfileId(newSavedProfile.id);
+    setIsNewClientModalOpen(false);
+
+    // Cargar inmediatamente el nuevo perfil limpio en el formulario y la vista previa
+    onLoadProfile(newSavedProfile.data, newSavedProfile.id);
+    onClose();
+  };
+
+  // Filtrado de perfiles considerando búsqueda y organización por especialidad
   const filteredProfiles = savedProfiles.filter(p => {
+    // Filtro por especialidad / etiqueta
+    if (selectedSpecialtyFilter !== "todas") {
+      const pTag = (p.etiquetaEspecialidad || p.especialidad || "").toLowerCase().trim();
+      if (pTag !== selectedSpecialtyFilter.toLowerCase().trim()) {
+        return false;
+      }
+    }
+
     const q = searchQuery.toLowerCase().trim();
     if (!q) return true;
     return (
       p.nombreCliente.toLowerCase().includes(q) ||
       p.nombreMedico.toLowerCase().includes(q) ||
       p.especialidad.toLowerCase().includes(q) ||
+      (p.etiquetaEspecialidad && p.etiquetaEspecialidad.toLowerCase().includes(q)) ||
       p.ciudad.toLowerCase().includes(q) ||
       p.clinica.toLowerCase().includes(q) ||
       (p.notasInternas && p.notasInternas.toLowerCase().includes(q))
@@ -385,7 +511,26 @@ export function ClientManagerModal({
                   )}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={() => {
+                      setNewClientForm({
+                        nombreMedico: "",
+                        especialidad: "",
+                        etiquetaEspecialidad: "",
+                        ciudad: "Quito",
+                        tipoEnfoque: "medico",
+                        notas: ""
+                      });
+                      setIsNewClientModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold shadow-xs transition-all cursor-pointer hover:scale-[1.02] active:scale-98"
+                    title="Crear un nuevo médico o clínica desde cero con plantilla limpia"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>+ Nuevo Cliente (Desde Cero)</span>
+                  </button>
+
                   <button
                     onClick={() => setActiveTab("export")}
                     className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-extrabold shadow-xs transition-all cursor-pointer"
@@ -397,15 +542,79 @@ export function ClientManagerModal({
                   <button
                     onClick={() => downloadAllProfilesBackup()}
                     disabled={savedProfiles.length === 0}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-40"
-                    title="Descargar un único archivo JSON con todos tus clientes registrados para tener copia de seguridad total"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-extrabold shadow-xs transition-all cursor-pointer disabled:opacity-40"
+                    title="Descargar un único archivo JSON de Backup Total con todos tus clientes y sus etiquetas de especialidad incluidas"
                   >
-                    <FolderArchive className="w-4 h-4 text-indigo-600" />
+                    <FolderArchive className="w-4 h-4 text-blue-400" />
                     <span className="hidden md:inline">Backup Total ({savedProfiles.length})</span>
-                    <span className="md:hidden">Backup</span>
+                    <span className="md:hidden">Backup ({savedProfiles.length})</span>
                   </button>
                 </div>
               </div>
+
+              {/* BARRA DE ORGANIZACIÓN POR ESPECIALIDAD */}
+              {savedProfiles.length > 0 && uniqueSpecialties.length > 0 && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 bg-slate-50 border border-slate-200/90 rounded-2xl shadow-2xs">
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none text-xs flex-1">
+                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1 shrink-0 mr-1">
+                      <Filter className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Organizar:</span>
+                    </span>
+                    <button
+                      onClick={() => setSelectedSpecialtyFilter("todas")}
+                      className={`px-3 py-1.5 rounded-xl font-bold transition-all shrink-0 cursor-pointer text-xs ${
+                        selectedSpecialtyFilter === "todas"
+                          ? "bg-slate-900 text-white shadow-xs"
+                          : "bg-white text-slate-700 hover:bg-slate-200/80 border border-slate-200"
+                      }`}
+                    >
+                      Todas ({savedProfiles.length})
+                    </button>
+                    {uniqueSpecialties.map((esp) => {
+                      const isSelected = selectedSpecialtyFilter.toLowerCase() === esp.toLowerCase();
+                      return (
+                        <button
+                          key={esp}
+                          onClick={() => setSelectedSpecialtyFilter(isSelected ? "todas" : esp)}
+                          className={`px-3 py-1.5 rounded-xl font-bold transition-all shrink-0 cursor-pointer text-xs flex items-center gap-1.5 ${
+                            isSelected
+                              ? "bg-blue-600 text-white shadow-xs ring-2 ring-blue-300"
+                              : "bg-white text-blue-900 border border-blue-200 hover:bg-blue-50"
+                          }`}
+                          title={`Filtrar médicos con la etiqueta ${esp}`}
+                        >
+                          <Tag className="w-3 h-3 text-blue-500" />
+                          <span>{esp}</span>
+                          <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
+                            isSelected ? "bg-blue-700 text-white" : "bg-blue-100 text-blue-800"
+                          }`}>
+                            {specialtyStats[esp]}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {selectedSpecialtyFilter !== "todas" && (
+                    <div className="flex items-center gap-2 shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-200">
+                      <button
+                        onClick={() => downloadAllProfilesBackup(selectedSpecialtyFilter)}
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-2xs cursor-pointer transition-colors"
+                        title={`Exportar backup JSON únicamente de la especialidad ${selectedSpecialtyFilter}`}
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Backup {selectedSpecialtyFilter} ({filteredProfiles.length})</span>
+                      </button>
+                      <button
+                        onClick={() => setSelectedSpecialtyFilter("todas")}
+                        className="text-[11px] text-slate-500 hover:text-slate-800 font-semibold underline cursor-pointer"
+                      >
+                        Ver todas
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Mensaje de estado info si existe */}
               {importStatus.type === "info" && (
@@ -430,7 +639,24 @@ export function ClientManagerModal({
                   <p className="text-xs text-slate-500 max-w-md mx-auto">
                     Guarda la configuración del doctor actual o importa archivos .json de clientes anteriores para administrarlos rápidamente.
                   </p>
-                  <div className="flex items-center justify-center gap-3 pt-2">
+                  <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
+                    <button
+                      onClick={() => {
+                        setNewClientForm({
+                          nombreMedico: "",
+                          especialidad: "",
+                          etiquetaEspecialidad: "",
+                          ciudad: "Quito",
+                          tipoEnfoque: "medico",
+                          notas: ""
+                        });
+                        setIsNewClientModalOpen(true);
+                      }}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      <span>Crear Cliente Nuevo desde Cero</span>
+                    </button>
                     <button
                       onClick={() => setActiveTab("export")}
                       className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
@@ -447,7 +673,7 @@ export function ClientManagerModal({
                 </div>
               ) : filteredProfiles.length === 0 ? (
                 <div className="text-center py-10 border border-slate-200 rounded-2xl bg-slate-50 text-slate-500 text-xs">
-                  No se encontraron clientes que coincidan con "<strong>{searchQuery}</strong>".
+                  No se encontraron clientes que coincidan con "<strong>{searchQuery}</strong>" {selectedSpecialtyFilter !== "todas" ? `en la especialidad ${selectedSpecialtyFilter}` : ""}.
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
@@ -462,19 +688,19 @@ export function ClientManagerModal({
                             : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-xs"
                         }`}
                       >
-                        <div className="space-y-2">
+                        <div className="space-y-2.5">
                           <div className="flex items-start justify-between gap-2">
-                            <div className="flex items-center gap-2.5">
-                              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-extrabold text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-extrabold text-xs flex items-center justify-center shrink-0 shadow-2xs">
                                 {p.nombreMedico?.replace(/^Dr\.\s*|^Dra\.\s*/i, "").charAt(0) || "M"}
                               </div>
-                              <div>
-                                <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 leading-tight">
+                              <div className="min-w-0">
+                                <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 leading-tight truncate">
                                   {p.nombreCliente}
                                 </h4>
                                 <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5">
-                                  <Stethoscope className="w-3 h-3 text-blue-600 shrink-0" />
-                                  <span className="font-semibold text-slate-700">{p.especialidad}</span>
+                                  <Stethoscope className="w-3 h-3 text-slate-400 shrink-0" />
+                                  <span className="font-medium text-slate-600 truncate">{p.especialidad}</span>
                                 </div>
                               </div>
                             </div>
@@ -486,18 +712,111 @@ export function ClientManagerModal({
                             )}
                           </div>
 
+                          {/* ETIQUETA EDITABLE DE ESPECIALIDAD */}
+                          <div>
+                            {editingTagProfileId === p.id ? (
+                              <div className="p-2 bg-blue-50 border border-blue-300 rounded-xl space-y-1.5 animate-in fade-in duration-150">
+                                <div className="flex items-center justify-between text-[10px] font-bold text-blue-800">
+                                  <span className="flex items-center gap-1">
+                                    <Tag className="w-3 h-3 text-blue-600" />
+                                    <span>Editar etiqueta de especialidad:</span>
+                                  </span>
+                                  <span className="text-slate-400 font-normal">Enter para guardar</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="text"
+                                    value={editingTagValue}
+                                    onChange={(e) => setEditingTagValue(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") handleSaveTag(p.id);
+                                      if (e.key === "Escape") handleCancelEditTag();
+                                    }}
+                                    placeholder="Ej. Dermatología, Pediatría..."
+                                    className="flex-1 px-2.5 py-1 text-xs font-bold text-slate-800 bg-white border border-blue-300 rounded-lg outline-hidden focus:ring-2 focus:ring-blue-400"
+                                    autoFocus
+                                  />
+                                  <button
+                                    onClick={() => handleSaveTag(p.id)}
+                                    className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                                    title="Guardar etiqueta"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>Guardar</span>
+                                  </button>
+                                  <button
+                                    onClick={handleCancelEditTag}
+                                    className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-lg cursor-pointer transition-colors"
+                                    title="Cancelar"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span
+                                  onClick={() => handleStartEditTag(p)}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50/90 hover:bg-blue-100 border border-blue-200/80 text-blue-800 text-xs font-bold cursor-pointer transition-all group shadow-2xs"
+                                  title="Haz clic para editar la etiqueta de especialidad de este médico"
+                                >
+                                  <Tag className="w-3 h-3 text-blue-600 group-hover:scale-110 transition-transform shrink-0" />
+                                  <span>{p.etiquetaEspecialidad || p.especialidad}</span>
+                                  <Edit3 className="w-3 h-3 text-blue-400 group-hover:text-blue-700 ml-0.5 opacity-70 group-hover:opacity-100 transition-opacity" />
+                                </span>
+
+                                {tagSaveSuccessId === p.id && (
+                                  <span className="text-[11px] font-bold text-emerald-600 animate-in fade-in flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                                    <Check className="w-3 h-3" /> ¡Etiqueta actualizada!
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Ubicación y Clínica */}
                           <div className="flex items-center gap-2 flex-wrap text-[11px] text-slate-600 pt-1 border-t border-slate-100">
                             <span className="inline-flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-md font-medium">
                               <MapPin className="w-3 h-3 text-red-500" />
                               {p.ciudad}
                             </span>
-                            <span className="inline-flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-md font-medium truncate max-w-[160px]">
+                            <span className="inline-flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-md font-medium truncate max-w-[180px]">
                               <Building2 className="w-3 h-3 text-slate-400" />
                               {p.clinica}
                             </span>
-                            <span className="text-[10px] text-slate-400 ml-auto">
-                              {new Date(p.fechaActualizacion).toLocaleDateString()}
-                            </span>
+                          </div>
+
+                          {/* FECHAS: Creación y Última Actualización */}
+                          <div className="grid grid-cols-2 gap-2 text-[11px] pt-1.5 border-t border-slate-100 bg-slate-50/80 p-2 rounded-xl">
+                            <div 
+                              className="flex items-center gap-2 min-w-0" 
+                              title={`Fecha de creación del perfil: ${formatFullDateTime(p.fechaCreacion)}`}
+                            >
+                              <div className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                                <Calendar className="w-3.5 h-3.5" />
+                              </div>
+                              <div className="min-w-0 leading-tight">
+                                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Creación</span>
+                                <span className="text-[11px] font-bold text-slate-700 truncate block">
+                                  {formatDateTimeShort(p.fechaCreacion)}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div 
+                              className="flex items-center gap-2 min-w-0" 
+                              title={`Última modificación o actualización: ${formatFullDateTime(p.fechaActualizacion)}`}
+                            >
+                              <div className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                                <Clock className="w-3.5 h-3.5" />
+                              </div>
+                              <div className="min-w-0 leading-tight">
+                                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Actualizado</span>
+                                <span className="text-[11px] font-bold text-slate-700 truncate block">
+                                  {formatDateTimeShort(p.fechaActualizacion)}
+                                </span>
+                              </div>
+                            </div>
                           </div>
 
                           {p.notasInternas && (
@@ -518,9 +837,9 @@ export function ClientManagerModal({
                           </button>
 
                           <button
-                            onClick={() => downloadProfileAsJson(p.data, `perfil-${p.nombreMedico.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.json`)}
+                            onClick={() => downloadProfileAsJson(p.data, `perfil-${p.nombreMedico.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.json`, p.etiquetaEspecialidad || p.especialidad)}
                             className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
-                            title="Descargar archivo JSON individual"
+                            title="Descargar archivo JSON individual con etiqueta de especialidad y fechas"
                           >
                             <FileJson className="w-4 h-4 text-indigo-600" />
                           </button>
@@ -743,9 +1062,9 @@ export function ClientManagerModal({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700">Nombre o Etiqueta del Cliente:</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <label className="text-xs font-bold text-slate-700">Nombre del Cliente / Doctor:</label>
                     <input
                       type="text"
                       value={saveClientName}
@@ -756,6 +1075,20 @@ export function ClientManagerModal({
                   </div>
 
                   <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                      <Tag className="w-3 h-3 text-blue-600" />
+                      <span>Etiqueta de Especialidad:</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={saveClientSpecialtyTag}
+                      onChange={(e) => setSaveClientSpecialtyTag(e.target.value)}
+                      placeholder="ej: Cardiología"
+                      className="w-full p-2.5 bg-white border border-blue-200 rounded-xl text-xs font-bold text-blue-900 focus:border-blue-500 outline-hidden"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5 sm:col-span-3">
                     <label className="text-xs font-bold text-slate-700">Notas Internas de Agencia (Opcional):</label>
                     <input
                       type="text"
@@ -887,6 +1220,180 @@ export function ClientManagerModal({
                   <span>Sí, Eliminar</span>
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal para Crear Cliente Nuevo desde Cero */}
+        {isNewClientModalOpen && (
+          <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+              
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0 shadow-2xs">
+                    <UserPlus className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-slate-900">Agregar Cliente Nuevo</h3>
+                    <p className="text-xs text-slate-500 font-medium">Empieza a construir la landing page médica desde cero</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsNewClientModalOpen(false)}
+                  className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center cursor-pointer transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Formulario de Inicio Rápido */}
+              <div className="space-y-3.5 text-left">
+                
+                {/* Tipo de Enfoque */}
+                <div>
+                  <label className="text-[11px] font-extrabold uppercase tracking-wider text-slate-600 block mb-1.5">
+                    Tipo de Enfoque Landing
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setNewClientForm(prev => ({ ...prev, tipoEnfoque: "medico" }))}
+                      className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all ${
+                        newClientForm.tipoEnfoque === "medico"
+                          ? "bg-emerald-50 border-emerald-500 text-emerald-800 ring-2 ring-emerald-100"
+                          : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                      }`}
+                    >
+                      <Stethoscope className="w-4 h-4 text-emerald-600" />
+                      <span>Médico Especialista</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewClientForm(prev => ({ ...prev, tipoEnfoque: "clinica" }))}
+                      className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all ${
+                        newClientForm.tipoEnfoque === "clinica"
+                          ? "bg-emerald-50 border-emerald-500 text-emerald-800 ring-2 ring-emerald-100"
+                          : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                      }`}
+                    >
+                      <Building2 className="w-4 h-4 text-emerald-600" />
+                      <span>Clínica / Centro</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Nombre del Médico o Clínica */}
+                <div>
+                  <label className="text-[11px] font-extrabold uppercase tracking-wider text-slate-600 block mb-1">
+                    {newClientForm.tipoEnfoque === "clinica" ? "Nombre de la Clínica o Centro *" : "Nombre del Médico Especialista *"}
+                  </label>
+                  <input
+                    type="text"
+                    value={newClientForm.nombreMedico}
+                    onChange={(e) => setNewClientForm(prev => ({ ...prev, nombreMedico: e.target.value }))}
+                    placeholder={newClientForm.tipoEnfoque === "clinica" ? "Ej. Centro Médico MediSalud" : "Ej. Dra. Gabriela Morales"}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-hidden transition-all"
+                    autoFocus
+                  />
+                </div>
+
+                {/* Especialidad */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-extrabold uppercase tracking-wider text-slate-600 block mb-1">
+                      Especialidad Principal *
+                    </label>
+                    <input
+                      type="text"
+                      value={newClientForm.especialidad}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNewClientForm(prev => ({
+                          ...prev,
+                          especialidad: val,
+                          etiquetaEspecialidad: prev.etiquetaEspecialidad ? prev.etiquetaEspecialidad : val
+                        }));
+                      }}
+                      placeholder="Ej. Pediatría y Neonatología..."
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-hidden transition-all"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-extrabold uppercase tracking-wider text-slate-600 block mb-1 flex items-center gap-1">
+                      <Tag className="w-3 h-3 text-emerald-600" />
+                      <span>Etiqueta Organización</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newClientForm.etiquetaEspecialidad}
+                      onChange={(e) => setNewClientForm(prev => ({ ...prev, etiquetaEspecialidad: e.target.value }))}
+                      placeholder="Ej. Pediatría, Estética..."
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-hidden transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Ciudad en Ecuador */}
+                <div>
+                  <label className="text-[11px] font-extrabold uppercase tracking-wider text-slate-600 block mb-1">
+                    Ciudad (Ecuador)
+                  </label>
+                  <select
+                    value={newClientForm.ciudad}
+                    onChange={(e) => setNewClientForm(prev => ({ ...prev, ciudad: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-hidden transition-all cursor-pointer"
+                  >
+                    <option value="Quito">Quito (Pichincha)</option>
+                    <option value="Guayaquil">Guayaquil (Guayas)</option>
+                    <option value="Cuenca">Cuenca (Azuay)</option>
+                    <option value="Santo Domingo">Santo Domingo</option>
+                    <option value="Machala">Machala (El Oro)</option>
+                    <option value="Manta">Manta (Manabí)</option>
+                    <option value="Portoviejo">Portoviejo (Manabí)</option>
+                    <option value="Ambato">Ambato (Tungurahua)</option>
+                    <option value="Riobamba">Riobamba (Chimborazo)</option>
+                    <option value="Loja">Loja</option>
+                    <option value="Ibarra">Ibarra (Imbabura)</option>
+                  </select>
+                </div>
+
+                {/* Notas internas / recordatorios */}
+                <div>
+                  <label className="text-[11px] font-extrabold uppercase tracking-wider text-slate-600 block mb-1">
+                    Notas Internas / Contacto (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={newClientForm.notas}
+                    onChange={(e) => setNewClientForm(prev => ({ ...prev, notas: e.target.value }))}
+                    placeholder="Ej. Teléfono del doctor, presupuesto, pendiente fotos del consultorio..."
+                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-hidden transition-all"
+                  />
+                </div>
+
+              </div>
+
+              {/* Botones de acción del formulario */}
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsNewClientModalOpen(false)}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateNewClient}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-sm shadow-emerald-600/30 flex items-center gap-1.5 hover:scale-[1.02] active:scale-98"
+                >
+                  <Sparkles className="w-4 h-4 text-emerald-200" />
+                  <span>Empezar a Construir</span>
+                </button>
+              </div>
+
             </div>
           </div>
         )}

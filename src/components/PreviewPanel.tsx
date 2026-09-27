@@ -4,8 +4,10 @@
  */
 
 import React, { useState, useRef, useEffect } from "react";
-import { MedicalLandingData, BeforeAfterCase, PatientGuideItem, DEFAULT_SECTION_ORDER } from "../types";
+import { QRCodeCanvas } from "qrcode.react";
+import { MedicalLandingData, BeforeAfterCase, PatientGuideItem, BlogPostItem, ServiceItem, DEFAULT_SECTION_ORDER } from "../types";
 import { PatientGuideModal } from "./PatientGuideModal";
+import { ServiceDetailModal } from "./ServiceDetailModal";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   Smartphone, 
@@ -22,8 +24,11 @@ import {
   PhoneCall, 
   Clock, 
   ChevronRight,
+  HelpCircle,
   ShieldCheck,
   Award,
+  GraduationCap,
+  Trophy,
   ThumbsUp,
   Sparkles,
   Syringe,
@@ -41,6 +46,7 @@ import {
   Microscope,
   Mail,
   Share2,
+  QrCode,
   Star,
   Calendar,
   Home,
@@ -57,6 +63,7 @@ import {
   Menu,
   CalendarCheck,
   ArrowRight,
+  ArrowLeft,
   Search,
   Copy,
   SlidersHorizontal,
@@ -72,8 +79,12 @@ import {
   RefreshCw,
   Target,
   HeartHandshake,
-  Compass
+  Compass,
+  Bot,
+  Send,
+  ImageIcon
 } from "lucide-react";
+import { MedicalAiAssistantFaq } from "./MedicalAiAssistantFaq";
 import { getActiveColorScale, generateScaleFromHex } from "../utils/colorUtils";
 import { MedicalIconRenderer } from "./MedicalIconRenderer";
 import { getLiveConsultationStatus } from "../utils/scheduleUtils";
@@ -177,7 +188,7 @@ const ClinicalBeforeAfterSliderItem: React.FC<ClinicalBeforeAfterSliderItemProps
     <div className="bg-slate-50/90 p-4 sm:p-5 rounded-2xl border border-slate-200/80 space-y-3.5 flex flex-col justify-between shadow-xs">
       <div className="space-y-1.5">
         <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-snug">{caso.titulo}</h3>
-        <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">{caso.descripcion}</p>
+        <p className="text-sm sm:text-base text-slate-600 leading-relaxed font-normal">{caso.descripcion}</p>
       </div>
 
       {/* Slider interactivo en React */}
@@ -190,7 +201,7 @@ const ClinicalBeforeAfterSliderItem: React.FC<ClinicalBeforeAfterSliderItemProps
       >
         {/* Imagen Después (Fondo) */}
         <img 
-          src={caso.imgAfter} 
+          src={caso.imgAfter || undefined} 
           alt={`Resultado Después - ${caso.titulo}`} 
           className="absolute inset-0 w-full h-full object-cover pointer-events-none" 
           referrerPolicy="no-referrer"
@@ -202,7 +213,7 @@ const ClinicalBeforeAfterSliderItem: React.FC<ClinicalBeforeAfterSliderItemProps
           style={{ clipPath: `polygon(0 0, ${sliderPos}% 0, ${sliderPos}% 100%, 0 100%)` }}
         >
           <img 
-            src={caso.imgBefore} 
+            src={caso.imgBefore || undefined} 
             alt={`Estado Antes - ${caso.titulo}`} 
             className="absolute inset-0 w-full h-full object-cover" 
             referrerPolicy="no-referrer"
@@ -247,9 +258,23 @@ interface ClinicGalleryPreviewCarouselProps {
   photos: { id: string; url: string; titulo?: string; descripcion?: string }[];
   primaryColorClass: string;
   getC: (key: string) => string;
+  subtituloInstalaciones?: string;
+  tituloInstalaciones?: string;
+  descripcionInstalaciones?: string;
+  isClinica?: boolean;
+  isMerged?: boolean;
 }
 
-const ClinicGalleryPreviewCarousel: React.FC<ClinicGalleryPreviewCarouselProps> = ({ photos, primaryColorClass, getC }) => {
+const ClinicGalleryPreviewCarousel: React.FC<ClinicGalleryPreviewCarouselProps> = ({ 
+  photos, 
+  primaryColorClass, 
+  getC,
+  subtituloInstalaciones,
+  tituloInstalaciones,
+  descripcionInstalaciones,
+  isClinica = false,
+  isMerged = false
+}) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const activePhotos = photos && photos.length > 0 ? photos : [
     {
@@ -269,12 +294,6 @@ const ClinicGalleryPreviewCarousel: React.FC<ClinicGalleryPreviewCarouselProps> 
       url: "https://images.unsplash.com/photo-1516549655169-df83a0774514?q=80&w=800&auto=format&fit=crop",
       titulo: "Área de Evaluación Diagnóstica",
       descripcion: "Tecnología médica avanzada e instrumental clínico de máxima precisión."
-    },
-    {
-      id: "foto-cons-4",
-      url: "https://images.unsplash.com/photo-1586773860418-d37222d8fce3?q=80&w=800&auto=format&fit=crop",
-      titulo: "Sala de Procedimientos Menores",
-      descripcion: "Cumplimiento de los más rigurosos estándares de esterilización y bioseguridad."
     }
   ];
 
@@ -290,109 +309,95 @@ const ClinicGalleryPreviewCarousel: React.FC<ClinicGalleryPreviewCarouselProps> 
 
   const currentPhoto = activePhotos[currentIndex] || activePhotos[0];
 
+  const carouselBody = (
+    <div className="max-w-4xl mx-auto space-y-8">
+      {/* Cabecera de la Sección con Espaciado Generoso */}
+      <div className="pb-2 border-b border-slate-200/60">
+        <div className="max-w-xl">
+          <span className={`text-[11px] font-extrabold text-${getC("600")} uppercase tracking-widest bg-${getC("50")} border border-${getC("200")}/60 px-3 py-1 rounded-full inline-block mb-2`}>
+            {subtituloInstalaciones || "Instalaciones & Tecnología"}
+          </span>
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-slate-950 tracking-tight">
+            {tituloInstalaciones || (isClinica ? "Espacios e Instalaciones Médicas" : "Espacios Diseñados para tu Bienestar")}
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-600 mt-1.5 leading-relaxed">
+            {descripcionInstalaciones || "Conoce nuestro consultorio, salas de atención e instrumental médico preparado bajo los más estrictos protocolos clínicos."}
+          </p>
+        </div>
+      </div>
+
+      {/* Tarjeta Principal del Carrusel (Formato 5:4) - Imagen Limpia */}
+      <div className="relative max-w-2xl mx-auto w-full aspect-[5/4] rounded-2xl overflow-hidden shadow-md border border-slate-200/90 bg-slate-900 group">
+        <img
+          src={currentPhoto.url || undefined}
+          alt={currentPhoto.titulo || `Instalación ${currentIndex + 1}`}
+          className="absolute inset-0 w-full h-full object-cover object-center transition-all duration-500"
+          referrerPolicy="no-referrer"
+        />
+
+        {/* Botones Flotantes Superpuestos */}
+        <button
+          type="button"
+          onClick={prevSlide}
+          className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-slate-950/60 hover:bg-slate-950/90 text-white flex items-center justify-center backdrop-blur-xs border border-white/20 transition-all cursor-pointer opacity-90 sm:opacity-0 group-hover:opacity-100"
+          aria-label="Foto anterior"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          onClick={nextSlide}
+          className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-slate-950/60 hover:bg-slate-950/90 text-white flex items-center justify-center backdrop-blur-xs border border-white/20 transition-all cursor-pointer opacity-90 sm:opacity-0 group-hover:opacity-100"
+          aria-label="Foto siguiente"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+
+        {/* Dots de Navegación */}
+        <div className="absolute bottom-2.5 sm:bottom-3 right-2.5 sm:right-3 z-20 flex items-center gap-1 sm:gap-1.5 bg-slate-950/60 backdrop-blur-xs px-2 sm:px-2.5 py-1 rounded-full border border-white/10 max-w-[85%] overflow-x-auto no-scrollbar">
+          {activePhotos.map((_, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => setCurrentIndex(idx)}
+              className={`h-1.5 rounded-full transition-all shrink-0 ${idx === currentIndex ? 'w-4 sm:w-5 bg-white' : 'w-1.5 bg-white/40 hover:bg-white/70'}`}
+              aria-label={`Ir a foto ${idx + 1}`}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Título y Descripción FUERA de la Imagen */}
+      <div className={`max-w-2xl mx-auto mt-3 sm:mt-4 p-4 sm:p-5 rounded-2xl ${isMerged ? 'bg-slate-50' : 'bg-white'} border border-slate-200/90 shadow-2xs text-left space-y-1.5`}>
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-lg sm:text-xl md:text-2xl font-black text-slate-950 leading-snug tracking-tight">
+            {currentPhoto.titulo || `Área Clínica ${currentIndex + 1}`}
+          </h3>
+          <span className="text-xs sm:text-sm font-extrabold text-slate-700 bg-white border border-slate-200 px-3 py-1 rounded-full shrink-0 shadow-2xs">
+            {currentIndex + 1} de {total}
+          </span>
+        </div>
+        {currentPhoto.descripcion && (
+          <p className="text-sm sm:text-base md:text-lg text-slate-700 leading-relaxed font-medium pt-0.5">
+            {currentPhoto.descripcion}
+          </p>
+        )}
+      </div>
+
+    </div>
+  );
+
+  if (isMerged) {
+    return (
+      <div id="preview-landing-instalaciones" className="pt-8 mt-6 border-t border-slate-200/80 text-left">
+        {carouselBody}
+      </div>
+    );
+  }
+
   return (
     <section id="preview-landing-instalaciones" className="py-10 px-4 sm:px-8 bg-slate-50/90 border-y border-slate-200/80 text-left">
-      <div className="max-w-4xl mx-auto space-y-8">
-        
-        {/* Cabecera de la Sección con Espaciado Generoso */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2 border-b border-slate-200/60">
-          <div className="max-w-xl">
-            <span className={`text-[11px] font-extrabold text-${getC("600")} uppercase tracking-widest bg-${getC("50")} border border-${getC("200")}/60 px-3 py-1 rounded-full inline-block mb-2`}>
-              Galería
-            </span>
-            <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-slate-950 tracking-tight">
-              Espacios Diseñados para tu Bienestar
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-600 mt-1.5 leading-relaxed">
-              Conoce nuestro consultorio, salas de atención e instrumental médico preparado bajo los más estrictos protocolos clínicos.
-            </p>
-          </div>
-
-          {/* Controles y Contador de Diapositiva */}
-          <div className="flex items-center gap-2.5 shrink-0 self-start md:self-end">
-            <span className="text-xs font-black text-slate-700 bg-white border border-slate-200 px-3.5 py-1.5 rounded-full shadow-2xs">
-              {currentIndex + 1} <span className="text-slate-400 font-normal">/</span> {total}
-            </span>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={prevSlide}
-                className="p-2.5 rounded-xl bg-white hover:bg-slate-100 active:bg-slate-200 border border-slate-200 text-slate-700 shadow-2xs transition-all cursor-pointer"
-                aria-label="Foto anterior"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={nextSlide}
-                className={`p-2.5 rounded-xl bg-${getC("600")} hover:bg-${getC("700")} active:bg-${getC("800")} text-white shadow-2xs transition-all cursor-pointer`}
-                aria-label="Foto siguiente"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Tarjeta Principal del Carrusel (Formato 5:4) - Imagen Limpia */}
-        <div className="relative max-w-2xl mx-auto w-full aspect-[5/4] rounded-2xl overflow-hidden shadow-md border border-slate-200/90 bg-slate-900 group">
-          <img
-            src={currentPhoto.url}
-            alt={currentPhoto.titulo || `Instalación ${currentIndex + 1}`}
-            className="absolute inset-0 w-full h-full object-cover object-center transition-all duration-500"
-            referrerPolicy="no-referrer"
-          />
-
-          {/* Botones Flotantes Superpuestos */}
-          <button
-            type="button"
-            onClick={prevSlide}
-            className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-slate-950/60 hover:bg-slate-950/90 text-white flex items-center justify-center backdrop-blur-xs border border-white/20 transition-all cursor-pointer opacity-90 sm:opacity-0 group-hover:opacity-100"
-            aria-label="Foto anterior"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={nextSlide}
-            className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-slate-950/60 hover:bg-slate-950/90 text-white flex items-center justify-center backdrop-blur-xs border border-white/20 transition-all cursor-pointer opacity-90 sm:opacity-0 group-hover:opacity-100"
-            aria-label="Foto siguiente"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-
-          {/* Dots de Navegación */}
-          <div className="absolute bottom-3 right-3 z-20 flex items-center gap-1.5 bg-slate-950/60 backdrop-blur-xs px-2.5 py-1 rounded-full border border-white/10">
-            {activePhotos.map((_, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => setCurrentIndex(idx)}
-                className={`h-1.5 rounded-full transition-all ${idx === currentIndex ? 'w-5 bg-white' : 'w-1.5 bg-white/40 hover:bg-white/70'}`}
-                aria-label={`Ir a foto ${idx + 1}`}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Título y Descripción FUERA de la Imagen */}
-        <div className="max-w-2xl mx-auto pt-1 px-1 text-left space-y-1">
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="text-base sm:text-lg font-extrabold text-slate-900 leading-snug">
-              {currentPhoto.titulo || `Área Clínica ${currentIndex + 1}`}
-            </h3>
-            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-full shrink-0">
-              {currentIndex + 1} de {total}
-            </span>
-          </div>
-          {currentPhoto.descripcion && (
-            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-normal">
-              {currentPhoto.descripcion}
-            </p>
-          )}
-        </div>
-
-      </div>
+      {carouselBody}
     </section>
   );
 };
@@ -562,6 +567,11 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
   const [activeSection, setActiveSection] = useState<string>("inicio");
   const [isScrolled, setIsScrolled] = useState<boolean>(false);
   const [shareModalGuide, setShareModalGuide] = useState<PatientGuideItem | null>(null);
+  const [selectedBlogPostModal, setSelectedBlogPostModal] = useState<BlogPostItem | null>(null);
+  const [selectedServiceForDetail, setSelectedServiceForDetail] = useState<ServiceItem | null>(null);
+  const [showAllServicesInGrid, setShowAllServicesInGrid] = useState<boolean>(false);
+  const [showAllFaqs, setShowAllFaqs] = useState<boolean>(false);
+  const [selectedServiceForAppointment, setSelectedServiceForAppointment] = useState<string | null>(null);
   const [selectedGuideForDownload, setSelectedGuideForDownload] = useState<PatientGuideItem | null>(null);
   const [leadCaptureName, setLeadCaptureName] = useState<string>("");
   const [leadCaptureContact, setLeadCaptureContact] = useState<string>("");
@@ -667,25 +677,45 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
     if (sec.visible === false) return;
 
     if (sec.id === "hero") {
-      activeNavs.push({ id: "inicio", label: "Inicio", icon: "home" });
-    } else if (sec.id === "eeat" && hasNosotros) {
-      activeNavs.push({ id: "nosotros", label: isClinica ? "Nosotros" : "Doctor", icon: "doctor" });
+      if (!activeNavs.some(item => item.id === "inicio")) {
+        activeNavs.push({ id: "inicio", label: "Inicio", icon: "home" });
+      }
+    } else if (sec.id === "eeat" && (hasNosotros || hasInstalaciones)) {
+      if (!activeNavs.some(item => item.id === "nosotros")) {
+        activeNavs.push({ id: "nosotros", label: isClinica ? "Nosotros" : "Doctor", icon: "doctor" });
+      }
     } else if (sec.id === "servicios" && hasServicios) {
-      activeNavs.push({ id: "servicios", label: "Tratamientos", icon: "servicios" });
+      if (!activeNavs.some(item => item.id === "servicios")) {
+        activeNavs.push({ id: "servicios", label: "Tratamientos", icon: "servicios" });
+      }
     } else if (sec.id === "redes_sociales" && hasRedesSociales) {
-      activeNavs.push({ id: "redes-sociales", label: "Redes", icon: "video" });
+      if (!activeNavs.some(item => item.id === "redes-sociales")) {
+        activeNavs.push({ id: "redes-sociales", label: "Redes", icon: "video" });
+      }
     } else if (sec.id === "casos" && hasCasos) {
-      activeNavs.push({ id: "casos", label: isClinica ? "Casos Clínicos" : "Mis casos", icon: "casos" });
+      if (!activeNavs.some(item => item.id === "casos")) {
+        activeNavs.push({ id: "casos", label: isClinica ? "Casos Clínicos" : "Mis casos", icon: "casos" });
+      }
     } else if (sec.id === "opiniones" && hasResenas) {
-      activeNavs.push({ id: "opiniones", label: "Opiniones", icon: "opiniones" });
-    } else if (sec.id === "galeria" && hasInstalaciones) {
-      activeNavs.push({ id: "instalaciones", label: "Galería", icon: "clinica" });
-    } else if (sec.id === "faqs" && hasFaq) {
-      activeNavs.push({ id: "faqs", label: "Preguntas", icon: "faq" });
+      if (!activeNavs.some(item => item.id === "opiniones")) {
+        activeNavs.push({ id: "opiniones", label: "Reseñas", icon: "opiniones" });
+      }
     } else if (sec.id === "blog" && hasBlog) {
-      activeNavs.push({ id: "blog", label: "Blog", icon: "blog" });
+      if (!activeNavs.some(item => item.id === "blog")) {
+        activeNavs.push({ id: "blog", label: "Blog", icon: "blog" });
+      }
     } else if (sec.id === "guias" && hasGuias) {
-      activeNavs.push({ id: "guias", label: "Guías", icon: "guias" });
+      if (!activeNavs.some(item => item.id === "guias")) {
+        activeNavs.push({ id: "guias", label: "Guías", icon: "guias" });
+      }
+    } else if (sec.id === "horarios_ubicacion" || sec.id === "tarifas") {
+      if (!activeNavs.some(item => item.id === "contacto")) {
+        activeNavs.push({ id: "contacto", label: "Cita", icon: "cita" });
+      }
+    } else if (sec.id === "faqs" && hasFaq) {
+      if (!activeNavs.some(item => item.id === "faqs")) {
+        activeNavs.push({ id: "faqs", label: "Asistente", icon: "faq" });
+      }
     }
   });
 
@@ -702,7 +732,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
       case "casos": return Activity;
       case "clinica": return Building2;
       case "opiniones": return Star;
-      case "faq": return CheckCircle2;
+      case "faq": return HelpCircle;
       case "blog": return FileText;
       case "guias": return BookOpen;
       case "cita": return Calendar;
@@ -710,56 +740,84 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
     }
   };
 
-  // Dynamic scroll observer to highlight current section in real time
+  // Dynamic scroll observer to highlight current section in real time in strict sequential order
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
 
+    const getNavElement = (id: string): HTMLElement | null => {
+      switch (id) {
+        case "inicio":
+          return viewport.querySelector("#preview-landing-header") || viewport.querySelector("#inicio");
+        case "nosotros":
+          return viewport.querySelector("#preview-landing-nosotros") || viewport.querySelector("#nosotros");
+        case "servicios":
+          return viewport.querySelector("#preview-landing-servicios") || viewport.querySelector("#servicios");
+        case "redes-sociales":
+          return viewport.querySelector("#preview-landing-redes-sociales") || viewport.querySelector("#redes-sociales");
+        case "casos":
+          return viewport.querySelector("#preview-landing-casos") || viewport.querySelector("#casos");
+        case "opiniones":
+          return viewport.querySelector("#resenas") || viewport.querySelector("#preview-landing-resenas") || viewport.querySelector("#opiniones");
+        case "blog":
+          return viewport.querySelector("#preview-landing-blog") || viewport.querySelector("#blog");
+        case "guias":
+          return viewport.querySelector("#preview-landing-guias") || viewport.querySelector("#guias-pacientes");
+        case "contacto":
+          return viewport.querySelector("#agendar-preview") || viewport.querySelector("#agendar");
+        case "faqs":
+          return viewport.querySelector("#preview-landing-faq") || viewport.querySelector("#faq");
+        default:
+          return null;
+      }
+    };
+
     const handleScroll = () => {
-      setIsScrolled(viewport.scrollTop > 40);
+      const scrollTop = viewport.scrollTop;
+      setIsScrolled(scrollTop > 40);
 
-      const sections = activeNavs.map(nav => {
-        let elementId = "";
-        if (nav.id === "inicio") elementId = "#preview-landing-header";
-        else if (nav.id === "nosotros") elementId = "#preview-landing-nosotros";
-        else if (nav.id === "servicios") elementId = "#preview-landing-servicios";
-        else if (nav.id === "redes-sociales") elementId = "#preview-landing-redes-sociales";
-        else if (nav.id === "casos") elementId = "#preview-landing-casos";
-        else if (nav.id === "instalaciones") elementId = "#preview-landing-instalaciones";
-        else if (nav.id === "faqs") elementId = "#preview-landing-faq";
-        else if (nav.id === "opiniones") elementId = "#resenas";
-        else if (nav.id === "blog") elementId = "#preview-landing-blog";
-        else if (nav.id === "guias") elementId = "#preview-landing-guias";
-        else if (nav.id === "contacto") elementId = "#agendar-preview";
+      // Si el usuario está al principio del contenedor
+      if (scrollTop < 80) {
+        if (activeNavs.length > 0) {
+          setActiveSection(activeNavs[0].id);
+        }
+        return;
+      }
 
-        return { id: nav.id, element: viewport.querySelector(elementId) };
-      });
+      // Si el usuario llegó al fondo del contenedor (últimos 90px)
+      const scrollRemaining = viewport.scrollHeight - scrollTop - viewport.clientHeight;
+      if (scrollRemaining < 90 && activeNavs.length > 0) {
+        setActiveSection(activeNavs[activeNavs.length - 1].id);
+        return;
+      }
 
       const viewportRect = viewport.getBoundingClientRect();
-      let currentActive = "inicio";
-      let maxVisibleHeight = 0;
+      const focalLine = viewportRect.top + 160;
 
-      for (const section of sections) {
-        if (section.element) {
-          const rect = section.element.getBoundingClientRect();
-          const top = Math.max(rect.top, viewportRect.top);
-          const bottom = Math.min(rect.bottom, viewportRect.bottom);
-          const visibleHeight = Math.max(0, bottom - top);
+      // Obtener todos los elementos nav activos que existen en el DOM en su orden secuencial
+      const resolvedSections = activeNavs
+        .map(nav => ({ id: nav.id, element: getNavElement(nav.id) }))
+        .filter((item): item is { id: string; element: HTMLElement } => item.element !== null);
 
-          if (visibleHeight > maxVisibleHeight) {
-            maxVisibleHeight = visibleHeight;
-            currentActive = section.id;
-          }
+      if (resolvedSections.length === 0) return;
+
+      // Buscar la última sección cuyo borde superior ya cruzó la línea focal de lectura
+      let currentActiveId = resolvedSections[0].id;
+
+      for (const sec of resolvedSections) {
+        const rect = sec.element.getBoundingClientRect();
+        if (rect.top <= focalLine) {
+          currentActiveId = sec.id;
         }
       }
-      setActiveSection(currentActive);
+
+      setActiveSection(currentActiveId);
 
       // Parallax sutil en desktop
       if (heroParallaxRef.current) {
         if (viewport.offsetWidth >= 1024) {
           const scrolled = viewport.scrollTop;
           if (scrolled < 1200) {
-            // El factor 0.08px por cada 1px de scroll da un efecto elegante y premium de profundidad
             heroParallaxRef.current.style.transform = `translateY(${scrolled * 0.08}px)`;
           }
         } else {
@@ -769,14 +827,13 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
     };
 
     viewport.addEventListener("scroll", handleScroll, { passive: true });
-    // Run an initial tick to set active section
     const initTimeout = setTimeout(handleScroll, 100);
 
     return () => {
       viewport.removeEventListener("scroll", handleScroll);
       clearTimeout(initTimeout);
     };
-  }, [device, data]);
+  }, [device, data, activeNavs]);
 
   // Smooth scroll handler inside the scrollable container viewport
   const scrollToSection = (sectionId: string) => {
@@ -785,27 +842,27 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
 
     setMobileMenuOpen(false);
 
-    let elementId = "";
-    if (sectionId === "inicio") elementId = "preview-landing-header";
-    else if (sectionId === "nosotros") elementId = "preview-landing-nosotros";
-    else if (sectionId === "servicios") elementId = "preview-landing-servicios";
-    else if (sectionId === "redes-sociales") elementId = "preview-landing-redes-sociales";
-    else if (sectionId === "casos") elementId = "preview-landing-casos";
-    else if (sectionId === "instalaciones") elementId = "preview-landing-instalaciones";
-    else if (sectionId === "faqs") elementId = "preview-landing-faq";
-    else if (sectionId === "opiniones" || sectionId === "resenas") elementId = "resenas";
-    else if (sectionId === "blog") elementId = "preview-landing-blog";
-    else if (sectionId === "guias") elementId = "preview-landing-guias";
-    else if (sectionId === "contacto") elementId = "agendar-preview";
+    let selector = "";
+    if (sectionId === "inicio") selector = "#preview-landing-header, #inicio";
+    else if (sectionId === "nosotros") selector = "#preview-landing-nosotros, #nosotros";
+    else if (sectionId === "servicios") selector = "#preview-landing-servicios, #servicios";
+    else if (sectionId === "redes-sociales") selector = "#preview-landing-redes-sociales, #redes-sociales";
+    else if (sectionId === "casos") selector = "#preview-landing-casos, #casos";
+    else if (sectionId === "instalaciones") selector = "#preview-landing-instalaciones";
+    else if (sectionId === "opiniones" || sectionId === "resenas") selector = "#resenas, #preview-landing-resenas, #opiniones";
+    else if (sectionId === "blog") selector = "#preview-landing-blog, #blog";
+    else if (sectionId === "guias") selector = "#preview-landing-guias, #guias-pacientes";
+    else if (sectionId === "contacto") selector = "#agendar-preview, #agendar";
+    else if (sectionId === "faqs") selector = "#preview-landing-faq, #faq";
 
-    const element = viewport.querySelector(`#${elementId}`);
+    const element = viewport.querySelector<HTMLElement>(selector);
     if (element) {
       const containerTop = viewport.getBoundingClientRect().top;
       const elementTop = element.getBoundingClientRect().top;
       const relativeTop = elementTop - containerTop;
       
       viewport.scrollTo({
-        top: viewport.scrollTop + relativeTop - 1, // Offset of 1px for border alignment
+        top: viewport.scrollTop + relativeTop - 2,
         behavior: "smooth"
       });
       setActiveSection(sectionId);
@@ -820,12 +877,51 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
     return d.toISOString().split("T")[0];
   });
   const [bookingTime, setBookingTime] = useState<string>("10:30 AM");
-  const [patientName, setPatientName] = useState<string>("");
+  const [visitorName, setVisitorName] = useState<string>("Jordan");
+  const [showWelcomePopup, setShowWelcomePopup] = useState<boolean>(() => {
+    return data.habilitarPopupBienvenida ?? true;
+  });
+  const [welcomeInputName, setWelcomeInputName] = useState<string>("Jordan");
+  const [patientName, setPatientName] = useState<string>("Jordan");
   const [bookingDetails, setBookingDetails] = useState<string>("");
+  const [bookingModality, setBookingModality] = useState<"presencial" | "teleconsulta">("presencial");
+  const [bookingService, setBookingService] = useState<string>("");
+  const [pricingTab, setPricingTab] = useState<"presencial" | "teleconsulta">("presencial");
+
+  // Formateador para primera letra en mayúscula y resto en minúscula
+  const formatCapitalizeName = (str: string) => {
+    if (!str) return "";
+    return str
+      .toLowerCase()
+      .replace(/(?:^|\s|['-])\S/g, (char) => char.toUpperCase());
+  };
+
+  const handleWelcomeInputChange = (val: string) => {
+    if (!val) {
+      setWelcomeInputName("");
+      return;
+    }
+    // Capitaliza primera letra de las palabras al escribir
+    const formatted = val.replace(/(?:^|\s)\S/g, (c) => c.toUpperCase());
+    setWelcomeInputName(formatted);
+  };
+
+  const handleSaveWelcomeName = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmed = formatCapitalizeName(welcomeInputName.trim());
+    if (trimmed) {
+      setVisitorName(trimmed);
+      setPatientName(trimmed);
+      setWelcomeInputName(trimmed);
+    }
+    setShowWelcomePopup(false);
+  };
 
   // Modal de confirmación de cita médica con resumen previo
   const [showBookingModal, setShowBookingModal] = useState<boolean>(false);
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
+  const [showShareModal, setShowShareModal] = useState<boolean>(false);
+  const [copiedShareUrl, setCopiedShareUrl] = useState<boolean>(false);
   const [showServicesModal, setShowServicesModal] = useState<boolean>(false);
   const [serviceSearchQuery, setServiceSearchQuery] = useState<string>("");
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
@@ -891,8 +987,11 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
     return bookingDate;
   };
 
-  // Helper para generar URL dinámica de WhatsApp con fecha, hora y paciente
-  const getDynamicWhatsAppUrl = (): string => {
+  // Helper para generar URL dinámica de WhatsApp con servicio, modalidad, precio, fecha, hora y paciente
+  const getDynamicWhatsAppUrl = (
+    overrideService?: string,
+    overrideModality?: "presencial" | "teleconsulta"
+  ): string => {
     const rawUrl = data.whatsappUrl || "https://wa.me/593991234567";
     const baseUrl = rawUrl.split("?")[0];
     let dateFormatted = "los próximos días";
@@ -907,15 +1006,30 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
         dateFormatted = bookingDate;
       }
     }
+
+    const currentService = (overrideService !== undefined ? overrideService : bookingService).trim() || "Consulta de Especialidad";
+    const currentModality = overrideModality !== undefined ? overrideModality : bookingModality;
+    const modalityText = currentModality === "teleconsulta"
+      ? "Teleconsulta Online (Videollamada)"
+      : `Presencial (Consultorio en ${data.ciudad || "Ecuador"})`;
+    const priceText = currentModality === "teleconsulta"
+      ? (data.precioTeleconsulta || "$40 USD")
+      : (data.precioConsulta || "$50 USD");
+
     const nameStr = patientName.trim() ? ` Mi nombre es ${patientName.trim()}.` : "";
     const detailsStr = bookingDetails.trim() ? ` Detalles de la consulta: ${bookingDetails.trim()}.` : "";
-    const defaultTemplate = "Hola Dr(a). {{medico}}, deseo agendar una consulta médica de {{especialidad}} para el día {{fecha}} a las {{hora}}.{{nombre}} Por favor me confirma disponibilidad.";
+    const defaultTemplate = "Hola Dr(a). {{medico}}, deseo agendar una valoración para {{servicio}} en modalidad {{modalidad}} para el día {{fecha}} a las {{hora}}.{{nombre}} Por favor me confirma disponibilidad.";
+    
     let msg = data.whatsappMensajePlantilla && data.whatsappMensajePlantilla.trim() 
       ? data.whatsappMensajePlantilla 
       : defaultTemplate;
 
     msg = msg
       .replace(/\{\{medico\}\}/gi, data.nombreMedico || "")
+      .replace(/\{\{servicio\}\}/gi, currentService)
+      .replace(/\{\{tratamiento\}\}/gi, currentService)
+      .replace(/\{\{modalidad\}\}/gi, modalityText)
+      .replace(/\{\{precio\}\}/gi, priceText)
       .replace(/\{\{especialidad\}\}/gi, data.especialidad || "")
       .replace(/\{\{ciudad\}\}/gi, data.ciudad || "")
       .replace(/\{\{clinica\}\}/gi, data.nombreClinicaGBP || "")
@@ -923,6 +1037,11 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
       .replace(/\{\{hora\}\}/gi, bookingTime)
       .replace(/\{\{nombre\}\}/gi, nameStr)
       .replace(/\{\{detalles\}\}/gi, bookingDetails.trim() ? `Detalles: ${bookingDetails.trim()}` : "");
+
+    // Si la plantilla no tenía {{servicio}} explícito y el usuario seleccionó un servicio específico
+    if (currentService && currentService !== "Consulta de Especialidad" && !data.whatsappMensajePlantilla?.includes("{{servicio}}") && !msg.includes(currentService)) {
+      msg += ` (Motivo: ${currentService})`;
+    }
 
     if (nameStr && !data.whatsappMensajePlantilla?.includes("{{nombre}}") && !msg.includes(nameStr)) {
       msg += nameStr;
@@ -937,28 +1056,45 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
 
   // Web Share API o Portapapeles para compartir el perfil del médico
   const handleShareProfile = async () => {
+    const shareUrl = typeof window !== "undefined" ? window.location.href : "";
     const shareData = {
       title: `${data.nombreMedico} - ${data.especialidad}`,
-      text: `Conoce el perfil clínico y trayectoria del ${data.nombreMedico}, especialista en ${data.especialidad} en ${data.ciudad}.`,
-      url: window.location.origin + window.location.pathname,
+      text: `Consulta médica y perfil profesional de ${data.nombreMedico}, especialista en ${data.especialidad} en ${data.ciudad}.`,
+      url: shareUrl,
     };
 
-    if (navigator.share) {
+    if (typeof navigator !== "undefined" && navigator.share) {
       try {
         await navigator.share(shareData);
       } catch (err) {
         console.log("Error al compartir:", err);
       }
     } else {
-      try {
-        await navigator.clipboard.writeText(window.location.origin + window.location.pathname);
-        setShareFeedback("¡Enlace copiado!");
-        setTimeout(() => setShareFeedback(""), 2500);
-      } catch (err) {
-        console.log("Error al copiar enlace:", err);
-        setShareFeedback("Error al copiar.");
-        setTimeout(() => setShareFeedback(""), 2500);
+      handleCopyShareLink();
+    }
+  };
+
+  const handleCopyShareLink = async () => {
+    const shareUrl = typeof window !== "undefined" ? window.location.href : "";
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard) {
+        await navigator.clipboard.writeText(shareUrl);
+      } else {
+        const tempInput = document.createElement("input");
+        tempInput.value = shareUrl;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        document.execCommand("copy");
+        document.body.removeChild(tempInput);
       }
+      setCopiedShareUrl(true);
+      setShareFeedback("¡Enlace copiado!");
+      setTimeout(() => {
+        setCopiedShareUrl(false);
+        setShareFeedback("");
+      }, 2500);
+    } catch (err) {
+      console.log("Error al copiar enlace:", err);
     }
   };
   
@@ -1096,6 +1232,20 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
 
   // Estado de Atención en Tiempo Real y Tokens de Diseño
   const liveStatus = getLiveConsultationStatus(data.horarios);
+  const cleanHorarioSemana = (data.horarios?.semana || "")
+    .replace(/^(lunes\s+a\s+viernes|lunes\s+a\s+s[aá]bado|lunes|semana):\s*/i, "")
+    .trim() || "10:00 AM - 07:00 PM";
+  const cleanHorarioSabado = (data.horarios?.sabado || "")
+    .replace(/^(s[aá]bados?):\s*/i, "")
+    .trim() || "Cerrado / Previa Cita Exclusiva";
+  const cleanHorarioDomingo = (data.horarios?.domingo || "")
+    .replace(/^(domingos?):\s*/i, "")
+    .trim() || "Cerrado";
+
+  const currentDayIndex = new Date().getDay();
+  const isSemanaActive = currentDayIndex >= 1 && currentDayIndex <= 5;
+  const isSabadoActive = currentDayIndex === 6;
+  const isDomingoActive = currentDayIndex === 0;
   const activeLandingStyle = getActiveLandingStyle(data.estiloLanding);
   const activeColorScale = getActiveColorScale(data.paletaColor, data.colorPrimarioHex);
   const activeSecondaryScale = data.colorSecundarioHex 
@@ -1105,7 +1255,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
     ? generateScaleFromHex(data.colorAcentoHex)
     : generateScaleFromHex("#f59e0b");
 
-  // Inyección dinámica de Google Fonts en el DOM para vista previa en tiempo real
+  // Inyección dinámica de Google Fonts y Preload de Recursos Clave (Logotipo y Foto LCP) para vista previa
   useEffect(() => {
     if (activeLandingStyle) {
       const dynamicFontsUrl = getDynamicGoogleFontsUrl(activeLandingStyle, data.fuenteTitulos, data.fuenteParrafos);
@@ -1118,7 +1268,31 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
       }
       link.href = dynamicFontsUrl;
     }
-  }, [activeLandingStyle, data.fuenteTitulos, data.fuenteParrafos]);
+
+    // Estrategia de pre-carga inmediata del logotipo y foto de perfil para optimización LCP
+    if (data.logoUrl && data.logoUrl.trim()) {
+      const cleanLogoUrl = data.logoUrl.trim();
+      
+      // 1. Preload en caché del navegador (Image object pre-decoding)
+      const preloadImg = new Image();
+      preloadImg.src = cleanLogoUrl;
+      if ("decode" in preloadImg) {
+        preloadImg.decode().catch(() => {});
+      }
+
+      // 2. Preload link element en el <head> con alta prioridad
+      let logoPreloadLink = document.querySelector(`link[data-preload-asset="medical-logo"]`) as HTMLLinkElement;
+      if (!logoPreloadLink) {
+        logoPreloadLink = document.createElement("link");
+        logoPreloadLink.rel = "preload";
+        logoPreloadLink.as = "image";
+        logoPreloadLink.setAttribute("data-preload-asset", "medical-logo");
+        logoPreloadLink.setAttribute("fetchpriority", "high");
+        document.head.appendChild(logoPreloadLink);
+      }
+      logoPreloadLink.href = cleanLogoUrl;
+    }
+  }, [activeLandingStyle, data.fuenteTitulos, data.fuenteParrafos, data.logoUrl]);
 
   return (
     <div id="preview-panel-container" className="bg-slate-100 rounded-2xl border border-slate-200 p-4 flex flex-col items-center h-full gap-4">
@@ -1143,16 +1317,6 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
           </span>
         </div>
         <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200/80">
-          <button
-            id="btn-preview-refresh-inner"
-            type="button"
-            onClick={onForceRefresh}
-            className="px-2.5 py-1.5 rounded-lg text-blue-700 bg-white hover:bg-blue-50 transition-all cursor-pointer flex items-center gap-1 font-bold text-[11px] border border-slate-200 shadow-2xs hover:scale-105"
-            title="Forzar refresco inmediato y re-renderizado de la vista previa"
-          >
-            <RefreshCw className="w-3.5 h-3.5 text-blue-600" />
-            <span className="hidden sm:inline">Refrescar</span>
-          </button>
           <button
             id="btn-preview-mobile"
             onClick={() => setDevice("mobile")}
@@ -1195,6 +1359,21 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
             <Monitor className="w-4 h-4" />
             <span className="text-[11px] font-extrabold hidden sm:inline">Desktop</span>
           </button>
+          {(data.habilitarPopupBienvenida ?? true) && (
+            <button
+              id="btn-trigger-welcome-modal"
+              type="button"
+              onClick={() => {
+                setWelcomeInputName(visitorName);
+                setShowWelcomePopup(true);
+              }}
+              className="p-1.5 px-2.5 rounded-lg text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 transition-all cursor-pointer flex items-center gap-1.5 font-bold text-[11px]"
+              title="Probar Popup de Bienvenida y Saludo Personalizado"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+              <span className="hidden xl:inline">Probar Popup</span>
+            </button>
+          )}
           <button
             id="btn-preview-external-inline"
             type="button"
@@ -1562,71 +1741,6 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                   </div>
                 )}
 
-                {/* BARRA SUPERIOR TOP INFO (Versión 5: Doble Barra Médica Light) */}
-                {device === "desktop" && data.estiloMenuDesktop === "split_centrado" && (
-                  <div className="bg-slate-100/95 border-b border-slate-200/90 text-slate-700 text-xs py-1.5 px-4 hidden md:block">
-                    <div className="w-[90%] max-w-[90%] mx-auto flex items-center justify-between">
-                      <div className="flex items-center gap-3 text-[11px] font-medium">
-                        {/* Badge Teléfono Light - Llamada Directa */}
-                        <a 
-                          href={`tel:${data.telefonoGBP.replace(/\s+/g, '')}`}
-                          title="Hacer clic para llamar directamente"
-                          className="flex items-center gap-2 px-2.5 py-0.5 rounded-md bg-white border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/50 transition-all cursor-pointer group shadow-2xs"
-                        >
-                          <span className="p-1 rounded-md bg-emerald-100 text-emerald-700 group-hover:bg-emerald-600 group-hover:text-white transition-all shrink-0">
-                            <PhoneCall className="w-3.5 h-3.5 animate-pulse" />
-                          </span>
-                          <span className="flex flex-col text-left leading-none">
-                            <span className="text-[9px] text-emerald-800 uppercase font-extrabold tracking-wider">Llamar Ahora</span>
-                            <strong className="text-slate-900 font-mono font-bold tracking-tight text-[11px] mt-0.5">{data.telefonoGBP}</strong>
-                          </span>
-                        </a>
-
-                        {/* Badge Ubicación Light */}
-                        <span 
-                          className="flex items-center gap-2 px-2.5 py-0.5 rounded-md bg-white border border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 transition-all cursor-pointer group shadow-2xs"
-                          onClick={() => scrollToSection("horarios_ubicacion")}
-                        >
-                          <span className="p-0.5 rounded-md bg-blue-100 text-blue-700 group-hover:scale-105 transition-transform shrink-0">
-                            <MapPin className="w-3.5 h-3.5" />
-                          </span>
-                          <span className="text-slate-700 font-medium">{data.ciudad}, {data.estadoRegion}</span>
-                        </span>
-
-                        {/* Badge Horario Light */}
-                        <span 
-                          className="flex items-center gap-2 px-2.5 py-0.5 rounded-md bg-white border border-slate-200 hover:border-amber-400 hover:bg-amber-50/50 transition-all cursor-pointer group shadow-2xs"
-                          onClick={() => scrollToSection("horarios_ubicacion")}
-                        >
-                          <span className="p-0.5 rounded-md bg-amber-100 text-amber-700 group-hover:scale-105 transition-transform shrink-0">
-                            <Clock className="w-3.5 h-3.5" />
-                          </span>
-                          <span className="text-slate-700 font-medium">{data.horarios?.semana || "Atención previa cita"}</span>
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        {/* Badge Atendiendo Hoy Light */}
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-extrabold uppercase tracking-wider shadow-2xs">
-                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                          <span>Atención Médica Hoy</span>
-                        </div>
-
-                        {/* Botón Agendar Cita Light */}
-                        <a 
-                          href={data.whatsappUrl} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
-                          className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[11px] shadow-2xs transition-all active:scale-95"
-                        >
-                          <MessageCircle className="w-3.5 h-3.5" />
-                          <span>Agendar Cita</span>
-                        </a>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
                 {/* HEADER / NAV (En móvil: se oculta arriba al inicio y aparece suavemente al hacer scroll) */}
                 <header 
                   id="preview-landing-header" 
@@ -1635,19 +1749,20 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                       ? `fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${
                           isScrolled ? "translate-y-0 opacity-100 shadow-md pointer-events-auto" : "-translate-y-full opacity-0 pointer-events-none"
                         }`
-                      : data.estiloMenuDesktop === "institucional"
-                        ? "sticky top-3 z-40 w-[92%] max-w-[92%] mx-auto bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-slate-200/90 my-2 px-4 sm:px-6 h-16 sm:h-20 flex items-center transition-all duration-300 hover:shadow-2xl hover:border-slate-300/80"
-                        : "sticky top-0 z-30 shadow-xs bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-2 sm:px-4 h-16 sm:h-20 flex items-center w-full"
+                      : "sticky top-0 z-30 shadow-xs bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-2 sm:px-4 h-16 sm:h-20 flex items-center w-full"
                   }`}
                 >
                   <div className="w-[90%] max-w-[90%] mx-auto flex items-center justify-between h-full">
                     {/* Brand Logo */}
-                    <div className="flex items-center shrink-0 cursor-pointer h-full py-2 overflow-hidden" onClick={() => scrollToSection("inicio")}>
+                    <div className="flex items-center shrink-0 h-full py-2 overflow-hidden cursor-pointer" onClick={() => scrollToSection("inicio")}>
                       {data.logoUrl ? (
                         <img 
-                          src={data.logoUrl} 
-                          alt="Logo Especialista" 
+                          src={data.logoUrl || undefined} 
+                          alt={`Logo ${data.nombreMedico || 'Especialista'}`} 
                           style={{ height: `${currentLogoH}px`, maxHeight: '100%', width: 'auto' }}
+                          loading="eager"
+                          fetchPriority="high"
+                          decoding="async"
                           className="object-contain object-left max-w-[180px] sm:max-w-[280px] md:max-w-[340px] bg-transparent shrink-0 transition-all duration-200"
                         />
                       ) : (
@@ -1657,14 +1772,6 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                             {data.nombreMedico}
                           </span>
                           <span className={`text-[10px] sm:text-[11px] text-${getC("600")} font-bold uppercase tracking-wider mt-0.5`}>{data.especialidad}</span>
-                        </div>
-                      )}
-
-                      {/* Badge Clínica Privada (Solo versión 6 Dark Luxury) */}
-                      {device === "desktop" && data.estiloMenuDesktop === "institucional" && (
-                        <div className="hidden lg:flex items-center gap-1.5 bg-slate-900 text-white border border-slate-800 px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase tracking-wide ml-3 shrink-0 shadow-xs">
-                          <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                          <span>Clínica Privada</span>
                         </div>
                       )}
                     </div>
@@ -1761,82 +1868,71 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                   </nav>
                 )}
 
-                {/* VERSIÓN 5 DE MENÚ DESKTOP: DOBLE BARRA MÉDICA LIGHT (PESTAÑAS ESTRUCTURADAS) */}
+                {/* VERSIÓN 5 DE MENÚ DESKTOP: PEDIÁTRICO COLORIDO CON ICONOS 3D */}
                 {device === "desktop" && data.estiloMenuDesktop === "split_centrado" && (
-                  <nav className="hidden md:flex items-center gap-1.5 ml-auto mr-4">
+                  <nav className="hidden md:flex items-center gap-1 bg-white/90 backdrop-blur-md p-1.5 rounded-2xl border border-slate-200/90 shadow-sm mx-auto">
                     {activeNavs.map((item) => {
                       const isActive = activeSection === item.id;
+                      const icon3D = (() => {
+                        switch (item.icon) {
+                          case "home": return "🏠";
+                          case "doctor": return "🩺";
+                          case "servicios": return "🧸";
+                          case "video": return "🎬";
+                          case "casos": return "✨";
+                          case "clinica": return "🏥";
+                          case "opiniones": return "⭐";
+                          case "faq": return "💡";
+                          case "blog": return "📚";
+                          case "guias": return "📋";
+                          case "cita": return "📅";
+                          default: return "🎈";
+                        }
+                      })();
                       return (
                         <button
                           key={item.id}
                           onClick={() => scrollToSection(item.id)}
-                          style={isActive ? { backgroundColor: activeColorScale["50"], color: activeColorScale["700"], borderColor: activeColorScale["200"] } : {}}
-                          className={`px-3.5 py-1.5 text-[13px] font-extrabold rounded-xl transition-all duration-200 cursor-pointer border ${
+                          style={isActive ? { backgroundColor: activeColorScale["600"], color: "#FFFFFF" } : {}}
+                          className={`px-3.5 py-2 text-[14px] rounded-xl transition-all duration-200 cursor-pointer flex items-center gap-1.5 group ${
                             isActive 
-                              ? "shadow-2xs font-black"
-                              : "border-transparent text-slate-700 hover:border-slate-200 hover:bg-slate-100/80 hover:text-slate-950"
+                              ? "font-extrabold text-white shadow-xs scale-[1.02]"
+                              : "text-slate-700 hover:text-slate-950 hover:bg-slate-100/80 font-bold"
                           }`}
                         >
-                          {item.label}
+                          <span className="text-base leading-none transition-transform duration-200 group-hover:scale-120 select-none">
+                            {icon3D}
+                          </span>
+                          <span>{item.label}</span>
                         </button>
                       );
                     })}
                   </nav>
                 )}
 
-                {/* VERSIÓN 6 DE MENÚ DESKTOP: MENÚ FLOTANTE MODERNO PREMIUM EN BLANCO */}
-                {device === "desktop" && data.estiloMenuDesktop === "institucional" && (
-                  <div className="hidden md:flex items-center gap-3 ml-auto mr-2">
-                    {/* Botón de Llamada Directa en Menú Flotante Blanco */}
-                    <a
-                      href={`tel:${data.telefonoGBP.replace(/\s+/g, '')}`}
-                      title="Hacer clic para llamar directamente"
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100/90 text-emerald-900 border border-emerald-200/90 transition-all hover:scale-[1.02] active:scale-95 shadow-2xs group shrink-0"
-                    >
-                      <span className="p-1 rounded-lg bg-emerald-600 text-white group-hover:bg-emerald-700 transition-colors shrink-0 shadow-2xs">
-                        <PhoneCall className="w-3.5 h-3.5 animate-pulse" />
-                      </span>
-                      <div className="flex flex-col text-left leading-none">
-                        <span className="text-[9px] text-emerald-800 uppercase font-black tracking-wider">Llamar Directo</span>
-                        <strong className="text-[12px] font-mono font-extrabold text-slate-900 mt-0.5">{data.telefonoGBP}</strong>
-                      </div>
-                    </a>
-
-                    <div className="h-6 w-px bg-slate-200/90"></div>
-
-                    {/* Navegación Flotante Segmentada */}
-                    <nav className="flex items-center gap-1 bg-slate-100/90 border border-slate-200/90 p-1 rounded-xl shadow-2xs">
-                      {activeNavs.map((item) => {
-                        const isActive = activeSection === item.id;
-                        return (
-                          <button
-                            key={item.id}
-                            onClick={() => scrollToSection(item.id)}
-                            style={isActive ? { backgroundColor: activeColorScale["600"], color: "#FFFFFF" } : {}}
-                            className={`px-3 py-1.5 text-[13px] font-extrabold rounded-lg transition-all duration-200 cursor-pointer ${
-                              isActive 
-                                ? "text-white font-black shadow-md scale-[1.03]"
-                                : "text-slate-700 hover:text-slate-950 hover:bg-white/80"
-                            }`}
-                          >
-                            {item.label}
-                          </button>
-                        );
-                      })}
-                    </nav>
-                  </div>
-                )}
-
                 {/* Actions Block */}
-                <div className="flex items-center gap-2">
-                  {/* Calendar Quick Cta Button */}
+                <div className="flex items-center gap-2 shrink-0">
+                  {/* Botón Agendar Cita en Desktop para v5 */}
+                  {device === "desktop" && data.estiloMenuDesktop === "split_centrado" && (
+                    <button
+                      onClick={() => scrollToSection("contacto")}
+                      style={{ backgroundColor: activeColorScale["600"] }}
+                      className="px-3.5 py-1.5 sm:px-4 sm:py-2 text-white text-xs font-black flex items-center gap-1.5 shadow-sm hover:shadow transition-all shrink-0 hover:scale-105 active:scale-95 cursor-pointer rounded-xl"
+                    >
+                      <span className="text-sm">📅</span>
+                      <span>Agendar Cita</span>
+                    </button>
+                  )}
+
+                  {/* Botón Asistente Virtual (Estilo IA Sutil Persistente) */}
                   <button 
-                    onClick={() => scrollToSection("contacto")}
-                    aria-label="Agendar Cita"
-                    title="Agendar Cita"
-                    className="w-9 h-9 sm:w-10 sm:h-10 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-full flex items-center justify-center shadow-md hover:shadow-lg transition-all shrink-0 hover:scale-105 cursor-pointer"
+                    onClick={() => scrollToSection("faqs")}
+                    aria-label="Asistente Virtual IA"
+                    title="Ir al Asistente Virtual IA"
+                    className="px-3 py-1.5 sm:px-3.5 sm:py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 active:from-blue-700 active:to-violet-700 text-white rounded-full flex items-center gap-1.5 shadow-md hover:shadow-indigo-500/25 transition-all duration-300 shrink-0 hover:scale-105 cursor-pointer border border-indigo-300/40 text-xs sm:text-xs font-black tracking-tight"
                   >
-                    <Calendar className="w-4.5 h-4.5 shrink-0" />
+                    <Bot className="w-4 h-4 shrink-0 text-indigo-100" />
+                    <span>Asistente</span>
                   </button>
 
                   {/* Mobile Hamburger Menu Button (Only in mobile view mode) */}
@@ -1858,29 +1954,62 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                 </div>
               </div>
 
-              {/* Mobile Slide-Down Menu Panel */}
+              {/* Mobile Slide-Down Menu Panel (Lista vertical con el mismo estilo de etiqueta/tarjeta) */}
               {device === "mobile" && mobileMenuOpen && (
-                <div className="overflow-hidden max-w-full w-full border-t border-slate-100 mt-2.5">
-                  <nav className="flex flex-wrap items-center justify-center py-2 px-2.5 gap-2 bg-slate-50/90 rounded-2xl border border-slate-200/70 mt-1 max-w-full overflow-hidden">
+                <div className="overflow-hidden max-w-full w-full border-t border-slate-100 mt-2.5 pb-2">
+                  <nav className="flex flex-col gap-2 bg-slate-50/90 p-2.5 rounded-2xl border border-slate-200/80 mt-1 w-full overflow-hidden">
                     {activeNavs.map((item) => {
                       const isActive = activeSection === item.id;
                       const Icon = getIconComponent(item.icon);
+                      const isCita = item.id === "contacto";
+                      const isOpiniones = item.id === "opiniones";
+                      const isAsistente = item.id === "faqs";
                       return (
                         <button
                           key={item.id}
-                          onClick={() => scrollToSection(item.id)}
-                          style={isActive ? { backgroundColor: activeColorScale["600"], color: "#FFFFFF" } : {}}
-                          className={`flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-[13px] font-bold transition-all cursor-pointer shrink-0 ${
+                          onClick={() => {
+                            scrollToSection(item.id);
+                            setMobileMenuOpen(false);
+                          }}
+                          style={isActive ? { backgroundColor: activeColorScale["600"], color: "#FFFFFF", borderColor: activeColorScale["600"] } : {}}
+                          className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer shadow-2xs group ${
                             isActive 
                               ? "text-white shadow-xs font-black"
-                              : "text-slate-800 bg-white border border-slate-200/60 hover:bg-slate-100 hover:text-slate-950"
+                              : isCita
+                                ? "text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300/80 font-black"
+                                : "text-slate-800 bg-white border border-slate-200/80 hover:bg-slate-100 hover:text-slate-950"
                           }`}
                         >
-                          <Icon className={`w-4 h-4 shrink-0 min-w-[16px] min-h-[16px] ${isActive ? "text-white" : "text-slate-600"}`} />
-                          <span className="whitespace-nowrap font-bold">{item.label}</span>
-                          {isActive && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0" />
-                          )}
+                          <div className="flex items-center gap-3">
+                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                              isActive 
+                                ? "bg-white/20 text-white" 
+                                : isCita 
+                                  ? "bg-emerald-100 text-emerald-700" 
+                                  : isOpiniones
+                                    ? "bg-amber-100 text-amber-500"
+                                    : isAsistente
+                                      ? "bg-indigo-100 text-indigo-700"
+                                      : "bg-slate-100 text-slate-600 group-hover:bg-slate-200"
+                            }`}>
+                              <Icon className={`w-4 h-4 shrink-0 min-w-[16px] min-h-[16px] ${
+                                isActive 
+                                  ? "text-white" 
+                                  : isOpiniones 
+                                    ? "fill-amber-400 text-amber-500" 
+                                    : isAsistente
+                                      ? "text-indigo-600"
+                                      : ""
+                              }`} />
+                            </div>
+                            <span className="font-bold tracking-tight">{item.label}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            {isActive && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0 mr-1" />
+                            )}
+                            <ChevronRight className={`w-4 h-4 transition-transform group-hover:translate-x-0.5 shrink-0 ${isActive ? "text-white/80" : "text-slate-400 group-hover:text-slate-600"}`} />
+                          </div>
                         </button>
                       );
                     })}
@@ -1981,7 +2110,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                 const isSinBorde = forma === "sin_borde";
 
                 return (
-                  <div className={`relative group hero-animate-image ${isDesktop ? "shrink-0 my-0.5" : "mx-auto -mt-0.5 mb-1 sm:my-0.5 max-w-full"}`}>
+                  <div className={`relative group hero-animate-image ${isDesktop ? "shrink-0 my-0.5" : "mx-auto -mt-4 sm:-mt-2 mb-1 sm:my-0.5 max-w-full"}`}>
                     <style>{`
                       .doctor-hero-photo-container {
                         width: ${currentW}px !important;
@@ -2106,7 +2235,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                         }
                       >
                         <img 
-                          src={data.fotoUrl} 
+                          src={data.fotoUrl || undefined} 
                           alt={data.nombreMedico} 
                           className={`w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-105 ${
                             isCircular ? "rounded-full" : isRect ? "rounded-2xl sm:rounded-[2.5rem]" : "rounded-none"
@@ -2126,20 +2255,20 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                 <div className={`space-y-3 sm:space-y-3.5 w-full ${isDesktopAlignLeft ? "text-left flex flex-col items-start" : "text-center flex flex-col items-center mx-auto max-w-2xl"}`}>
                   {/* BADGE: MÉDICO CERTIFICADO O VERIFICADO */}
                   <div className={`flex items-center ${isDesktopAlignLeft ? "justify-start" : "justify-center"} pt-0.5 hero-animate-badge`}>
-                    <div className="inline-flex items-center gap-1.5 px-3.5 py-1 sm:px-4 sm:py-1.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-[11px] sm:text-xs font-extrabold uppercase tracking-wider shadow-sm border border-blue-400/40 shrink-0 transform transition-all duration-200 hover:scale-105 cursor-default">
-                      <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-100 shrink-0" />
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 sm:px-3 sm:py-1 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider shadow-sm border border-blue-400/40 shrink-0 transform transition-all duration-200 hover:scale-105 cursor-default">
+                      <ShieldCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-100 shrink-0" />
                       <span>{isCentradoVersion ? "Verificado" : (isClinica ? "Centro Acreditado" : "Médico Certificado")}</span>
                     </div>
                   </div>
 
                   {/* NOMBRE Y ESPECIALIDAD */}
-                  <div className={`space-y-0.5 w-full ${isDesktopAlignLeft ? "text-left px-0" : "text-center px-2"}`}>
-                    <h2 className={`text-2xl sm:text-3xl md:text-3xl lg:text-4xl font-bold leading-tight tracking-tight break-words max-w-full font-display hero-animate-title ${
+                  <div className={`space-y-1 w-full ${isDesktopAlignLeft ? "text-left px-0" : "text-center px-2"}`}>
+                    <h2 className={`text-[1.45rem] sm:text-3xl md:text-4xl lg:text-5xl font-bold leading-tight tracking-tight break-words max-w-full font-display hero-animate-title ${
                       data.tipoOverlayHero === "claro" ? "text-slate-900 drop-shadow-xs" : "text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.7)]"
                     }`}>
                       {data.nombreMedico}
                     </h2>
-                    <h1 className={`text-sm sm:text-base md:text-lg uppercase tracking-wide sm:tracking-wider leading-snug break-words max-w-full hero-animate-specialty ${
+                    <h1 className={`text-[0.935rem] sm:text-base md:text-xl lg:text-2xl uppercase tracking-wide sm:tracking-wider leading-snug break-words max-w-full hero-animate-specialty ${
                       data.tipoOverlayHero === "claro" ? "text-blue-700 font-extrabold drop-shadow-2xs" : "text-cyan-300 font-semibold drop-shadow-xs"
                     }`}>
                       <TypewriterText text={data.especialidad} />
@@ -2226,24 +2355,12 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                       <Phone className="w-5 h-5" />
                     </a>
 
-                    {/* 5. Compartir Perfil */}
+                    {/* 5. Compartir Perfil en Redes Sociales */}
                     <button 
                       type="button"
-                      onClick={() => {
-                        if (navigator.share) {
-                          navigator.share({
-                            title: `${data.nombreMedico} - ${data.especialidad}`,
-                            text: `Consulta médica y perfil profesional de ${data.nombreMedico} en ${data.ciudad}`,
-                            url: window.location.href
-                          }).catch(() => {});
-                        } else {
-                          navigator.clipboard?.writeText(window.location.href);
-                          setShareFeedback("¡Enlace del perfil copiado!");
-                          setTimeout(() => setShareFeedback(""), 2500);
-                        }
-                      }}
-                      aria-label="Compartir perfil"
-                      title="Compartir Perfil Médico"
+                      onClick={() => setShowShareModal(true)}
+                      aria-label="Compartir perfil en redes sociales"
+                      title="Compartir Perfil en Redes Sociales"
                       className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer border border-white/20"
                     >
                       <Share2 className="w-5 h-5" />
@@ -2262,10 +2379,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                           : "bg-slate-900/85 hover:bg-slate-800 active:bg-slate-950 text-white border-white/20"
                       }`}
                     >
-                      <span className="relative inline-flex h-2.5 w-2.5 md:h-3 md:w-3 shrink-0">
-                        <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${liveStatus.dotColor === 'emerald' ? 'bg-emerald-400' : liveStatus.dotColor === 'amber' ? 'bg-amber-400' : 'bg-slate-400'} opacity-75`}></span>
-                        <span className={`inline-flex rounded-full h-2.5 w-2.5 md:h-3 md:w-3 ${liveStatus.dotColor === 'emerald' ? 'bg-emerald-500' : liveStatus.dotColor === 'amber' ? 'bg-amber-500' : 'bg-slate-500'}`}></span>
-                      </span>
+                      <span className={`w-2.5 h-2.5 md:w-3 md:h-3 rounded-full shrink-0 ${liveStatus.dotColor === 'emerald' ? 'bg-emerald-500 animate-pulse' : liveStatus.dotColor === 'amber' ? 'bg-amber-500 animate-pulse' : 'bg-rose-500 animate-pulse'}`}></span>
                       {device === "mobile" ? (
                         <span className={`transition-colors font-bold text-xs whitespace-nowrap truncate ${data.tipoOverlayHero === "claro" ? "group-hover/badge:text-blue-700 text-slate-900" : "group-hover/badge:text-cyan-300 text-white"}`}>
                           {liveStatus.badgeText}
@@ -2341,14 +2455,17 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
 
               // Renderizado para MOBILE Y TABLET (1 columna vertical: Logotipo -> Foto de Perfil -> Información)
               return (
-                <div className="relative z-10 w-full max-w-xl mx-auto flex flex-col items-center justify-center space-y-2.5 sm:space-y-3.5 text-center my-auto -mt-3.5 sm:mt-0">
+                <div className="relative z-10 w-full max-w-xl mx-auto flex flex-col items-center justify-center space-y-1 sm:space-y-3.5 text-center my-auto -mt-3.5 sm:mt-0">
                   {/* 1. LOGOTIPO (Visible únicamente en Mobile y Tablet, Oculto en Desktop) */}
                   {data.logoUrl ? (
                     <div className="w-full flex justify-center items-center -mt-2 sm:-mt-2 pt-0 pb-0 animate-in fade-in slide-in-from-top-2 duration-700">
                       <img 
-                        src={data.logoUrl} 
+                        src={data.logoUrl || undefined} 
                         alt={`Logotipo ${data.nombreMedico}`} 
                         style={{ height: `${Math.round(currentLogoH * 1.25)}px`, maxHeight: `${Math.round(currentLogoH * 1.25)}px`, width: 'auto' }}
+                        loading="eager"
+                        fetchPriority="high"
+                        decoding="async"
                         className="object-contain bg-transparent filter drop-shadow-[0_4px_12px_rgba(0,0,0,0.6)] transition-all duration-200 hover:scale-105"
                       />
                     </div>
@@ -2374,74 +2491,144 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
           </section>
         )}
 
-        {/* NOSOTROS / ACERCA DE */}
-        {isSectionVisible("eeat") && (
-          <section id="preview-landing-nosotros" className="p-6 sm:p-8 bg-white space-y-6 text-left">
-          <div className="space-y-2.5">
-            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-${getC("50")} text-${getC("700")} border border-${getC("200")}/80 shadow-2xs`}>
-              <ShieldCheck className={`w-3.5 h-3.5 text-${getC("600")} shrink-0`} />
-              <span>{isClinica ? "Sobre Nosotros / Centro Médico" : "Sobre el Especialista"}</span>
-            </div>
-            <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-slate-950 leading-tight">{isClinica ? "Trayectoria e Instalaciones" : "Trayectoria y formación"}</h2>
-            <p className={`text-xs sm:text-sm font-semibold text-${getC("700")} tracking-wide`}>Experiencia, acreditaciones y compromiso con el paciente</p>
-            <p className="text-sm sm:text-base text-slate-700 leading-relaxed">
-              {data.biografiaCurta}
-            </p>
-          </div>
-
-          {/* Badges y Stats Rápidos de Alto Impacto (Diseño Vertical Compacto Mobile-First) */}
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 py-2">
-            {/* CARD 1: EXPERIENCIA MÉDICA */}
-            <div className={`relative overflow-hidden p-3.5 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-50 via-white to-${getC("50")}/50 border border-slate-200/90 shadow-xs hover:shadow-md transition-all duration-300 group border-l-4 border-l-${getC("600")} flex flex-col items-start gap-2 sm:gap-3`}>
-              <div className={`w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-br from-${getC("600")} to-${getC("700")} text-white shadow-xs shadow-${getC("600")}/20 flex items-center justify-center shrink-0 ring-2 sm:ring-4 ring-${getC("100")}/80 group-hover:scale-105 transition-transform duration-300`}>
-                <Award className="w-4.5 h-4.5 sm:w-5.5 sm:h-5.5 text-white" />
-              </div>
-              <div className="flex-1 w-full min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className={`text-xl sm:text-3xl font-black text-${getC("600")} tracking-tight`}>+{data.anosExperiencia}</span>
-                  <span className={`text-[9px] sm:text-[10px] font-extrabold px-1.5 sm:px-2 py-0.5 rounded-md bg-${getC("100")} text-${getC("800")} uppercase tracking-wider`}>
-                    Años Exp.
+        {/* FRANJA DE SALUDO PERSONALIZADO BAJO EL HERO (FONDO TRANSPARENTE) */}
+        {(data.habilitarPopupBienvenida ?? true) && (
+          <div id="preview-franja-saludo" className="w-full py-4 sm:py-5 px-4 sm:px-6 text-center bg-transparent border-b border-slate-200/40 animate-in fade-in duration-500">
+            <style>{`
+              @keyframes heartbeat4s {
+                0%, 82%, 100% {
+                  transform: scale(1);
+                }
+                87% {
+                  transform: scale(1.18);
+                }
+                92% {
+                  transform: scale(1.02);
+                }
+                96% {
+                  transform: scale(1.12);
+                }
+              }
+              .heartbeat-4s {
+                animation: heartbeat4s 4s ease-in-out infinite;
+                will-change: transform;
+              }
+            `}</style>
+            <div className="max-w-2xl mx-auto flex items-center justify-center gap-2 sm:gap-3">
+              <span className="text-2xl sm:text-3xl filter drop-shadow-[0_4px_8px_rgba(0,0,0,0.18)] hover:scale-125 transition-transform duration-300 select-none heartbeat-4s inline-block cursor-default" role="img" aria-label="Icono Saludo 3D">
+                {data.popupBienvenidaIcono || "😊"}
+              </span>
+              <p className="text-sm sm:text-base md:text-lg font-bold sm:font-semibold text-slate-800 tracking-tight leading-snug">
+                {visitorName ? (
+                  (() => {
+                    const fullTemplate = data.franjaSaludoHeroTexto || "¡Hola {nombre}, te muestro un poco de mi!";
+                    const parts = fullTemplate.split("{nombre}");
+                    return (
+                      <span>
+                        {parts[0]}
+                        <span style={{ color: activeColorScale["600"] }} className="font-extrabold">
+                          {visitorName}
+                        </span>
+                        {parts[1] || ""}
+                      </span>
+                    );
+                  })()
+                ) : (
+                  <span className="text-slate-600">
+                    {(data.franjaSaludoHeroTexto || "¡Hola {nombre}, te muestro un poco de mi!").replace("{nombre}", "visitante")}
                   </span>
-                </div>
-                <p className="text-[11px] sm:text-xs font-bold text-slate-800 tracking-wide mt-1 leading-snug">{isClinica ? "Trayectoria Institucional Acreditada" : "Trayectoria Médica Acreditada"}</p>
-                <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium truncate mt-0.5 hidden sm:block">Experiencia clínica y actualización continua</p>
-              </div>
+                )}
+              </p>
             </div>
+          </div>
+        )}
 
-            {/* CARD 2: PUNTUACIÓN DE PACIENTES */}
-            <div className="relative overflow-hidden p-3.5 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-50 via-white to-amber-50/50 border border-slate-200/90 shadow-xs hover:shadow-md transition-all duration-300 group border-l-4 border-l-amber-500 flex flex-col items-start gap-2 sm:gap-3">
-              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-xs shadow-amber-500/20 flex items-center justify-center shrink-0 ring-2 sm:ring-4 ring-amber-100/80 group-hover:scale-105 transition-transform duration-300">
-                <Star className="w-4.5 h-4.5 sm:w-5.5 sm:h-5.5 text-white fill-white" />
+        {/* NOSOTROS / ACERCA DE + GALERÍA FUSIONADA */}
+        {(isSectionVisible("eeat") || (isSectionVisible("galeria") && data.fotosConsultorio && data.fotosConsultorio.length > 0)) && (
+          <section id="preview-landing-nosotros" className="p-6 sm:p-8 bg-white space-y-6 text-left">
+          {isSectionVisible("eeat") && (
+            <>
+              <div className="space-y-2.5">
+                <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-${getC("50")} text-${getC("700")} border border-${getC("200")}/80 shadow-2xs`}>
+                  <ShieldCheck className={`w-3.5 h-3.5 text-${getC("600")} shrink-0`} />
+                  <span>{isClinica ? "Sobre Nosotros / Centro Médico" : "Sobre el Especialista"}</span>
+                </div>
+                <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-slate-950 leading-tight">{isClinica ? "Trayectoria e Instalaciones" : "Trayectoria y formación"}</h2>
+                <p className={`text-xs sm:text-sm font-semibold text-${getC("700")} tracking-wide`}>Experiencia, acreditaciones y compromiso con el paciente</p>
+                <p className="text-sm sm:text-base text-slate-700 leading-relaxed">
+                  {data.biografiaCurta}
+                </p>
               </div>
-              <div className="flex-1 w-full min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-xl sm:text-3xl font-black text-slate-900 tracking-tight">4.9<span className="text-xs sm:text-lg text-slate-400 font-bold">/5</span></span>
-                  <div className="flex items-center gap-0.5 px-1.5 sm:px-2 py-0.5 rounded-md bg-amber-100 text-amber-800">
-                    <Star className="w-2.5 h-2.5 sm:w-3 sm:h-3 fill-amber-500 text-amber-500 shrink-0" />
-                    <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider">Reseñas</span>
+
+              {/* Badges y Stats Rápidos de Alto Impacto (Diseño Vertical Compacto Mobile-First) */}
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 py-2">
+                {/* CARD 1: EXPERIENCIA MÉDICA */}
+                <div className={`relative overflow-hidden p-3.5 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-50 via-white to-${getC("50")}/50 border border-slate-200/90 shadow-xs hover:shadow-md transition-all duration-300 group border-l-4 border-l-${getC("600")} flex flex-col items-start gap-2 sm:gap-3`}>
+                  <div className={`w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-br from-${getC("600")} to-${getC("700")} text-white shadow-xs shadow-${getC("600")}/20 flex items-center justify-center shrink-0 ring-2 sm:ring-4 ring-${getC("100")}/80 group-hover:scale-105 transition-transform duration-300`}>
+                    <Award className="w-4.5 h-4.5 sm:w-5.5 sm:h-5.5 text-white" />
+                  </div>
+                  <div className="flex-1 w-full min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={`text-xl sm:text-3xl font-black text-${getC("600")} tracking-tight`}>+{data.anosExperiencia}</span>
+                      <span className={`text-[9px] sm:text-[10px] font-extrabold px-1.5 sm:px-2 py-0.5 rounded-md bg-${getC("100")} text-${getC("800")} uppercase tracking-wider`}>
+                        Años Exp.
+                      </span>
+                    </div>
+                    <p className="text-[11px] sm:text-xs font-bold text-slate-800 tracking-wide mt-1 leading-snug">{isClinica ? "Trayectoria Institucional Acreditada" : "Trayectoria Médica Acreditada"}</p>
+                    <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium truncate mt-0.5">Experiencia clínica y actualización continua</p>
                   </div>
                 </div>
-                <p className="text-[11px] sm:text-xs font-bold text-slate-800 tracking-wide mt-1 leading-snug">Puntuación Pacientes</p>
-                <div className="flex items-center gap-1 mt-0.5">
-                  <div className="flex text-amber-400 text-[10px] sm:text-xs">★★★★★</div>
-                  <span className="text-[9px] sm:text-[11px] text-slate-500 font-semibold">(Excelente)</span>
+
+                {/* CARD 2: PUNTUACIÓN DE PACIENTES */}
+                <div className="relative overflow-hidden p-3.5 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-50 via-white to-amber-50/50 border border-slate-200/90 shadow-xs hover:shadow-md transition-all duration-300 group border-l-4 border-l-amber-500 flex flex-col items-start gap-2 sm:gap-3">
+                  <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-xs shadow-amber-500/20 flex items-center justify-center shrink-0 ring-2 sm:ring-4 ring-amber-100/80 group-hover:scale-105 transition-transform duration-300">
+                    <Star className="w-4.5 h-4.5 sm:w-5.5 sm:h-5.5 text-white fill-white" />
+                  </div>
+                  <div className="flex-1 w-full min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xl sm:text-3xl font-black text-slate-900 tracking-tight">4.9<span className="text-xs sm:text-lg text-slate-400 font-bold">/5</span></span>
+                      <div className="flex items-center gap-0.5 px-1.5 sm:px-2 py-0.5 rounded-md bg-amber-100 text-amber-800">
+                        <Star className="w-2.5 h-2.5 sm:w-3 sm:h-3 fill-amber-500 text-amber-500 shrink-0" />
+                        <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider">Reseñas</span>
+                      </div>
+                    </div>
+                    <p className="text-[11px] sm:text-xs font-bold text-slate-800 tracking-wide mt-1 leading-snug">Puntuación Pacientes</p>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <div className="flex text-amber-400 text-[10px] sm:text-xs">★★★★★</div>
+                      <span className="text-[9px] sm:text-[11px] text-slate-500 font-semibold">(Excelente)</span>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* Botón de acceso al Perfil Médico con Animación Bounce */}
-          <div className="pt-2 flex justify-center">
-            <button
-              type="button"
-              onClick={() => setShowProfileModal(true)}
-              className={`w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-xl bg-${getC("600")} hover:bg-${getC("700")} text-white text-xs sm:text-sm font-extrabold uppercase tracking-wide shadow-md hover:shadow-lg hover:-translate-y-0.5 active:scale-95 transition-all duration-200 cursor-pointer animate-bounce hover:animate-none`}
-              style={{ animationDuration: '2.5s' }}
-            >
-              <UserCheck className="w-5 h-5 text-white shrink-0" />
-              <span className="font-black">{isClinica ? "CONOCE NUESTRO CENTRO" : "MI PERFIL COMPLETO"}</span>
-            </button>
-          </div>
+              {/* Botón de acceso al Perfil Médico con Animación Bounce */}
+              <div className="pt-2 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => setShowProfileModal(true)}
+                  className={`w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-xl bg-${getC("600")} hover:bg-${getC("700")} text-white text-xs sm:text-sm font-extrabold uppercase tracking-wide shadow-md hover:shadow-lg hover:-translate-y-0.5 active:scale-95 transition-all duration-200 cursor-pointer animate-bounce hover:animate-none`}
+                  style={{ animationDuration: '2.5s' }}
+                >
+                  <UserCheck className="w-5 h-5 text-white shrink-0" />
+                  <span className="font-black">{isClinica ? "CONOCE NUESTRO CENTRO" : "MI PERFIL COMPLETO"}</span>
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* GALERÍA DE INSTALACIONES & CONSULTORIO FUSIONADA ABAJO DE LA INFORMACIÓN */}
+          {isSectionVisible("galeria") && data.fotosConsultorio && data.fotosConsultorio.length > 0 && (
+            <ClinicGalleryPreviewCarousel
+              photos={data.fotosConsultorio || []}
+              primaryColorClass={getC("600")}
+              getC={getC}
+              subtituloInstalaciones={data.subtituloInstalaciones}
+              tituloInstalaciones={data.tituloInstalaciones}
+              descripcionInstalaciones={data.descripcionInstalaciones}
+              isClinica={isClinica}
+              isMerged={isSectionVisible("eeat")}
+            />
+          )}
         </section>
         )}
 
@@ -2453,12 +2640,11 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
               Tratamientos & Procedimientos
             </span>
             <h2 className="text-xl sm:text-2xl font-extrabold text-slate-950">Procedimientos y Tratamientos Especializados</h2>
-            <p className={`text-xs sm:text-sm text-${getC("700")} mt-1 max-w-lg mx-auto font-medium`}>Servicios integrales diseñados bajo estándares internacionales para garantizar seguridad y máxima precisión.</p>
           </div>
 
           {/* Grid de servicios principales (6 en desktop, 4 en tablet/mobile) */}
           <div className={`grid ${device === "desktop" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : device === "tablet" ? "grid-cols-2" : "grid-cols-1"} gap-4`}>
-            {data.servicios.slice(0, device === "desktop" ? 6 : 4).map((srv, idx) => {
+            {(showAllServicesInGrid ? data.servicios : data.servicios.slice(0, device === "desktop" ? 6 : 4)).map((srv, idx) => {
               const hasImage = srv.mostrarImagen !== false && Boolean(srv.imagenUrl);
 
               return (
@@ -2466,7 +2652,8 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                   key={srv.id || idx} 
                   className="p-4 sm:p-5 bg-white rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between gap-4 hover:border-blue-300 hover:shadow-md transition-all group overflow-hidden"
                 >
-                  <div className="space-y-3">
+                  <div className="space-y-3 cursor-pointer" onClick={() => setSelectedServiceForDetail(srv)}>
+                    {/* Contenedor Superior: Imagen o Badge Superior */}
                     {hasImage ? (
                       <div className="relative w-full aspect-[5/4] rounded-xl overflow-hidden bg-slate-100 border border-slate-200/90 shadow-2xs group-hover:scale-[1.015] transition-transform duration-300">
                         <img src={srv.imagenUrl} alt={srv.titulo} className="w-full h-full object-cover" loading="lazy" />
@@ -2489,10 +2676,16 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                             );
                           })()}
                         </div>
+                        {srv.galeriaFotos && srv.galeriaFotos.length > 0 && (
+                          <span className="absolute bottom-2 left-2 text-[10px] font-extrabold text-white bg-slate-900/85 backdrop-blur-xs px-2.5 py-0.5 rounded-full shadow-md flex items-center gap-1 border border-white/20">
+                            <ImageIcon className="w-3 h-3 text-blue-400" />
+                            <span>+{srv.galeriaFotos.length} fotos</span>
+                          </span>
+                        )}
                       </div>
                     ) : (
                       <div className="flex items-center justify-between">
-                        <div className="p-3 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 shrink-0 h-12 w-12 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                        <div className={`p-3 rounded-xl bg-${getC("50")} text-${getC("600")} border border-${getC("100")} shrink-0 h-12 w-12 flex items-center justify-center group-hover:bg-${getC("600")} group-hover:text-white transition-colors`}>
                           {renderIcon(srv.icono)}
                         </div>
                         <div className="flex flex-col items-end gap-1">
@@ -2517,61 +2710,90 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                       </div>
                     )}
 
-                    <div className="space-y-1.5 min-w-0">
-                      {/* H2 para SEO según requerimiento */}
-                      <h2 className="text-base sm:text-lg font-extrabold text-slate-950 leading-snug group-hover:text-blue-600 transition-colors">
+                    {/* TÍTULO Y DESCRIPCIÓN DEL SERVICIO */}
+                    <div className="space-y-2 min-w-0">
+                      <h2 className={`text-base sm:text-lg font-extrabold text-slate-950 leading-snug group-hover:text-${getC("600")} transition-colors`}>
                         {srv.titulo}
                       </h2>
-                      <p className="text-xs sm:text-sm text-slate-600 leading-relaxed line-clamp-3">{srv.descripcion}</p>
+                      <p className="text-xs sm:text-sm text-slate-600 leading-relaxed line-clamp-3 font-normal">
+                        {srv.descripcion}
+                      </p>
                     </div>
                   </div>
 
                   {/* Indicadores Rápidos (Ficha Técnica: Precio, Duración, Recuperación, Modalidad) */}
-                  <div className="flex flex-wrap items-center gap-1.5 pt-2.5 border-t border-slate-100 text-[11px]">
-                    {srv.precio && (
-                      <span className="inline-flex items-center gap-1 font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/60 px-2.5 py-0.5 rounded-md" title="Inversión / Precio Estimado">
-                        <Banknote className="w-3 h-3 text-emerald-600 shrink-0" />
-                        <span>{srv.precio}</span>
-                      </span>
-                    )}
-                    {srv.duracion && (
-                      <span className="inline-flex items-center gap-1 font-bold text-blue-800 bg-blue-50 border border-blue-200/60 px-2.5 py-0.5 rounded-md" title="Duración de la Cita">
-                        <Clock className="w-3 h-3 text-blue-600 shrink-0" />
-                        <span>⏳ {srv.duracion}</span>
-                      </span>
-                    )}
-                    {srv.recuperacion && (
-                      <span className="inline-flex items-center gap-1 font-bold text-purple-800 bg-purple-50 border border-purple-200/60 px-2.5 py-0.5 rounded-md" title="Tiempo de Recuperación">
-                        <Activity className="w-3 h-3 text-purple-600 shrink-0" />
-                        <span>⏱️ {srv.recuperacion}</span>
-                      </span>
-                    )}
-                    {srv.modalidad && (
-                      <span className="inline-flex items-center gap-1 font-bold text-teal-800 bg-teal-50 border border-teal-200/60 px-2.5 py-0.5 rounded-md" title="Modalidad de Atención">
-                        <Building2 className="w-3 h-3 text-teal-600 shrink-0" />
-                        <span>🏥 {srv.modalidad}</span>
-                      </span>
-                    )}
+                  <div className="space-y-3 pt-2.5 border-t border-slate-100">
+                    <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                      {srv.precio && (
+                        <span className="inline-flex items-center gap-1 font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/60 px-2.5 py-0.5 rounded-md" title="Inversión / Precio Estimado">
+                          <Banknote className="w-3 h-3 text-emerald-600 shrink-0" />
+                          <span>{srv.precio}</span>
+                        </span>
+                      )}
+                      {srv.duracion && (
+                        <span className="inline-flex items-center gap-1 font-bold text-blue-800 bg-blue-50 border border-blue-200/60 px-2.5 py-0.5 rounded-md" title="Duración de la Cita">
+                          <Clock className="w-3 h-3 text-blue-600 shrink-0" />
+                          <span>⏳ {srv.duracion}</span>
+                        </span>
+                      )}
+                      {srv.recuperacion && (
+                        <span className="inline-flex items-center gap-1 font-bold text-purple-800 bg-purple-50 border border-purple-200/60 px-2.5 py-0.5 rounded-md" title="Tiempo de Recuperación">
+                          <Activity className="w-3 h-3 text-purple-600 shrink-0" />
+                          <span>⏱️ {srv.recuperacion}</span>
+                        </span>
+                      )}
+                      {srv.modalidad && (
+                        <span className="inline-flex items-center gap-1 font-bold text-teal-800 bg-teal-50 border border-teal-200/60 px-2.5 py-0.5 rounded-md" title="Modalidad de Atención">
+                          <Building2 className="w-3 h-3 text-teal-600 shrink-0" />
+                          <span>🏥 {srv.modalidad}</span>
+                        </span>
+                      )}
+                      {data.aseguradoras && data.aseguradoras.length > 0 && srv.aplicaReembolso !== false && (
+                        <span className="inline-flex items-center gap-1 font-semibold text-slate-700 bg-slate-100 border border-slate-200/90 px-2.5 py-0.5 rounded-md text-[10px]" title="Factura SRI válida para reembolso de seguros médicos">
+                          <ShieldCheck className="w-3 h-3 text-emerald-600 shrink-0" />
+                          <span>Cobertura Seguros / Reembolso</span>
+                        </span>
+                      )}
+                    </div>
+
+                    {/* BOTÓN "VER MÁS" PARA CADA TARJETA DE SERVICIO */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedServiceForDetail(srv)}
+                      className={`w-full px-4 py-2.5 rounded-xl bg-${getC("600")} hover:bg-${getC("700")} active:bg-${getC("800")} text-white font-extrabold text-xs tracking-wide flex items-center justify-center gap-2 shadow-xs shadow-${getC("600")}/20 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 cursor-pointer border border-${getC("600")}`}
+                    >
+                      <Eye className="w-3.5 h-3.5 text-white shrink-0" />
+                      <span>Ver más</span>
+                      <ArrowRight className="w-3.5 h-3.5 text-white shrink-0" />
+                    </button>
                   </div>
                 </div>
               );
             })}
           </div>
 
-          {/* Botón "Mis Servicios" para abrir el modal */}
-          <div className="pt-3 text-center flex flex-col items-center justify-center">
-            <button
-              type="button"
-              id="btn-open-all-services-modal"
-              onClick={() => setShowServicesModal(true)}
-              className={`w-[90%] max-w-lg inline-flex items-center justify-center gap-2 sm:gap-3 px-4 sm:px-8 py-3.5 sm:py-4 rounded-2xl bg-${getC("600")} hover:bg-${getC("700")} text-white text-xs sm:text-base font-extrabold uppercase tracking-wider shadow-lg shadow-${getC("600")}/25 hover:shadow-xl hover:shadow-${getC("600")}/40 hover:scale-[1.03] active:scale-[0.97] transition-all duration-300 cursor-pointer group animate-heartbeat hover:animate-none`}
-            >
-              <Stethoscope className="w-4 sm:w-5 h-4 sm:h-5 group-hover:rotate-12 transition-transform duration-300 shrink-0" />
-              <span className="whitespace-nowrap">Mis servicios</span>
-              <ArrowRight className="w-4 h-4 ml-0.5 sm:ml-1 group-hover:translate-x-1 transition-transform duration-300 shrink-0" />
-            </button>
-            <p className="text-[11px] text-slate-500 mt-2 font-medium">Abre el catálogo completo con detalles de cada tratamiento</p>
-          </div>
+          {/* Botón "Más servicios" para expandir/mostrar el catálogo directamente en la cuadrícula */}
+          {data.servicios.length > (device === "desktop" ? 6 : 4) && (
+            <div className="pt-3 text-center flex flex-col items-center justify-center">
+              <button
+                type="button"
+                id="btn-open-all-services-modal"
+                onClick={() => setShowAllServicesInGrid(!showAllServicesInGrid)}
+                className={`w-[90%] max-w-lg inline-flex items-center justify-center gap-2 sm:gap-3 px-4 sm:px-8 py-3.5 sm:py-4 rounded-2xl bg-${getC("600")} hover:bg-${getC("700")} text-white text-xs sm:text-base font-extrabold uppercase tracking-wider shadow-lg shadow-${getC("600")}/25 hover:shadow-xl hover:shadow-${getC("600")}/40 hover:scale-[1.03] active:scale-[0.97] transition-all duration-300 cursor-pointer group animate-heartbeat hover:animate-none`}
+              >
+                <Stethoscope className="w-4 sm:w-5 h-4 sm:h-5 group-hover:rotate-12 transition-transform duration-300 shrink-0" />
+                <span className="whitespace-nowrap">
+                  {showAllServicesInGrid ? "Menos servicios" : "Más servicios"}
+                </span>
+                <ChevronDown className={`w-5 h-5 ml-0.5 sm:ml-1 transition-transform duration-300 shrink-0 ${showAllServicesInGrid ? "rotate-180" : ""}`} />
+              </button>
+              <p className="text-sm text-slate-700 mt-2 font-bold">
+                {showAllServicesInGrid
+                  ? "Mostrando la totalidad de tratamientos y procedimientos disponibles"
+                  : `Muestra ${data.servicios.length - (device === "desktop" ? 6 : 4)} procedimiento(s) adicional(es)`}
+              </p>
+            </div>
+          )}
         </section>
         )}
 
@@ -2755,14 +2977,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
           </section>
         )}
 
-        {/* CARRUSEL DE INSTALACIONES Y CONSULTORIO */}
-        {isSectionVisible("galeria") && (
-          <ClinicGalleryPreviewCarousel
-            photos={data.fotosConsultorio || []}
-            primaryColorClass={getC("600")}
-            getC={getC}
-          />
-        )}
+
 
         {/* CASOS COMPARATIVOS - SLIDERS INTERACTIVOS */}
         {isSectionVisible("casos") && data.casosAntesDespues && data.casosAntesDespues.length > 0 && (
@@ -2788,50 +3003,6 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
           </section>
         )}
 
-        {/* FAQs ACORDEÓN */}
-        {isSectionVisible("faqs") && data.faqs && data.faqs.length > 0 && (
-          <section id="preview-landing-faq" className="p-6 sm:p-8 bg-slate-50/70 space-y-6 text-left">
-            <div className="text-center pb-1">
-              <span className={`text-[11px] font-extrabold text-${getC("600")} uppercase tracking-widest bg-${getC("50")} px-3.5 py-1 rounded-full border border-${getC("200")}/60 inline-block`}>
-                Preguntas Frecuentes ({data.faqs.length})
-              </span>
-              <h2 className="text-xl sm:text-2xl font-extrabold text-slate-950 mt-2.5 tracking-tight">Preguntas Frecuentes de la Consulta</h2>
-              <p className={`text-xs sm:text-sm text-${getC("700")} font-medium mt-1 max-w-lg mx-auto`}>Respuestas claras y oportunas para disipar tus dudas antes de agendar tu cita médica.</p>
-            </div>
-
-            <div className="space-y-3 max-w-2xl mx-auto">
-              {data.faqs.map((faq, i) => {
-                const isExpanded = !!faqExpanded[i];
-                const preguntaClean = faq.pregunta.replace(/\{\{CIUDAD\}\}/g, data.ciudad || "Ecuador");
-                const respuestaClean = faq.respuesta.replace(/\{\{CIUDAD\}\}/g, data.ciudad || "Ecuador");
-                return (
-                  <div key={faq.id || i} className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs hover:border-slate-300 transition-all overflow-hidden">
-                    <button 
-                      onClick={() => toggleFaq(i)}
-                      className="flex items-center justify-between w-full text-left font-extrabold text-xs sm:text-sm text-slate-900 hover:text-slate-950 p-4 sm:p-4.5 focus:outline-none cursor-pointer gap-3 transition-colors"
-                      aria-expanded={isExpanded}
-                      aria-controls={`preview-faq-ans-${i}`}
-                    >
-                      <span className="flex items-center gap-2.5">
-                        <span className={`w-5.5 h-5.5 rounded-full bg-${getC("50")} text-${getC("700")} text-[11px] font-extrabold flex items-center justify-center shrink-0 border border-${getC("100")}`}>
-                          {i + 1}
-                        </span>
-                        <span className="leading-snug">{preguntaClean}</span>
-                      </span>
-                      <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ${isExpanded ? `rotate-180 text-${getC("600")}` : ""}`} />
-                    </button>
-                    {isExpanded && (
-                      <div id={`preview-faq-ans-${i}`} className="px-4.5 pb-4.5 pt-1 text-xs sm:text-sm text-slate-600 leading-relaxed border-t border-slate-100 bg-slate-50/40">
-                        <p>{respuestaClean}</p>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
         {/* OPINIONES / RESEÑAS & WIDGET GOOGLE MAPS */}
         {isSectionVisible("opiniones") && ((data.resenas && data.resenas.length > 0) || (data.habilitarGoogleReviewsWidget ?? true)) && (
           <section id="resenas" className="p-6 sm:p-8 md:p-10 bg-slate-50/50 space-y-6 text-left border-t border-slate-200/70" aria-label="Opiniones y testimonios de pacientes">
@@ -2847,7 +3018,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
 
             {/* WIDGET GOOGLE REVIEWS (GOOGLE BUSINESS PROFILE / GOOGLE MAPS) */}
             {(data.habilitarGoogleReviewsWidget ?? true) && (
-              <div id="google-reviews-widget-preview" className="p-5 sm:p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-4">
+              <div id="google-reviews-widget-preview" className="p-5 sm:p-6 rounded-2xl bg-white border border-indigo-200/80 shadow-xs space-y-4 neon-card-soft">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   {/* Bloque Izquierdo: Logotipo Google + Calificación + Contador */}
                   <div className="flex items-center gap-3.5 sm:gap-4">
@@ -2878,13 +3049,13 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                     </div>
                   </div>
 
-                  {/* Botón de acción minimalista */}
+                  {/* Botón de acción minimalista con latido neón suave */}
                   {data.googleMapsReviewsUrl && (
                     <a
                       href={data.googleMapsReviewsUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-200 text-xs sm:text-sm font-extrabold shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all duration-200 cursor-pointer shrink-0 self-start md:self-auto"
+                      className="inline-flex items-center justify-center gap-2.5 px-4.5 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-800 border border-blue-400/60 text-xs sm:text-sm font-extrabold shadow-xs hover:-translate-y-0.5 active:scale-95 transition-all duration-200 cursor-pointer shrink-0 self-start md:self-auto neon-pulse-btn"
                     >
                       <span>Ver ficha en Google Maps</span>
                       <ExternalLink className="w-4 h-4 text-blue-600 shrink-0" />
@@ -2958,7 +3129,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                 <div key={post.id || idx} className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-2xs hover:shadow-xs transition-all flex flex-col h-full">
                   <div className="h-40 relative overflow-hidden bg-slate-100 shrink-0">
                     <img
-                      src={post.imagenUrl}
+                      src={post.imagenUrl || undefined}
                       alt={post.titulo}
                       className="w-full h-full object-cover"
                       referrerPolicy="no-referrer"
@@ -2983,10 +3154,11 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                     </div>
                     <button
                       type="button"
-                      className={`px-3 py-1.5 rounded-xl bg-${getC("50")} hover:bg-${getC("100")} text-${getC("700")} hover:text-${getC("800")} border border-${getC("200")}/60 text-xs font-extrabold flex items-center gap-1.5 mt-1 cursor-pointer self-start shadow-2xs hover:shadow-xs hover:-translate-y-0.5 active:scale-95 transition-all duration-200`}
+                      onClick={() => setSelectedBlogPostModal(post)}
+                      className={`w-full sm:w-auto px-4 py-2.5 rounded-xl bg-${getC("600")} hover:bg-${getC("700")} active:bg-${getC("800")} text-white font-extrabold text-xs tracking-wide flex items-center justify-center gap-2 mt-2 shadow-sm shadow-${getC("600")}/20 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 cursor-pointer transition-all duration-200 border border-${getC("600")}`}
                     >
-                      <span>Leer artículo</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
+                      <span>Leer artículo completo</span>
+                      <ArrowRight className="w-4 h-4 text-white shrink-0" />
                     </button>
                   </div>
                 </div>
@@ -3067,7 +3239,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
 
                       {/* Descripción */}
                       {guia.descripcion && (
-                        <p className="text-xs text-slate-600 leading-relaxed font-normal">
+                        <p className="text-sm text-slate-600 leading-relaxed font-normal">
                           {guia.descripcion}
                         </p>
                       )}
@@ -3121,121 +3293,371 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
 
         {/* AGENDAR Y MAPA (Contacto) */}
         {isSectionVisible("horarios_ubicacion") && (
-          <section id="agendar-preview" className="p-6 sm:p-8 bg-white border-t border-slate-200/70 space-y-6 text-left">
-          <div className="space-y-1.5">
-            <span className={`text-[11px] font-extrabold text-${getC("600")} uppercase tracking-widest bg-${getC("50")} border border-${getC("200")}/60 px-2.5 py-1 rounded-md inline-block`}>Contáctenos</span>
-            <h2 className="text-xl sm:text-2xl font-extrabold text-slate-950">Agenda tu Valoración</h2>
-            <p className={`text-xs sm:text-sm text-${getC("700")} font-medium`}>Atención médica personalizada y cita directa en {data.ciudad || "Ecuador"}.</p>
-          </div>
+          <section id="agendar-preview" className="p-5 sm:p-8 md:p-10 bg-white border-t border-slate-200/70 text-left">
+            <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
+              {/* Encabezado */}
+              <div className="space-y-2 text-left max-w-2xl">
+                <span className={`text-xs font-extrabold text-${getC("600")} uppercase tracking-widest bg-${getC("50")} border border-${getC("200")}/60 px-3 py-1 rounded-lg inline-block`}>Contáctenos</span>
+                <h2 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-slate-950 tracking-tight font-display">Agenda tu Valoración</h2>
+                <p className={`text-sm sm:text-base text-${getC("700")} font-medium leading-relaxed`}>Atención médica personalizada y cita directa en {data.ciudad || "Ecuador"}.</p>
+              </div>
 
-          <div className="space-y-4 text-xs sm:text-sm">
-            {/* NAP Info */}
-            <div className="flex gap-3">
-              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
-                <MapPin className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="font-extrabold text-slate-950">Ubicación física</p>
-                <address className="not-italic text-slate-600 mt-0.5 leading-relaxed text-xs sm:text-sm">
-                  <strong>{data.nombreClinicaGBP}</strong><br />
-                  {data.direccionFisica}, CP {data.codigoPostal}, {data.ciudad}
-                </address>
-              </div>
-            </div>
+              {/* Grid sincronizado: 1 columna en mobile con bloques redondeados, 2 columnas en desktop y tablet */}
+              <div className={`grid ${device === "desktop" ? "grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-stretch" : device === "tablet" ? "grid-cols-1 md:grid-cols-12 gap-6 md:gap-8 items-stretch" : "grid-cols-1 gap-6 items-start"}`}>
+                
+                {/* Columna Izquierda: Información de Contacto (NAP), Tarifas */}
+                <div className={`${device === "desktop" ? "lg:col-span-6 xl:col-span-6" : device === "tablet" ? "md:col-span-6" : "w-full"} space-y-4 sm:space-y-5 flex flex-col justify-start`}>
+                  {/* Tarjetas de Información de Contacto (NAP) individuales con separación amplia y legible */}
+                  <div className="grid grid-cols-1 gap-3.5 sm:gap-4">
+                    {/* Ubicación física */}
+                    <div className="p-5 sm:p-6 rounded-2xl bg-white sm:bg-slate-50/80 border border-slate-200/80 flex flex-col items-start gap-2.5 shadow-2xs text-left" style={{ padding: '1.25rem' }}>
+                      <div className="w-10 h-10 rounded-xl bg-blue-100/80 text-blue-600 flex items-center justify-center shrink-0 border border-blue-200/60">
+                        <MapPin className="w-5 h-5" />
+                      </div>
+                      <div className="w-full text-left">
+                        <p className="text-sm sm:text-base font-extrabold text-slate-950 text-left">Ubicación de Consulta</p>
+                        <address className="not-italic text-slate-600 mt-1 leading-relaxed text-xs sm:text-sm text-left">
+                          <strong className="text-slate-900 block text-sm sm:text-base mb-0.5 text-left">{data.nombreClinicaGBP}</strong>
+                          <span className="text-left block">{data.direccionFisica}, CP {data.codigoPostal}, {data.ciudad}</span>
+                        </address>
+                      </div>
+                    </div>
 
-            <div className="flex gap-3">
-              <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
-                <Phone className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="font-extrabold text-slate-950">Teléfono</p>
-                <p className="text-slate-600 text-xs sm:text-sm mt-0.5">{data.telefonoGBP}</p>
-              </div>
-            </div>
+                    {/* Teléfono */}
+                    <div className="p-5 sm:p-6 rounded-2xl bg-white sm:bg-slate-50/80 border border-slate-200/80 flex flex-col items-start gap-2.5 shadow-2xs text-left" style={{ padding: '1.25rem' }}>
+                      <div className="w-10 h-10 rounded-xl bg-emerald-100/80 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-200/60">
+                        <Phone className="w-5 h-5" />
+                      </div>
+                      <div className="w-full text-left">
+                        <p className="text-sm sm:text-base font-extrabold text-slate-950 text-left">Teléfono Directo</p>
+                        <a href={`tel:${data.telefonoGBP}`} className="text-sm sm:text-base font-bold text-emerald-700 hover:text-emerald-800 hover:underline block mt-1 text-left">
+                          {data.telefonoGBP}
+                        </a>
+                      </div>
+                    </div>
 
-            <div className="flex gap-3">
-              <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 border border-purple-100">
-                <Clock className="w-5 h-5" />
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
-                  <p className="font-extrabold text-slate-950">Horarios Clínicos</p>
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold ${liveStatus.dotColor === 'emerald' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : liveStatus.dotColor === 'amber' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-slate-100 text-slate-700 border border-slate-200'}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${liveStatus.dotColor === 'emerald' ? 'bg-emerald-500 animate-pulse' : liveStatus.dotColor === 'amber' ? 'bg-amber-500' : 'bg-slate-400'}`}></span>
-                    {liveStatus.badgeText}
-                  </span>
-                </div>
-                <ul className="text-slate-600 text-xs space-y-1">
-                  <li className="flex items-center justify-between py-0.5 border-b border-slate-100">
-                    <span className="font-medium text-slate-500">Lunes a Viernes:</span>
-                    <span className="font-bold text-slate-800">{data.horarios.semana.replace(/^Lunes a Viernes:\s*/i, '')}</span>
-                  </li>
-                  <li className="flex items-center justify-between py-0.5 border-b border-slate-100">
-                    <span className="font-medium text-slate-500">Sábados:</span>
-                    <span className="font-bold text-slate-800">{data.horarios.sabado.replace(/^Sábado:\s*/i, '')}</span>
-                  </li>
-                  <li className="flex items-center justify-between py-0.5">
-                    <span className="font-medium text-slate-500">Domingos:</span>
-                    <span className="font-bold text-slate-800">{data.horarios.domingo.replace(/^Domingo:\s*/i, '')}</span>
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
+                    {/* Horarios Clínicos y Estado en Tiempo Real (Tarjeta destacada sutilmente con el color primario de la landing) */}
+                    <div className={`p-5 sm:p-6 rounded-2xl bg-gradient-to-br ${getC("bgGradient")}/40 via-white to-slate-50/80 border-2 border-${getC("200")}/90 shadow-xs flex flex-col items-start gap-3.5 text-left`} style={{ padding: '1.25rem' }}>
+                      {/* Fila superior: Icono arriba a la izquierda y badge de disponibilidad a la derecha */}
+                      <div className="w-full flex items-center justify-between gap-2">
+                        <div className={`w-10 h-10 rounded-xl bg-${getC("100")} text-${getC("700")} flex items-center justify-center shrink-0 border border-${getC("200")}/80 shadow-2xs`}>
+                          <Clock className="w-5 h-5" />
+                        </div>
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black shadow-2xs ${liveStatus.dotColor === 'emerald' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : liveStatus.dotColor === 'amber' ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
+                          <span className={`w-2 h-2 rounded-full ${liveStatus.dotColor === 'emerald' ? 'bg-emerald-500 animate-pulse' : liveStatus.dotColor === 'amber' ? 'bg-amber-500 animate-pulse' : 'bg-rose-500 animate-pulse'}`}></span>
+                          {liveStatus.badgeText}
+                        </span>
+                      </div>
 
-          {/* Tarifa de Consulta y Métodos de Pago Aceptados */}
+                      <div className="w-full text-left">
+                        <p className="text-sm sm:text-base font-black text-slate-950 text-left mb-2.5">Horarios de Atención</p>
+                        <div className="space-y-1.5 w-full">
+                          <div className={`flex items-center justify-between gap-3 text-xs sm:text-sm px-3 py-2 rounded-xl transition-all w-full box-border ${isSemanaActive ? `bg-${getC("100")}/70 font-extrabold text-${getC("950")} shadow-2xs` : ''}`} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', boxSizing: 'border-box', padding: '0.5rem 0.75rem', borderRadius: '0.75rem' }}>
+                            <span className="font-semibold text-slate-600 text-left shrink-0 whitespace-nowrap" style={{ textAlign: 'left', flexShrink: 0, whiteSpace: 'nowrap' }}>Lunes a Viernes:</span>
+                            <span className="font-bold text-slate-950 text-right ml-auto" style={{ textAlign: 'right', marginLeft: 'auto' }}>{cleanHorarioSemana}</span>
+                          </div>
+                          <div className="h-px bg-slate-200/80 w-full"></div>
+                          <div className={`flex items-center justify-between gap-3 text-xs sm:text-sm px-3 py-2 rounded-xl transition-all w-full box-border ${isSabadoActive ? `bg-${getC("100")}/70 font-extrabold text-${getC("950")} shadow-2xs` : ''}`} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', boxSizing: 'border-box', padding: '0.5rem 0.75rem', borderRadius: '0.75rem' }}>
+                            <span className="font-semibold text-slate-600 text-left shrink-0 whitespace-nowrap" style={{ textAlign: 'left', flexShrink: 0, whiteSpace: 'nowrap' }}>Sábados:</span>
+                            <span className="font-bold text-slate-950 text-right ml-auto" style={{ textAlign: 'right', marginLeft: 'auto' }}>{cleanHorarioSabado}</span>
+                          </div>
+                          <div className="h-px bg-slate-200/80 w-full"></div>
+                          <div className={`flex items-center justify-between gap-3 text-xs sm:text-sm px-3 py-2 rounded-xl transition-all w-full box-border ${isDomingoActive ? `bg-${getC("100")}/70 font-extrabold text-${getC("950")} shadow-2xs` : ''}`} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', boxSizing: 'border-box', padding: '0.5rem 0.75rem', borderRadius: '0.75rem' }}>
+                            <span className="font-semibold text-slate-600 text-left shrink-0 whitespace-nowrap" style={{ textAlign: 'left', flexShrink: 0, whiteSpace: 'nowrap' }}>Domingos:</span>
+                            <span className="font-bold text-slate-950 text-right ml-auto" style={{ textAlign: 'right', marginLeft: 'auto' }}>{cleanHorarioDomingo}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+          {/* Tarifa de Consulta y Modalidad de Atención (Presencial vs. Teleconsulta) */}
           {isSectionVisible("tarifas") && (
-            <div className="p-4.5 rounded-2xl bg-gradient-to-br from-emerald-50/90 via-white to-slate-50 border border-emerald-100 shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+            <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-emerald-50/80 via-white to-slate-50 border border-emerald-200/80 shadow-2xs space-y-4">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
                     <DollarSign className="w-5 h-5" />
                   </div>
                   <div>
-                    <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block">Valor de la Consulta</span>
-                    <span className="text-xl font-black text-slate-900">{data.precioConsulta || "$50 USD"}</span>
+                    <span className="text-xs font-black uppercase text-slate-500 tracking-wider block">Modalidades & Tarifas</span>
+                    <h3 className="text-base sm:text-lg font-black text-slate-900">Tarifas Transparentes</h3>
                   </div>
                 </div>
-                <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-emerald-100/80 text-emerald-800 border border-emerald-200">
-                  Tarifa Transparente
-                </span>
+
+                {data.habilitarTeleconsulta && (
+                  <div className="inline-flex p-1 bg-slate-100/90 rounded-xl border border-slate-200 text-xs font-bold">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPricingTab("presencial");
+                        setBookingModality("presencial");
+                      }}
+                      className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                        pricingTab === "presencial"
+                          ? "bg-white text-emerald-800 shadow-xs font-extrabold"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      🏥 Presencial
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPricingTab("teleconsulta");
+                        setBookingModality("teleconsulta");
+                      }}
+                      className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                        pricingTab === "teleconsulta"
+                          ? "bg-emerald-600 text-white shadow-xs font-extrabold"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      <span>💻 Teleconsulta</span>
+                      <span className="text-[10px] bg-emerald-500 text-white px-1.5 py-0.5 rounded-full uppercase">Online</span>
+                    </button>
+                  </div>
+                )}
               </div>
 
-              <div className="border-t border-slate-100/90 pt-2.5">
-                <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wide block mb-1.5">
-                  Métodos de pago aceptados:
-                </span>
-                <div className="flex flex-wrap gap-1.5">
-                  {(data.metodosPago || ["Efectivo", "Transferencia bancaria", "Tarjetas de crédito"]).map((mp, i) => (
-                    <span key={i} className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 shadow-2xs">
-                      {mp.toLowerCase().includes("efectivo") && <Banknote className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
-                      {mp.toLowerCase().includes("transferencia") && <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />}
-                      {mp.toLowerCase().includes("tarjeta") && <CreditCard className="w-3.5 h-3.5 text-purple-600 shrink-0" />}
-                      <span>{mp}</span>
+              {/* Vista Tarifaria según Pestaña */}
+              {(!data.habilitarTeleconsulta || pricingTab === "presencial") ? (
+                <div className="space-y-3.5 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-white border border-slate-200/90 shadow-2xs">
+                    <div>
+                      <span className="text-xs font-black uppercase text-slate-500 tracking-wider block">Consulta Médica Presencial</span>
+                      <span className="text-2xl sm:text-3xl font-black text-slate-900">{data.precioConsulta || "$50 USD"}</span>
+                    </div>
+                    <span className="text-xs font-extrabold px-3 py-1 rounded-full bg-emerald-100/90 text-emerald-800 border border-emerald-200">
+                      En Consultorio
                     </span>
-                  ))}
+                  </div>
+
+                  <div className="border-t border-slate-200/80 pt-3">
+                    <span className="text-xs font-extrabold text-slate-600 uppercase tracking-wide block mb-2">
+                      Métodos de pago aceptados:
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {(data.metodosPago || ["Efectivo", "Transferencia bancaria", "Tarjetas de crédito"]).map((mp, i) => (
+                        <span key={i} className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 shadow-2xs">
+                          {mp.toLowerCase().includes("efectivo") && <Banknote className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
+                          {mp.toLowerCase().includes("transferencia") && <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />}
+                          {mp.toLowerCase().includes("tarjeta") && <CreditCard className="w-3.5 h-3.5 text-purple-600 shrink-0" />}
+                          <span>{mp}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-3.5 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-white border border-emerald-200 shadow-2xs">
+                    <div>
+                      <span className="text-xs font-black uppercase text-emerald-700 tracking-wider block">Teleconsulta Médica Online (Videollamada)</span>
+                      <span className="text-2xl sm:text-3xl font-black text-slate-900">{data.precioTeleconsulta || "$40 USD"}</span>
+                    </div>
+                    <span className="text-xs font-extrabold px-3 py-1 rounded-full bg-blue-100 text-blue-800 border border-blue-200 flex items-center gap-1">
+                      <span>🎥 Videoconsulta</span>
+                    </span>
+                  </div>
+
+                  {/* Plataformas y Requisitos de Teleconsulta */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                    <div className="p-3 rounded-xl bg-white border border-slate-200/80">
+                      <span className="font-extrabold text-slate-700 block mb-1">📱 Plataformas de Conexión:</span>
+                      <p className="text-slate-600 font-medium">{data.plataformasTeleconsulta || "Zoom, Google Meet o WhatsApp Video"}</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-white border border-slate-200/80">
+                      <span className="font-extrabold text-slate-700 block mb-1">🌐 Cobertura Pacientes:</span>
+                      <p className="text-slate-600 font-medium">{data.coberturaTeleconsulta || "Nacional e Internacional"}</p>
+                    </div>
+                  </div>
+
+                  {data.requisitosTeleconsulta && (
+                    <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200/80 text-xs text-amber-950">
+                      <span className="font-extrabold block">📋 Requisitos para la Videoconsulta:</span>
+                      <p className="mt-0.5 text-amber-900 leading-relaxed">{data.requisitosTeleconsulta}</p>
+                    </div>
+                  )}
+
+                  <div className="border-t border-slate-200/80 pt-3">
+                    <span className="text-xs font-extrabold text-slate-600 uppercase tracking-wide block mb-2">
+                      Pagos digitales para Teleconsulta:
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {["Transferencia Bancaria", "Tarjeta de Crédito/Débito", "Link de Pago Seguro"].map((mp, i) => (
+                        <span key={i} className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 shadow-2xs">
+                          {mp.includes("Transferencia") && <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />}
+                          {mp.includes("Tarjeta") && <CreditCard className="w-3.5 h-3.5 text-purple-600 shrink-0" />}
+                          {mp.includes("Link") && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
+                          <span>{mp}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
+        </div>
 
-          {/* Mini Formulario Interactivo de Agendamiento */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3.5">
-            <div className="flex items-center gap-2.5">
-              <div className={`w-8 h-8 rounded-xl bg-${getC("100")} text-${getC("700")} flex items-center justify-center shrink-0`}>
-                <Calendar className="w-4 h-4" />
+        {/* Columna Derecha: Mapa Interactivo con tarjeta redondeada y altura adaptable */}
+        <div className={`${device === "desktop" ? "lg:col-span-6 xl:col-span-6" : device === "tablet" ? "md:col-span-6" : "w-full"} flex flex-col ${device !== "mobile" ? "h-full" : ""}`}>
+          <div className={`rounded-2xl sm:rounded-3xl overflow-hidden border border-slate-200/90 shadow-sm bg-slate-50 relative flex flex-col ${device !== "mobile" ? "h-full flex-1" : ""}`}>
+            <div className="p-3.5 sm:p-4 bg-white border-b border-slate-200 flex items-center justify-between gap-2 shrink-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <MapPin className="w-4 h-4 text-blue-600 shrink-0" />
+                <span className="text-xs sm:text-sm font-bold text-slate-800 truncate">
+                  {data.nombreClinicaGBP || "Consultorio Médico"}
+                </span>
               </div>
-              <div>
-                <h4 className="text-xs sm:text-sm font-extrabold text-slate-900">Selecciona el día de tu cita médica</h4>
-                <p className="text-[11px] text-slate-500">Elige la fecha y horario preferido para coordinar tu atención.</p>
+              <a
+                href={`https://www.google.com/maps/dir/?api=1&destination=${data.latitud},${data.longitud}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100 shrink-0 transition-colors"
+              >
+                <span>Cómo llegar</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+            <div className={`w-full ${device === "mobile" ? "h-60 sm:h-64" : "h-full flex-1 min-h-[300px]"}`}>
+              <iframe 
+                title="Preview Google Map"
+                className="w-full h-full min-h-[220px] border-0 grayscale hover:grayscale-0 transition-all duration-300" 
+                src={`https://maps.google.com/maps?q=${data.latitud},${data.longitud}&hl=es&z=15&amp;output=embed`}
+                loading="lazy"
+              />
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Tarjeta de Agendamiento Interactivo ("Selecciona el día de tu cita médica") ocupando TODO EL ANCHO */}
+      <div className="w-full space-y-4 sm:space-y-5 pt-2">
+        <div className="p-5 sm:p-7 md:p-8 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-5 sm:space-y-6 text-left">
+          {/* Header con icono arriba a la izquierda, título abajo y alineación estricta a la izquierda */}
+          <div className="w-full flex flex-col items-start gap-3 text-left">
+            <div className="w-full flex items-center justify-between gap-2 flex-wrap">
+              <div className={`w-11 h-11 rounded-xl bg-${getC("100")} text-${getC("700")} flex items-center justify-center shrink-0 shadow-2xs`}>
+                <Calendar className="w-5 h-5" />
               </div>
+
+              {/* Selector de Modalidad en Desktop y Tablet (Fila superior a la derecha) */}
+              {data.habilitarTeleconsulta && (
+                <div className={`${device === "mobile" ? "hidden" : "hidden sm:inline-flex"} items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs font-bold`}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBookingModality("presencial");
+                      setPricingTab("presencial");
+                    }}
+                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer text-xs ${
+                      bookingModality === "presencial"
+                        ? "bg-white text-emerald-800 shadow-xs font-extrabold"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    🏥 Presencial
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBookingModality("teleconsulta");
+                      setPricingTab("teleconsulta");
+                    }}
+                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer text-xs flex items-center gap-1 ${
+                      bookingModality === "teleconsulta"
+                        ? "bg-emerald-600 text-white shadow-xs font-extrabold"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <span>💻 Teleconsulta</span>
+                  </button>
+                </div>
+              )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <div className="w-full text-left">
+              <h4 className="text-base sm:text-lg font-extrabold text-slate-900 text-left">Selecciona el día de tu cita médica</h4>
+              <p className="text-xs sm:text-sm text-slate-500 mt-0.5 text-left">Elige la modalidad, fecha, horario y motivo de tu atención.</p>
+
+              {/* Selector de Modalidad en Mobile (debajo del texto explicativo) */}
+              {data.habilitarTeleconsulta && (
+                <div className={`${device === "mobile" ? "inline-flex" : "inline-flex sm:hidden"} mt-3 items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs font-bold`}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBookingModality("presencial");
+                      setPricingTab("presencial");
+                    }}
+                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer text-xs ${
+                      bookingModality === "presencial"
+                        ? "bg-white text-emerald-800 shadow-xs font-extrabold"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    🏥 Presencial
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBookingModality("teleconsulta");
+                      setPricingTab("teleconsulta");
+                    }}
+                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer text-xs flex items-center gap-1 ${
+                      bookingModality === "teleconsulta"
+                        ? "bg-emerald-600 text-white shadow-xs font-extrabold"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <span>💻 Teleconsulta</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {/* 1. Motivo / Tratamiento en una sola columna o línea completa */}
+            <div className="w-full flex flex-col gap-1.5 text-left">
+              <label htmlFor="preview-booking-service" className="text-xs sm:text-sm font-bold text-slate-700 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Stethoscope className="w-4 h-4 text-slate-500" />
+                  <span>Motivo / Tratamiento</span>
+                </span>
+                {bookingService && (
+                  <button
+                    type="button"
+                    onClick={() => setBookingService("")}
+                    className="text-xs text-blue-600 font-bold hover:underline cursor-pointer"
+                  >
+                    Limpiar
+                  </button>
+                )}
+              </label>
+              <select
+                id="preview-booking-service"
+                value={bookingService}
+                onChange={(e) => setBookingService(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none bg-slate-50/70 font-semibold text-slate-800 min-h-[44px] cursor-pointer"
+              >
+                <option value="">-- Consulta Médica de Especialidad ({data.especialidad || "General"}) --</option>
+                {(data.servicios || []).map((srv, idx) => (
+                  <option key={srv.id || idx} value={srv.titulo}>
+                    {srv.titulo} {srv.precio ? `(${srv.precio})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* 2. Fecha, Horario y Nombre del paciente en Grid adaptable */}
+            <div className={`grid ${device === "desktop" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : "grid-cols-1"} gap-4`}>
               {/* Selector de Fecha */}
-              <div className="flex flex-col gap-1">
-                <label htmlFor="preview-booking-date" className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5 text-slate-500" />
+              <div className="flex flex-col gap-1.5 text-left">
+                <label htmlFor="preview-booking-date" className="text-xs sm:text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                  <Calendar className="w-4 h-4 text-slate-500" />
                   <span>Fecha preferida</span>
                 </label>
                 <input
@@ -3244,21 +3666,21 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                   min={new Date().toISOString().split("T")[0]}
                   value={bookingDate}
                   onChange={(e) => setBookingDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none bg-slate-50/60 font-semibold text-slate-800"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none bg-slate-50/70 font-semibold text-slate-800 min-h-[44px]"
                 />
               </div>
 
               {/* Selector de Horario */}
-              <div className="flex flex-col gap-1">
-                <label htmlFor="preview-booking-time" className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-slate-500" />
+              <div className="flex flex-col gap-1.5 text-left">
+                <label htmlFor="preview-booking-time" className="text-xs sm:text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-slate-500" />
                   <span>Horario preferido</span>
                 </label>
                 <select
                   id="preview-booking-time"
                   value={bookingTime}
                   onChange={(e) => setBookingTime(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none bg-slate-50/60 font-semibold text-slate-800 cursor-pointer"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none bg-slate-50/70 font-semibold text-slate-800 min-h-[44px] cursor-pointer"
                 >
                   <option value="09:00 AM">09:00 AM (Mañana)</option>
                   <option value="10:30 AM">10:30 AM (Mañana)</option>
@@ -3268,28 +3690,28 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                   <option value="06:00 PM">06:00 PM (Tarde/Noche)</option>
                 </select>
               </div>
+
+              {/* Nombre opcional */}
+              <div className={`flex flex-col gap-1.5 text-left ${device === "desktop" ? "sm:col-span-2 lg:col-span-1" : ""}`}>
+                <label htmlFor="preview-booking-name" className="text-xs sm:text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                  <UserCheck className="w-4 h-4 text-slate-500" />
+                  <span>Nombre del paciente (opcional)</span>
+                </label>
+                <input
+                  id="preview-booking-name"
+                  type="text"
+                  placeholder="ej. María Gómez"
+                  value={patientName}
+                  onChange={(e) => setPatientName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none bg-slate-50/70 font-medium text-slate-800 min-h-[44px]"
+                />
+              </div>
             </div>
 
-            {/* Nombre opcional */}
-            <div className="flex flex-col gap-1">
-              <label htmlFor="preview-booking-name" className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
-                <UserCheck className="w-3.5 h-3.5 text-slate-500" />
-                <span>Nombre del paciente (opcional)</span>
-              </label>
-              <input
-                id="preview-booking-name"
-                type="text"
-                placeholder="ej. María Gómez"
-                value={patientName}
-                onChange={(e) => setPatientName(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none bg-slate-50/60 font-medium text-slate-800"
-              />
-            </div>
-
-            {/* Detalles de la consulta opcional */}
-            <div className="flex flex-col gap-1">
-              <label htmlFor="preview-booking-details" className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
-                <FileText className="w-3.5 h-3.5 text-slate-500" />
+            {/* 3. Detalles de la consulta en una sola columna o línea completa */}
+            <div className="w-full flex flex-col gap-1.5 text-left">
+              <label htmlFor="preview-booking-details" className="text-xs sm:text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                <FileText className="w-4 h-4 text-slate-500" />
                 <span>Detalles de la consulta (opcional)</span>
               </label>
               <textarea
@@ -3298,50 +3720,64 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                 value={bookingDetails}
                 onChange={(e) => setBookingDetails(e.target.value)}
                 rows={2}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none bg-slate-50/60 font-medium text-slate-800 resize-none"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none bg-slate-50/70 font-medium text-slate-800 resize-none"
               />
             </div>
           </div>
+        </div>
 
-          {/* Botones de Agenda Adaptables */}
-          <div className="flex flex-col items-center gap-3.5 pt-1 w-full">
-            {data.estiloCta === "estatico_pulso" && (
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs text-xs font-black mb-1">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+        {/* Botones de Agenda Adaptables */}
+        <div className="w-full">
+          {data.estiloCta === "estatico_pulso" && (
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs text-xs font-black mb-2.5 w-full justify-center text-center">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              </span>
+              <span>¡Agenda tu Consulta con Respuesta Prioritaria!</span>
+            </div>
+          )}
+          <button 
+            id="preview-btn-agenda-whatsapp"
+            type="button"
+            onClick={() => {
+              setBookingModalService("whatsapp");
+              setShowBookingModal(true);
+            }}
+            className={`w-full text-sm sm:text-base font-extrabold uppercase tracking-wide py-4 px-6 rounded-2xl text-center flex items-center justify-center gap-2.5 shadow-md hover:shadow-lg hover:-translate-y-0.5 active:scale-95 transition-all duration-200 cursor-pointer bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white border border-emerald-500/30 min-h-[48px] ${
+              data.estiloCta === "estatico_pulso" 
+                ? "ring-4 ring-emerald-400/40 shadow-xl animate-pulse hover:animate-none" 
+                : ""
+            }`}
+          >
+            <Calendar className="w-5 h-5 shrink-0 text-emerald-100" />
+            <span>Confirmar cita</span>
+          </button>
+        </div>
+      </div>
+
+            </div>
+          </section>
+        )}
+
+        {/* ASISTENTE (AL FINAL DE LA PÁGINA) */}
+        {isSectionVisible("faqs") && (
+          <section id="preview-landing-faq" className="p-6 sm:p-8 bg-slate-50/70 space-y-6 text-left border-t border-slate-200/80">
+            <div className="max-w-3xl mx-auto">
+              <div className="text-center pb-1">
+                <span className={`text-[11px] font-extrabold text-${getC("600")} uppercase tracking-widest bg-${getC("50")} px-3.5 py-1 rounded-full border border-${getC("200")}/60 inline-block`}>
+                  Asistente
                 </span>
-                <span>¡Agenda tu Consulta con Respuesta Prioritaria!</span>
+                <h2 className="text-xl sm:text-2xl font-extrabold text-slate-950 mt-2.5 tracking-tight">¿Preguntas frecuentes?</h2>
+                <p className={`text-xs sm:text-sm text-${getC("700")} font-medium mt-1 max-w-lg mx-auto`}>Resuelve tus preguntas e inquietudes de forma inmediata y confidencial sobre la atención médica.</p>
               </div>
-            )}
-            <button 
-              id="preview-btn-agenda-whatsapp"
-              type="button"
-              onClick={() => {
-                setBookingModalService("whatsapp");
-                setShowBookingModal(true);
-              }}
-              className={`w-[95%] max-w-md text-xs sm:text-sm font-extrabold uppercase tracking-wide py-3.5 px-6 rounded-xl text-center flex items-center justify-center gap-2.5 shadow-md hover:shadow-lg hover:-translate-y-0.5 active:scale-95 transition-all duration-200 cursor-pointer bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white border border-emerald-500/30 ${
-                data.estiloCta === "estatico_pulso" 
-                  ? "ring-4 ring-emerald-400/40 shadow-xl animate-pulse hover:animate-none" 
-                  : ""
-              }`}
-            >
-              <Calendar className="w-5 h-5 shrink-0 text-emerald-100" />
-              <span>Confirmar cita</span>
-            </button>
-          </div>
 
-          {/* Mapa de Mock con Iframe de Google Maps */}
-          <div className="w-full h-52 rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 relative shadow-xs">
-            <iframe 
-              title="Preview Google Map"
-              className="w-full h-full border-0 grayscale hover:grayscale-0 transition-all duration-300" 
-              src={`https://maps.google.com/maps?q=${data.latitud},${data.longitud}&hl=es&z=14&amp;output=embed`}
-              loading="lazy"
-            ></iframe>
-          </div>
-        </section>
+              {/* Asistente */}
+              <div className="max-w-2xl mx-auto mt-6">
+                <MedicalAiAssistantFaq data={data} colorName={data.paletaColor} />
+              </div>
+            </div>
+          </section>
         )}
 
         {/* 1. ASEGURADORAS Y CONVENIOS (AL FINAL, ARRIBA DEL PIE DE PÁGINA) */}
@@ -3354,8 +3790,8 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
               <h3 className="text-base sm:text-lg font-extrabold text-slate-900">
                 Aseguradoras y Planes Médicos Aceptados
               </h3>
-              <p className="text-xs text-slate-600 max-w-lg mx-auto">
-                Atención con cobertura directa o reembolso con las principales compañías aseguradoras médicas.
+              <p className="text-xs text-slate-600 max-w-xl mx-auto">
+                Atención con cobertura directa o trámite de reembolso con las principales compañías de seguro médico en Ecuador.
               </p>
             </div>
             <div className="flex flex-wrap justify-center items-center gap-2 pt-1 max-w-3xl mx-auto">
@@ -3365,6 +3801,35 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                   {aseg}
                 </span>
               ))}
+            </div>
+
+            {/* AVISO EXPLICATIVO DE REEMBOLSO EN ECUADOR */}
+            <div className="max-w-2xl mx-auto p-3.5 rounded-2xl bg-blue-50/70 border border-blue-100/90 text-left flex items-start gap-3 text-xs text-blue-950 font-medium leading-relaxed mt-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              <div>
+                <strong>¿Cómo funciona el Reembolso Médico en Ecuador?</strong>
+                <p className="text-[11px] text-blue-900 mt-0.5">
+                  En cada consulta o procedimiento se emite la <strong>Factura Electrónica oficial autorizada por el SRI</strong> e incluye la entrega del <strong>Formulario de Reclamo Médico firmado (con código diagnóstico CIE-10)</strong> y su desglose para trámite ágil de reembolso o convenio directo con sus aseguradoras activas.
+                </p>
+              </div>
+            </div>
+
+            {/* Microdatos SEO Indexables e Invisibles (Servicio/Especialidad + Aseguradora + Ciudad Ecuador) */}
+            <div className="sr-only" aria-hidden="true" itemScope itemType="https://schema.org/MedicalOrganization">
+              <meta itemProp="name" content={`${data.especialidad} ${data.ciudad} - Seguros Médicos y Prepagada`} />
+              <meta itemProp="description" content={`Atención de ${data.especialidad} en ${data.ciudad}, Ecuador con factura SRI válida para reembolso o convenio en ${(data.aseguradoras || []).join(", ")}.`} />
+              {(data.aseguradoras || []).map((aseg, i) => (
+                <div key={i} itemProp="healthPlanNetwork" itemScope itemType="https://schema.org/HealthInsurancePlan">
+                  <meta itemProp="name" content={`${data.especialidad} en ${data.ciudad} con ${aseg}`} />
+                  <meta itemProp="healthPlanNetworkId" content={aseg} />
+                </div>
+              ))}
+              {(data.servicios || []).map((srv, sIdx) => (data.aseguradoras || []).map((aseg, aIdx) => (
+                <div key={`${sIdx}-${aIdx}`} itemProp="hasOfferCatalog" itemScope itemType="https://schema.org/Offer">
+                  <meta itemProp="name" content={`${srv.titulo} con seguro ${aseg} en ${data.ciudad}`} />
+                  <meta itemProp="description" content={`Procedimiento de ${srv.titulo} en ${data.ciudad}, Ecuador con factura SRI para reembolso en ${aseg}.`} />
+                </div>
+              )))}
             </div>
           </section>
         )}
@@ -3495,19 +3960,27 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                 <div className={`bg-gradient-to-r from-${getC("600")} to-${getC("700")} p-5 sm:p-6 text-white relative`}>
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-xs">
-                        <UserCheck className="w-5 h-5 text-white" />
-                      </div>
+                      <img 
+                        src={data.fotoUrl || undefined} 
+                        alt={data.nombreMedico} 
+                        className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl object-cover border-2 border-white/40 shadow-sm shrink-0"
+                        referrerPolicy="no-referrer"
+                      />
                       <div>
-                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-100 block">{isClinica ? "Institucional" : "Trayectoria"}</span>
-                        <h3 className="text-base sm:text-lg font-black leading-tight text-white">{isClinica ? "Presentación e Instalaciones del Centro" : "Perfil Profesional"}</h3>
+                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-100 block">
+                          {isClinica ? "Institucional" : "Perfil Profesional"}
+                        </span>
+                        <h3 className="text-base sm:text-lg font-black leading-tight text-white">{data.nombreMedico}</h3>
+                        <p className="text-xs text-white/90">
+                          {data.especialidad} {data.mostrarRegistroPublico ? `• Reg. ${data.cedulaProfesional}` : `• ✓ Acreditado SENESCYT / MSP`}
+                        </p>
                       </div>
                     </div>
                     <button
                       id="preview-close-profile-modal"
                       type="button"
                       onClick={() => setShowProfileModal(false)}
-                      className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 active:bg-white/30 text-white flex items-center justify-center transition-colors cursor-pointer"
+                      className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 active:bg-white/30 text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
                       aria-label="Cerrar perfil médico"
                     >
                       <X className="w-4.5 h-4.5" />
@@ -3515,40 +3988,20 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                   </div>
                 </div>
 
-                {/* Contenido del Resumen */}
-                <div className="p-5 sm:p-6 space-y-5 max-h-[65vh] overflow-y-auto">
+                {/* Contenido del Resumen Completo */}
+                <div className="p-5 sm:p-6 space-y-6 max-h-[70vh] overflow-y-auto text-left">
                   
-                  {/* Tarjeta del Doctor */}
-                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center gap-3.5">
-                    <img 
-                      src={data.fotoUrl} 
-                      alt={data.nombreMedico} 
-                      className="w-13 h-13 sm:w-14 sm:h-14 rounded-xl object-cover border border-slate-200 shadow-2xs shrink-0"
-                      referrerPolicy="no-referrer"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <h4 className="text-xs sm:text-sm font-black text-slate-900 truncate">{data.nombreMedico}</h4>
-                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
-                          Verificado
-                        </span>
-                      </div>
-                      <p className={`text-[11px] font-extrabold text-${getC("600")} truncate`}>{data.especialidad}</p>
-                      <p className="text-[10px] text-slate-500 truncate">Cédula Profesional: {data.cedulaProfesional}</p>
-                    </div>
-                  </div>
-
                   {/* Misión, Visión y Valores Institucionales / Profesionales */}
-                  {(data.mision || data.vision || (data.valores && data.valores.length > 0)) && (
-                    <div className="space-y-3 pt-1 border-t border-slate-100">
-                      <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                  {(data.mision || data.vision || (data.valores && data.valores.filter(v => v && v.trim()).length > 0)) && (
+                    <div className="space-y-3 pb-3 border-b border-slate-100">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
                         <Target className={`w-4 h-4 text-${getC("600")}`} />
                         {isClinica ? "Misión, Visión & Valores Institucionales" : "Misión, Visión & Valores Médicos"}
                       </h4>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {data.mision && (
-                          <div className="p-3.5 rounded-2xl bg-purple-50/70 border border-purple-100/90 text-left space-y-1.5 shadow-2xs">
+                          <div className="p-3.5 rounded-2xl bg-purple-50/70 border border-purple-100/90 text-left space-y-1 shadow-2xs">
                             <div className="flex items-center gap-1.5 text-xs font-black uppercase text-purple-900 tracking-wide">
                               <Target className="w-3.5 h-3.5 text-purple-600 shrink-0" />
                               <span>Misión</span>
@@ -3558,7 +4011,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                         )}
 
                         {data.vision && (
-                          <div className="p-3.5 rounded-2xl bg-blue-50/70 border border-blue-100/90 text-left space-y-1.5 shadow-2xs">
+                          <div className="p-3.5 rounded-2xl bg-blue-50/70 border border-blue-100/90 text-left space-y-1 shadow-2xs">
                             <div className="flex items-center gap-1.5 text-xs font-black uppercase text-blue-900 tracking-wide">
                               <Eye className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                               <span>Visión</span>
@@ -3568,7 +4021,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                         )}
                       </div>
 
-                      {data.valores && data.valores.length > 0 && (
+                      {data.valores && data.valores.filter(v => v && v.trim()).length > 0 && (
                         <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-100/90 space-y-2 text-left shadow-2xs">
                           <div className="flex items-center gap-1.5 text-xs font-black uppercase text-emerald-900 tracking-wide">
                             <HeartHandshake className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
@@ -3587,37 +4040,97 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                     </div>
                   )}
 
-                  {/* Hospitales */}
-                  <div className="space-y-2.5">
-                    <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Hospitales de trabajo</h4>
-                    <div className="space-y-2">
-                      {data.hospitalesdondeOpera.map((hosp, i) => (
-                        <div key={i} className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 bg-slate-50/60">
-                          <div className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                            <ShieldCheck className="w-4 h-4" />
+                  {/* Hospitales de Operación & Quirófanos */}
+                  {data.hospitalesdondeOpera && data.hospitalesdondeOpera.length > 0 && (
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                        <Building2 className={`w-4 h-4 text-${getC("600")}`} />
+                        Hospitales de Operación & Quirófanos
+                      </h4>
+                      <div className="space-y-2.5">
+                        {data.hospitalesdondeOpera.map((hosp, i) => (
+                          <div key={i} className="flex items-center gap-3 p-3.5 rounded-2xl border border-slate-200/80 bg-white shadow-2xs">
+                            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600 shrink-0 border border-emerald-100">
+                              <Building2 className="w-5 h-5 text-emerald-600" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-bold text-xs sm:text-sm text-slate-900">{hosp}</p>
+                              <p className="text-[11px] text-slate-500 font-medium truncate">Hospital con quirófano e instalaciones certificadas</p>
+                            </div>
                           </div>
-                          <span className="text-xs font-bold text-slate-800">{hosp}</span>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
 
-                  {/* Asociaciones Médicas */}
-                  <div className="space-y-2.5">
-                    <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Asociaciones y Certificados medicos</h4>
-                    <ul className="space-y-2 pl-1">
-                      {data.asociaciones.map((asoc, i) => (
-                        <li key={i} className="flex items-start gap-2.5 text-xs text-slate-700">
-                          <Award className={`w-4 h-4 text-${getC("600")} shrink-0 mt-0.5`} />
-                          <span>{asoc}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                  {/* Sociedades Científicas & Membresías */}
+                  {data.asociaciones && data.asociaciones.length > 0 && (
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                        <Award className="w-4 h-4 text-blue-600" />
+                        Sociedades Científicas & Membresías
+                      </h4>
+                      <ul className="space-y-2 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        {data.asociaciones.map((asoc, i) => (
+                          <li key={i} className="flex items-start gap-2.5 text-xs sm:text-sm text-slate-700">
+                            <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                            <span>{asoc}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
 
-                  {/* Redes Sociales del Especialista */}
-                  <div className="space-y-3 pt-3.5 border-t border-slate-100">
-                    <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Redes Sociales y Canales Oficiales</h4>
+                  {/* Certificaciones & Actualización Médica */}
+                  {data.certificados && data.certificados.length > 0 && (
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                        <GraduationCap className="w-4 h-4 text-emerald-600" />
+                        Certificaciones & Actualización Médica
+                      </h4>
+                      <ul className="space-y-2 bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100/80">
+                        {data.certificados.map((cert, i) => (
+                          <li key={i} className="flex items-start gap-2.5 text-xs sm:text-sm text-slate-700 font-medium">
+                            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                            <span>{cert}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Distinciones & Reconocimientos */}
+                  {data.reconocimientos && data.reconocimientos.length > 0 && (
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                        <Trophy className="w-4 h-4 text-amber-500" />
+                        Distinciones & Reconocimientos
+                      </h4>
+                      <ul className="space-y-2 bg-amber-50/50 p-4 rounded-2xl border border-amber-100/80">
+                        {data.reconocimientos.map((rec, i) => (
+                          <li key={i} className="flex items-start gap-2.5 text-xs sm:text-sm text-amber-950 font-medium">
+                            <Star className="w-4 h-4 text-amber-500 fill-amber-400 shrink-0 mt-0.5" />
+                            <span>{rec}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Formación y Filosofía / Compromiso con el Paciente */}
+                  {data.filosofia && (
+                    <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-100/80 text-xs text-blue-900 leading-relaxed">
+                      <p className={`font-bold mb-1 text-${getC("800")} flex items-center gap-1.5 text-xs sm:text-sm`}>
+                        <BookOpen className="w-4 h-4 text-blue-600" />
+                        Compromiso con el Paciente:
+                      </p>
+                      <p className="text-slate-700 text-xs sm:text-sm leading-relaxed">{data.filosofia}</p>
+                    </div>
+                  )}
+
+                  {/* Redes Sociales y Canales Oficiales */}
+                  <div className="space-y-3 pt-3 border-t border-slate-100">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-500">Redes Sociales y Canales Oficiales</h4>
                     <div className="flex items-center gap-2.5 flex-wrap">
                       {/* WhatsApp */}
                       {data.whatsappUrl && (
@@ -3691,21 +4204,364 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                 </div>
 
                 {/* Pie de Acciones */}
-                <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-200/80 flex items-center justify-between gap-3">
-                  <button
-                    type="button"
-                    onClick={handleShareProfile}
-                    className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-extrabold rounded-xl transition-all duration-200 cursor-pointer shadow-2xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 border border-blue-200/40"
-                  >
-                    <Share2 className="w-3.5 h-3.5 shrink-0 text-blue-600" />
-                    <span>{shareFeedback || "Compartir perfil"}</span>
-                  </button>
-                  <button
-                    type="button"
+                <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-200/80 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3">
+                  <a
+                    href="#preview-landing-agendar"
                     onClick={() => setShowProfileModal(false)}
-                    className="px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-extrabold rounded-xl transition-all duration-200 cursor-pointer shadow-2xs hover:shadow-md hover:-translate-y-0.5 active:scale-95"
+                    className={`flex-1 inline-flex items-center justify-center gap-2 bg-${getC("600")} hover:bg-${getC("700")} text-white text-xs sm:text-sm font-extrabold py-3 px-4 rounded-xl shadow-sm transition-all duration-200 cursor-pointer`}
                   >
-                    Entendido
+                    <CalendarCheck className="w-4 h-4 shrink-0 text-white" />
+                    <span>Agendar Cita</span>
+                  </a>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowProfileModal(false);
+                        setShowShareModal(true);
+                      }}
+                      className="inline-flex items-center justify-center gap-1.5 px-3.5 py-3 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-extrabold rounded-xl transition-all duration-200 cursor-pointer border border-purple-200/50 shrink-0"
+                      title="Compartir perfil"
+                    >
+                      <Share2 className="w-3.5 h-3.5 shrink-0 text-purple-600" />
+                      <span className="hidden sm:inline">Compartir</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowProfileModal(false)}
+                      className="px-4 py-3 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-extrabold rounded-xl transition-all duration-200 cursor-pointer shrink-0"
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* MODAL DE BIENVENIDA MINIMALISTA & SOLICITUD AMABLE DE NOMBRE */}
+        <AnimatePresence>
+          {showWelcomePopup && (
+            <motion.div 
+              id="preview-welcome-popup-overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+              onClick={() => setShowWelcomePopup(false)}
+            >
+              <motion.div 
+                id="preview-welcome-popup-card"
+                initial={{ scale: 0.94, opacity: 0, y: 15 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.94, opacity: 0, y: 15 }}
+                transition={{ type: "spring", damping: 28, stiffness: 350 }}
+                className="bg-white rounded-3xl max-w-xs sm:max-w-md w-full p-5 sm:p-8 shadow-2xl border border-slate-100 relative text-center my-auto mx-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Botón Cerrar Minimalista */}
+                <button
+                  type="button"
+                  onClick={() => setShowWelcomePopup(false)}
+                  className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
+                  aria-label="Cerrar modal"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+
+                {/* Icono Seleccionado en 3D (Sin logotipo) */}
+                <div className="flex flex-col items-center justify-center mb-2 sm:mb-2.5">
+                  <div className="relative inline-flex items-center justify-center">
+                    <span className="text-3xl sm:text-4xl select-none filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.15)] transform hover:scale-110 transition-transform duration-300 inline-block cursor-default heartbeat-4s" role="img" aria-label="Icono 3D">
+                      {data.popupBienvenidaIcono || "😊"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Título & Mensaje Descriptivo Más Grande */}
+                <div className="space-y-1.5 sm:space-y-2 mb-5 sm:mb-6 text-center">
+                  <h3 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight leading-snug">
+                    {data.popupBienvenidaTitulo || "¡Bienvenido(a) a mi consulta!"}
+                  </h3>
+                  <p className="text-xs sm:text-base text-slate-600 font-medium leading-relaxed max-w-sm mx-auto">
+                    {data.popupBienvenidaSubtitulo || "Me encantaría conocerte. ¿Cuál es tu nombre para brindarte una mejor atención?"}
+                  </p>
+                </div>
+
+                {/* Formulario e Input Minimalista con Capitalización */}
+                <form onSubmit={handleSaveWelcomeName} className="space-y-3.5">
+                  <div>
+                    <input
+                      id="welcome-popup-input"
+                      type="text"
+                      autoFocus
+                      value={welcomeInputName}
+                      onChange={(e) => handleWelcomeInputChange(e.target.value)}
+                      placeholder={data.popupBienvenidaPlaceholder || "Escribe tu nombre..."}
+                      className="w-full px-4 py-3 sm:py-3.5 rounded-2xl bg-slate-50/90 hover:bg-slate-50 border border-slate-200/90 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all text-base sm:text-lg font-semibold text-slate-800 outline-none placeholder:text-slate-400 text-center shadow-2xs capitalize"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-3 sm:py-3.5 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-extrabold text-xs sm:text-sm tracking-wide shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <span>{data.popupBienvenidaBoton || "Comenzar recorrido"}</span>
+                    <ArrowRight className="w-4 h-4 text-white" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowWelcomePopup(false)}
+                    className="text-xs sm:text-sm font-semibold text-slate-700 hover:text-slate-950 transition-colors cursor-pointer pt-1 block mx-auto"
+                  >
+                    Omitir por ahora
+                  </button>
+                </form>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* MODAL PARA COMPARTIR EN REDES SOCIALES */}
+        <AnimatePresence>
+          {showShareModal && (
+            <motion.div 
+              id="preview-share-modal-overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+              onClick={() => setShowShareModal(false)}
+            >
+              <motion.div 
+                id="preview-share-modal-card"
+                initial={{ scale: 0.95, opacity: 0, y: 15 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 15 }}
+                transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden my-auto text-left"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Cabecera del Modal */}
+                <div className="bg-gradient-to-r from-purple-600 to-indigo-700 p-5 sm:p-6 text-white relative">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-xs">
+                        <Share2 className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-purple-200 block">Compartir Enlace</span>
+                        <h3 className="text-base sm:text-lg font-black leading-tight text-white">Compartir Perfil Médico</h3>
+                      </div>
+                    </div>
+                    <button
+                      id="preview-close-share-modal"
+                      type="button"
+                      onClick={() => setShowShareModal(false)}
+                      className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 active:bg-white/30 text-white flex items-center justify-center transition-colors cursor-pointer"
+                      aria-label="Cerrar modal de compartir"
+                    >
+                      <X className="w-4.5 h-4.5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Contenido del Modal */}
+                <div className="p-5 sm:p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+                  {/* Tarjeta del Médico */}
+                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center gap-3.5">
+                    <img 
+                      src={data.fotoUrl || undefined} 
+                      alt={data.nombreMedico} 
+                      className="w-12 h-12 rounded-xl object-cover border border-slate-200 shadow-2xs shrink-0"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-xs sm:text-sm font-black text-slate-900 truncate">{data.nombreMedico}</h4>
+                      <p className={`text-[11px] font-extrabold text-${getC("600")} truncate`}>{data.especialidad}</p>
+                      <p className="text-[10px] text-slate-500 truncate flex items-center gap-1 font-medium">
+                        <MapPin className="w-3 h-3 shrink-0 text-slate-400" />
+                        <span>{data.ciudad || "Ecuador"}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Redes Sociales para Compartir */}
+                  <div className="space-y-2.5">
+                    <label className="text-xs font-black uppercase tracking-wider text-slate-500 block">
+                      Selecciona una red social o app:
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                      {/* WhatsApp */}
+                      <a
+                        href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`Conoce los servicios médicos y agenda tu cita con ${data.nombreMedico} (${data.especialidad}) en ${data.ciudad}: ${typeof window !== "undefined" ? window.location.href : ""}`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2.5 p-3 rounded-2xl bg-[#25D366]/10 hover:bg-[#25D366]/20 border border-[#25D366]/30 text-[#128C7E] font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-2xs"
+                      >
+                        <div className="w-7 h-7 rounded-xl bg-[#25D366] text-white flex items-center justify-center shrink-0 shadow-xs">
+                          <MessageCircle className="w-4 h-4" />
+                        </div>
+                        <span className="truncate">WhatsApp</span>
+                      </a>
+
+                      {/* Facebook */}
+                      <a
+                        href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(typeof window !== "undefined" ? window.location.href : "")}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2.5 p-3 rounded-2xl bg-[#1877F2]/10 hover:bg-[#1877F2]/20 border border-[#1877F2]/30 text-[#1877F2] font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-2xs"
+                      >
+                        <div className="w-7 h-7 rounded-xl bg-[#1877F2] text-white flex items-center justify-center shrink-0 shadow-xs">
+                          <Facebook className="w-4 h-4" />
+                        </div>
+                        <span className="truncate">Facebook</span>
+                      </a>
+
+                      {/* X / Twitter */}
+                      <a
+                        href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Perfil médico y consulta de ${data.nombreMedico} - ${data.especialidad} en ${data.ciudad}`)}&url=${encodeURIComponent(typeof window !== "undefined" ? window.location.href : "")}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2.5 p-3 rounded-2xl bg-slate-900/10 hover:bg-slate-900/20 border border-slate-900/30 text-slate-900 font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-2xs"
+                      >
+                        <div className="w-7 h-7 rounded-xl bg-slate-900 text-white flex items-center justify-center shrink-0 shadow-xs">
+                          <span className="font-black text-xs">𝕏</span>
+                        </div>
+                        <span className="truncate">X (Twitter)</span>
+                      </a>
+
+                      {/* Telegram */}
+                      <a
+                        href={`https://t.me/share/url?url=${encodeURIComponent(typeof window !== "undefined" ? window.location.href : "")}&text=${encodeURIComponent(`${data.nombreMedico} - ${data.especialidad} en ${data.ciudad}`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2.5 p-3 rounded-2xl bg-[#229ED9]/10 hover:bg-[#229ED9]/20 border border-[#229ED9]/30 text-[#229ED9] font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-2xs"
+                      >
+                        <div className="w-7 h-7 rounded-xl bg-[#229ED9] text-white flex items-center justify-center shrink-0 shadow-xs">
+                          <Send className="w-4 h-4" />
+                        </div>
+                        <span className="truncate">Telegram</span>
+                      </a>
+
+                      {/* LinkedIn */}
+                      <a
+                        href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(typeof window !== "undefined" ? window.location.href : "")}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2.5 p-3 rounded-2xl bg-[#0A66C2]/10 hover:bg-[#0A66C2]/20 border border-[#0A66C2]/30 text-[#0A66C2] font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-2xs"
+                      >
+                        <div className="w-7 h-7 rounded-xl bg-[#0A66C2] text-white flex items-center justify-center shrink-0 shadow-xs">
+                          <Linkedin className="w-4 h-4" />
+                        </div>
+                        <span className="truncate">LinkedIn</span>
+                      </a>
+
+                      {/* Correo Electrónico */}
+                      <a
+                        href={`mailto:?subject=${encodeURIComponent(`${data.nombreMedico} - ${data.especialidad}`)}&body=${encodeURIComponent(`Te comparto el sitio web y perfil profesional de ${data.nombreMedico} (${data.especialidad}) en ${data.ciudad}:\n\n${typeof window !== "undefined" ? window.location.href : ""}`)}`}
+                        className="flex items-center gap-2.5 p-3 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-700 font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-2xs"
+                      >
+                        <div className="w-7 h-7 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                          <Mail className="w-4 h-4" />
+                        </div>
+                        <span className="truncate">Email</span>
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* Botón compartir nativo (si el navegador lo soporta) */}
+                  {typeof navigator !== "undefined" && typeof navigator.share === "function" && (
+                    <button
+                      type="button"
+                      onClick={handleShareProfile}
+                      className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-purple-50 hover:bg-purple-100 active:bg-purple-200 text-purple-700 font-bold text-xs border border-purple-200 transition-all cursor-pointer shadow-2xs"
+                    >
+                      <Share2 className="w-4 h-4 text-purple-600 shrink-0" />
+                      <span>Más opciones (Abrir menú del dispositivo)</span>
+                    </button>
+                  )}
+
+                  {/* Sección Copiar Enlace Directo */}
+                  <div className="space-y-1.5 pt-1">
+                    <label className="text-xs font-black uppercase tracking-wider text-slate-500 block">
+                      O copia el enlace directo:
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          readOnly
+                          value={typeof window !== "undefined" ? window.location.href : ""}
+                          className="w-full pl-3 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-700 truncate select-all focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleCopyShareLink}
+                        className={`inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer shadow-2xs shrink-0 ${
+                          copiedShareUrl
+                            ? "bg-emerald-600 text-white shadow-emerald-600/30"
+                            : "bg-slate-900 hover:bg-slate-800 active:bg-black text-white"
+                        }`}
+                      >
+                        {copiedShareUrl ? (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>¡Copiado!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>Copiar</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Código QR para Escaneo Móvil Directo */}
+                  <div className="pt-3 border-t border-slate-200/80 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <QrCode className="w-4 h-4 text-purple-600 shrink-0" />
+                        <label className="text-xs font-black uppercase tracking-wider text-slate-700">
+                          Código QR para Escanear
+                        </label>
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                        Cámara Móvil
+                      </span>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col items-center justify-center gap-3 text-center">
+                      <div className="p-3 bg-white rounded-2xl border border-slate-200 shadow-xs shrink-0 inline-flex items-center justify-center">
+                        <QRCodeCanvas
+                          value={typeof window !== "undefined" ? window.location.href : (data.dominioWeb || "https://tu-dominio.com")}
+                          size={180}
+                          level="M"
+                          includeMargin={false}
+                          fgColor="#0f172a"
+                          bgColor="#ffffff"
+                        />
+                      </div>
+                      <p className="text-xs font-bold text-slate-900">
+                        Escanea con la cámara de tu celular
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer del Modal */}
+                <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-200/80 flex items-center justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setShowShareModal(false)}
+                    className="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-black rounded-xl transition-all cursor-pointer"
+                  >
+                    Cerrar
                   </button>
                 </div>
               </motion.div>
@@ -3763,10 +4619,10 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                 {/* Contenido del Resumen */}
                 <div className="p-5 sm:p-6 space-y-4 max-h-[65vh] overflow-y-auto">
                   
-                  {/* Tarjeta del Doctor */}
+                  {/* Tarjeta del Doctor & Modalidad */}
                   <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center gap-3.5">
                     <img 
-                      src={data.fotoUrl} 
+                      src={data.fotoUrl || undefined} 
                       alt={data.nombreMedico} 
                       className="w-13 h-13 sm:w-14 sm:h-14 rounded-xl object-cover border border-slate-200 shadow-2xs shrink-0"
                       referrerPolicy="no-referrer"
@@ -3774,14 +4630,35 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <h4 className="text-xs sm:text-sm font-black text-slate-900 truncate">{data.nombreMedico}</h4>
-                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
-                          Verificado
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                          bookingModality === "teleconsulta" 
+                            ? "bg-blue-100 text-blue-800 border border-blue-200" 
+                            : "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                        }`}>
+                          {bookingModality === "teleconsulta" ? "💻 Teleconsulta Online" : "🏥 Consulta Presencial"}
                         </span>
                       </div>
                       <p className={`text-[11px] font-extrabold text-${getC("600")} truncate`}>{data.especialidad}</p>
-                      <p className="text-[10px] text-slate-500 truncate">Cédula Profesional: {data.cedulaProfesional}</p>
+                      <p className="text-[10px] text-slate-500 truncate font-medium">
+                        {data.mostrarRegistroPublico
+                          ? `Registro MSP / SENESCYT: ${data.cedulaProfesional}`
+                          : `✓ Acreditación Médica MSP & SENESCYT Verificada`}
+                      </p>
                     </div>
                   </div>
+
+                  {/* Servicio o Procedimiento Solicitado */}
+                  {bookingService && (
+                    <div className="p-3 rounded-xl bg-blue-50/80 border border-blue-200/80 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Stethoscope className="w-4 h-4 text-blue-600 shrink-0" />
+                        <div className="min-w-0">
+                          <span className="text-[10px] font-bold text-blue-800 uppercase tracking-wide block">Tratamiento / Procedimiento:</span>
+                          <p className="text-xs font-black text-slate-900 truncate">{bookingService}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Fila de Datos Clave de Cita (Fecha, Hora, Paciente) */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -3835,37 +4712,55 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <DollarSign className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span className="text-xs font-bold text-slate-700">Valor de la Consulta:</span>
+                        <span className="text-xs font-bold text-slate-700">
+                          {bookingModality === "teleconsulta" ? "Tarifa Videoconsulta:" : "Tarifa Consulta Presencial:"}
+                        </span>
                       </div>
                       <span className="text-sm font-black text-slate-950">
-                        {data.precioConsulta || "$50 USD"}
+                        {bookingModality === "teleconsulta" 
+                          ? (data.precioTeleconsulta || data.precioConsulta || "$40 USD") 
+                          : (data.precioConsulta || "$50 USD")}
                       </span>
                     </div>
                     <div className="pt-2 border-t border-amber-200/50 flex items-center justify-between gap-2 flex-wrap text-[10px] text-slate-600">
                       <span className="font-semibold text-slate-500">Pagos aceptados:</span>
                       <span className="font-bold text-slate-800">
-                        {(data.metodosPago || ["Efectivo", "Transferencia", "Tarjetas"]).join(" • ")}
+                        {bookingModality === "teleconsulta" 
+                          ? "Transferencia bancaria • Tarjetas de crédito/débito • Link digital"
+                          : (data.metodosPago || ["Efectivo", "Transferencia", "Tarjetas"]).join(" • ")}
                       </span>
                     </div>
                   </div>
 
-                  {/* Dirección Física & Consultorio (NAP) */}
-                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1.5 text-xs text-slate-700">
-                    <div className="flex items-center gap-1.5 font-bold text-slate-900">
-                      <Building2 className="w-4 h-4 text-indigo-600 shrink-0" />
-                      <span>{data.nombreClinicaGBP}</span>
+                  {/* Dirección Física (Presencial) o Plataforma (Teleconsulta) */}
+                  {bookingModality === "teleconsulta" ? (
+                    <div className="p-3.5 rounded-2xl bg-blue-50/60 border border-blue-200/80 space-y-1.5 text-xs text-slate-700">
+                      <div className="flex items-center gap-1.5 font-bold text-blue-900">
+                        <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
+                        <span>Atención 100% Online por Videollamada</span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 leading-relaxed">
+                        Plataforma: {data.plataformasTeleconsulta || "Zoom, Google Meet o WhatsApp Video"}. El enlace de conexión se enviará al confirmar tu cita.
+                      </p>
                     </div>
-                    <div className="flex items-start gap-1.5 text-slate-600 pl-0.5">
-                      <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
-                      <address className="not-italic text-[11px] leading-relaxed">
-                        {data.direccionFisica}, CP {data.codigoPostal}, {data.ciudad}
-                      </address>
+                  ) : (
+                    <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1.5 text-xs text-slate-700">
+                      <div className="flex items-center gap-1.5 font-bold text-slate-900">
+                        <Building2 className="w-4 h-4 text-indigo-600 shrink-0" />
+                        <span>{data.nombreClinicaGBP}</span>
+                      </div>
+                      <div className="flex items-start gap-1.5 text-slate-600 pl-0.5">
+                        <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                        <address className="not-italic text-[11px] leading-relaxed">
+                          {data.direccionFisica}, CP {data.codigoPostal}, {data.ciudad}
+                        </address>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-slate-600 pl-0.5 text-[11px]">
+                        <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span>{data.telefonoGBP}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1.5 text-slate-600 pl-0.5 text-[11px]">
-                      <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span>{data.telefonoGBP}</span>
-                    </div>
-                  </div>
+                  )}
 
                 </div>
 
@@ -3901,70 +4796,93 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
             </motion.div>
           )}
 
-          {/* MODAL INTERACTIVO: CATÁLOGO COMPLETO DE SERVICIOS ("MIS SERVICIOS") */}
+          {/* PÁGINA INDEPENDIENTE: CATÁLOGO COMPLETO DE SERVICIOS ("MIS SERVICIOS") */}
           {showServicesModal && (
             <motion.div
               id="preview-services-modal-backdrop"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-5"
-              onClick={(e) => {
-                if (e.target === e.currentTarget) setShowServicesModal(false);
-              }}
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 15 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 z-50 bg-slate-50 flex flex-col overflow-y-auto selection:bg-purple-600 selection:text-white"
             >
-              <motion.div
-                initial={{ scale: 0.95, opacity: 0, y: 15 }}
-                animate={{ scale: 1, opacity: 1, y: 0 }}
-                exit={{ scale: 0.95, opacity: 0, y: 15 }}
-                className="bg-white rounded-3xl max-w-5xl w-full max-h-[88vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200"
-              >
-                {/* Cabecera del Modal */}
-                <div className="p-4 sm:p-6 bg-slate-900 text-white flex items-center justify-between gap-4 shrink-0">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-11 h-11 rounded-2xl bg-${getC("600")} flex items-center justify-center text-white shrink-0 shadow-sm`}>
-                      <Stethoscope className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h2 className="text-base sm:text-lg font-black text-white leading-tight">Catálogo de Procedimientos Médicos</h2>
-                      <p className="text-xs text-slate-300 font-medium">Explora todos los tratamientos y procedimientos médicos disponibles</p>
-                    </div>
-                  </div>
+              {/* Barra de navegación superior: SÓLO BOTÓN REGRESAR */}
+              <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/90 shadow-2xs shrink-0">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-18 flex items-center justify-between gap-3">
+                  
+                  {/* Botón de retroceso único */}
                   <button
                     type="button"
                     onClick={() => setShowServicesModal(false)}
-                    className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white transition-colors cursor-pointer"
-                    aria-label="Cerrar modal"
+                    style={{
+                      backgroundColor: activeColorScale["50"],
+                      borderColor: activeColorScale["200"],
+                      color: activeColorScale["700"]
+                    }}
+                    className="inline-flex items-center gap-2.5 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl border font-black text-xs sm:text-sm transition-all cursor-pointer shadow-2xs group hover:opacity-95 hover:shadow-xs active:scale-95"
+                    aria-label="Regresar"
                   >
-                    <X className="w-5 h-5" />
+                    <ArrowLeft 
+                      className="w-4 h-4 group-hover:-translate-x-1 transition-transform" 
+                      style={{ color: activeColorScale["600"] }}
+                    />
+                    <span>Regresar</span>
                   </button>
                 </div>
+              </header>
 
-                {/* Buscador en tiempo real */}
-                <div className="p-3.5 sm:p-4 bg-slate-50 border-b border-slate-200/80 shrink-0">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={serviceSearchQuery}
-                      onChange={(e) => setServiceSearchQuery(e.target.value)}
-                      placeholder="Buscar por nombre de procedimiento, síntoma o técnica..."
-                      className="w-full pl-10 pr-10 py-2.5 bg-white rounded-xl border border-slate-200 text-xs sm:text-sm font-medium placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs"
-                    />
-                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    {serviceSearchQuery && (
-                      <button
-                        type="button"
-                        onClick={() => setServiceSearchQuery("")}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+              {/* Contenido Principal */}
+              <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-6">
+                {/* Cabecera & Buscador */}
+                <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <span 
+                        className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg inline-block border"
+                        style={{ 
+                          backgroundColor: activeColorScale["50"], 
+                          borderColor: activeColorScale["200"],
+                          color: activeColorScale["700"] 
+                        }}
                       >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                        Catálogo Oficial de Atención
+                      </span>
+                      <h1 
+                        className="text-2xl sm:text-3xl font-black tracking-tight font-display"
+                        style={{ color: activeColorScale["900"] }}
+                      >
+                        Procedimientos y Tratamientos Médicos
+                      </h1>
+                      <p className="text-xs sm:text-sm text-slate-500 font-medium">
+                        Explora los tratamientos especializados disponibles y agenda directamente tu valoración clínica.
+                      </p>
+                    </div>
+
+                    {/* Buscador en tiempo real */}
+                    <div className="w-full sm:w-80 relative shrink-0">
+                      <input
+                        type="text"
+                        value={serviceSearchQuery}
+                        onChange={(e) => setServiceSearchQuery(e.target.value)}
+                        placeholder="Buscar procedimiento..."
+                        className="w-full pl-10 pr-10 py-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs sm:text-sm font-medium placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all shadow-2xs"
+                      />
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      {serviceSearchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setServiceSearchQuery("")}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                {/* Lista de Servicios Filtrados */}
-                <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4">
+                {/* Lista de Servicios Filtrados (Grid 3 columnas en Desktop) */}
+                <div className="space-y-4">
                   {(() => {
                     const filtered = (data.servicios || []).filter(srv => {
                       if (!serviceSearchQuery.trim()) return true;
@@ -3974,28 +4892,35 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
 
                     if (filtered.length === 0) {
                       return (
-                        <div className="text-center py-12 space-y-2">
-                          <p className="text-sm font-bold text-slate-700">No se encontraron procedimientos</p>
-                          <p className="text-xs text-slate-500">Intenta con otro término o consulta directamente por WhatsApp.</p>
+                        <div className="text-center py-16 bg-white rounded-3xl border border-slate-200 shadow-sm space-y-3">
+                          <Stethoscope className="w-10 h-10 text-slate-300 mx-auto" />
+                          <p className="text-sm font-bold text-slate-700">No se encontraron procedimientos coincidentes</p>
+                          <p className="text-xs text-slate-500">Intenta con otro término o consulta directamente para más información.</p>
                         </div>
                       );
                     }
 
                     return (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                         {filtered.map((srv, idx) => {
                           const hasImage = srv.mostrarImagen !== false && Boolean(srv.imagenUrl);
 
                           return (
                             <div 
                               key={srv.id || idx}
-                              className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs hover:border-blue-400 hover:shadow-lg transition-all duration-300 flex flex-col justify-between space-y-4 group overflow-hidden"
+                              className="p-5 sm:p-6 rounded-3xl bg-white border border-slate-200/90 shadow-sm hover:border-blue-400 hover:shadow-xl transition-all duration-300 flex flex-col justify-between space-y-4 group overflow-hidden"
                             >
-                              <div className="space-y-3.5">
+                              <div className="space-y-4">
                                 {hasImage ? (
-                                  <div className="relative w-full aspect-[5/4] rounded-xl overflow-hidden bg-slate-100 border border-slate-200/80 shadow-2xs group-hover:scale-[1.02] transition-transform duration-300">
+                                  <div 
+                                    className="relative w-full aspect-16/10 rounded-2xl overflow-hidden bg-slate-950 border border-slate-200/80 shadow-2xs group-hover:scale-[1.01] transition-transform duration-300 cursor-pointer"
+                                    onClick={() => {
+                                      setShowServicesModal(false);
+                                      setSelectedServiceForDetail(srv);
+                                    }}
+                                  >
                                     <img src={srv.imagenUrl} alt={srv.titulo} className="w-full h-full object-cover" loading="lazy" />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                                     <div className="absolute top-2.5 right-2.5 flex flex-col items-end gap-1 z-10">
                                       {(() => {
                                         const isDestacado = Boolean(srv.destacado);
@@ -4015,13 +4940,28 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                                         );
                                       })()}
                                     </div>
+                                    {srv.galeriaFotos && srv.galeriaFotos.length > 0 && (
+                                      <span className="absolute bottom-2 left-2 text-[10px] font-extrabold text-white bg-slate-900/85 backdrop-blur-xs px-2.5 py-0.5 rounded-full shadow-md flex items-center gap-1 border border-white/20">
+                                        <ImageIcon className="w-3 h-3 text-blue-400" />
+                                        <span>+{srv.galeriaFotos.length} fotos</span>
+                                      </span>
+                                    )}
                                   </div>
                                 ) : (
-                                  <div className="relative w-full h-36 sm:h-40 rounded-xl bg-gradient-to-br from-blue-50/90 via-slate-50 to-indigo-50/70 border border-blue-100/80 flex items-center justify-center overflow-hidden group-hover:border-blue-300 transition-all duration-300">
-                                    <div className="w-16 h-16 rounded-2xl bg-white shadow-sm border border-blue-100 text-blue-600 flex items-center justify-center group-hover:scale-110 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
+                                  <div 
+                                    className="flex items-center justify-between cursor-pointer"
+                                    onClick={() => {
+                                      setShowServicesModal(false);
+                                      setSelectedServiceForDetail(srv);
+                                    }}
+                                  >
+                                    <div 
+                                      className="w-12 h-12 rounded-xl shrink-0 flex items-center justify-center transition-all duration-300 shadow-2xs group-hover:scale-105"
+                                      style={{ backgroundColor: activeColorScale["50"], color: activeColorScale["600"], border: `1px solid ${activeColorScale["200"]}` }}
+                                    >
                                       {renderIcon(srv.icono)}
                                     </div>
-                                    <div className="absolute top-2.5 right-2.5 flex flex-col items-end gap-1 z-10">
+                                    <div className="flex flex-col items-end gap-1">
                                       {(() => {
                                         const isDestacado = Boolean(srv.destacado);
                                         const text = srv.badgeEtiqueta || (isDestacado ? "DESTACADO" : "");
@@ -4043,52 +4983,72 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                                   </div>
                                 )}
 
-                                <div className="space-y-1.5 min-w-0">
-                                  {/* H2 para SEO */}
-                                  <h2 className="text-base sm:text-lg font-extrabold text-slate-950 leading-snug group-hover:text-blue-600 transition-colors">
+                                {/* TÍTULO Y DESCRIPCIÓN DEL SERVICIO */}
+                                <div 
+                                  className="space-y-1.5 min-w-0 text-left cursor-pointer"
+                                  onClick={() => {
+                                    setShowServicesModal(false);
+                                    setSelectedServiceForDetail(srv);
+                                  }}
+                                >
+                                  <h2 
+                                    className="text-base sm:text-lg font-extrabold leading-snug transition-colors"
+                                    style={{ color: activeColorScale["950"] }}
+                                  >
                                     {srv.titulo}
                                   </h2>
-                                  <p className="text-xs sm:text-sm text-slate-600 leading-relaxed line-clamp-3">{srv.descripcion}</p>
+                                  <p className="text-xs sm:text-sm text-slate-600 leading-relaxed line-clamp-3 font-normal">
+                                    {srv.descripcion}
+                                  </p>
                                 </div>
 
-                                {/* Badges informativos / Ficha Técnica */}
+                                {/* Badges informativos */}
                                 <div className="flex flex-wrap gap-1.5 pt-1">
                                   {srv.precio && (
-                                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200/60 flex items-center gap-1" title="Inversión Estimada">
+                                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200/60 flex items-center gap-1">
                                       <Banknote className="w-3 h-3 text-emerald-600 shrink-0" />
                                       <span>{srv.precio}</span>
                                     </span>
                                   )}
                                   {srv.duracion && (
-                                    <span className="text-[10px] font-bold text-blue-800 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200/60 flex items-center gap-1" title="Duración de la Cita">
+                                    <span className="text-[10px] font-bold text-blue-800 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200/60 flex items-center gap-1">
                                       <Clock className="w-3 h-3 text-blue-600 shrink-0" />
-                                      <span>⏳ {srv.duracion}</span>
-                                    </span>
-                                  )}
-                                  {srv.recuperacion && (
-                                    <span className="text-[10px] font-bold text-purple-800 bg-purple-50 px-2.5 py-1 rounded-md border border-purple-200/60 flex items-center gap-1" title="Tiempo de Recuperación">
-                                      <Activity className="w-3 h-3 text-purple-600 shrink-0" />
-                                      <span>⏱️ {srv.recuperacion}</span>
+                                      <span>{srv.duracion}</span>
                                     </span>
                                   )}
                                   {srv.modalidad && (
-                                    <span className="text-[10px] font-bold text-teal-800 bg-teal-50 px-2.5 py-1 rounded-md border border-teal-200/60 flex items-center gap-1" title="Modalidad de Atención">
+                                    <span className="text-[10px] font-bold text-teal-800 bg-teal-50 px-2.5 py-1 rounded-md border border-teal-200/60 flex items-center gap-1">
                                       <Building2 className="w-3 h-3 text-teal-600 shrink-0" />
-                                      <span>🏥 {srv.modalidad}</span>
+                                      <span>{srv.modalidad}</span>
                                     </span>
                                   )}
                                 </div>
                               </div>
 
-                              <div className="pt-3 border-t border-slate-100">
-                                <a
-                                  href="#agendar-preview"
-                                  onClick={() => setShowServicesModal(false)}
-                                  className={`w-full flex items-center justify-center gap-2 bg-${getC("600")} hover:bg-${getC("700")} text-white text-xs font-extrabold py-2.5 px-3 rounded-xl text-center transition-all duration-200 shadow-2xs group-hover:shadow-md cursor-pointer`}
+                              <div className="pt-4 border-t border-slate-100 flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setShowServicesModal(false);
+                                    setSelectedServiceForDetail(srv);
+                                  }}
+                                  className="flex-1 py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs transition-colors cursor-pointer text-center"
                                 >
-                                  <span>Agendar este procedimiento</span>
+                                  Ver Ficha Completa
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setShowServicesModal(false);
+                                    setSelectedServiceForAppointment(srv.titulo);
+                                    setBookingService(srv.titulo);
+                                    scrollToSection("contacto");
+                                  }}
+                                  className={`py-2.5 px-4 rounded-xl bg-${getC("600")} hover:bg-${getC("700")} text-white font-extrabold text-xs transition-colors shadow-2xs cursor-pointer flex items-center gap-1`}
+                                >
+                                  <span>Agendar</span>
                                   <ArrowRight className="w-3.5 h-3.5" />
-                                </a>
+                                </button>
                               </div>
                             </div>
                           );
@@ -4097,31 +5057,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                     );
                   })()}
                 </div>
-
-                {/* Footer del Modal */}
-                <div className="p-4 bg-slate-50 border-t border-slate-200/80 flex items-center justify-between gap-3 shrink-0">
-                  <div className="text-[11px] text-slate-500 font-medium hidden sm:block">
-                    💡 Procedimientos realizados bajo protocolos médicos certificados
-                  </div>
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <a
-                      href="#agendar-preview"
-                      onClick={() => setShowServicesModal(false)}
-                      className={`flex-1 sm:flex-none bg-${getC("600")} hover:bg-${getC("700")} text-white text-xs font-extrabold py-2.5 px-5 rounded-xl text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all duration-200 cursor-pointer`}
-                    >
-                      Agendar Consulta
-                    </a>
-                    <button
-                      type="button"
-                      onClick={() => setShowServicesModal(false)}
-                      className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-white text-xs font-extrabold shadow-2xs hover:shadow-xs hover:-translate-y-0.5 active:scale-95 transition-all duration-200 cursor-pointer"
-                    >
-                      Cerrar
-                    </button>
-                  </div>
-                </div>
-
-              </motion.div>
+              </main>
             </motion.div>
           )}
         </AnimatePresence>
@@ -4137,84 +5073,112 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                 href={data.whatsappUrl || "#"} 
                 target="_blank" 
                 rel="noopener noreferrer" 
-                className="flex-1 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white py-2.5 px-3.5 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all duration-200 text-center uppercase tracking-wide cursor-pointer"
+                className="flex-1 bg-gradient-to-b from-emerald-500 via-emerald-600 to-emerald-700 hover:from-emerald-400 hover:to-emerald-600 text-white py-2.5 px-3.5 rounded-2xl font-black text-xs flex items-center justify-center gap-2 shadow-[0_5px_15px_-2px_rgba(16,185,129,0.5),inset_0_1.5px_1px_rgba(255,255,255,0.5),inset_0_-2.5px_2px_rgba(0,0,0,0.25)] border-t border-white/40 hover:-translate-y-0.5 active:translate-y-0.5 active:scale-98 transition-all duration-200 text-center uppercase tracking-wide cursor-pointer"
               >
-                <MessageCircle className="w-4 h-4 shrink-0 fill-white text-white" />
-                <span className="truncate font-black">AGENDAR CITA</span>
+                <MessageCircle className="w-4 h-4 shrink-0 fill-white text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.3)]" />
+                <span className="truncate font-black drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)]">AGENDAR CITA</span>
               </a>
               <button 
                 type="button" 
                 onClick={() => {
                   scrollToSection("resenas");
                 }}
-                className="flex-1 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-800 border border-slate-200/90 py-2.5 px-3.5 rounded-xl font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all duration-200 text-center cursor-pointer"
+                className="flex-1 bg-gradient-to-b from-white via-slate-50 to-slate-100 hover:from-white hover:to-slate-100 text-slate-800 border border-slate-200/90 py-2.5 px-3.5 rounded-2xl font-black text-xs flex items-center justify-center gap-1.5 shadow-[0_4px_10px_-2px_rgba(0,0,0,0.08),inset_0_1.5px_1px_rgba(255,255,255,0.9),inset_0_-2px_2px_rgba(0,0,0,0.06)] border-t border-white hover:-translate-y-0.5 active:translate-y-0.5 active:scale-98 transition-all duration-200 text-center cursor-pointer"
               >
-                <Star className="w-4 h-4 shrink-0 fill-amber-400 text-amber-500" />
+                <Star className="w-4 h-4 shrink-0 fill-amber-400 text-amber-500 drop-shadow-[0_1px_1px_rgba(0,0,0,0.15)]" />
                 <span className="truncate font-black">Reseñas</span>
               </button>
             </div>
           ) : (
             <nav 
               aria-label="Navegación Móvil Rápida"
-              className="sticky bottom-0 inset-x-0 bg-white/95 backdrop-blur-xl border-t border-slate-200/90 py-2 px-2.5 flex justify-around items-center z-30 shadow-[0_-6px_20px_rgba(0,0,0,0.08)] shrink-0"
+              className="sticky bottom-0 inset-x-0 bg-white/95 backdrop-blur-xl border-t border-slate-200/90 py-2 px-2 flex justify-around items-center z-30 shadow-[0_-6px_20px_rgba(0,0,0,0.08)] shrink-0"
             >
-              {/* Inicio (Azul Zafiro) */}
+              {/* Inicio (3D Azul Zafiro) */}
               <a 
                 href="#preview-landing-hero" 
-                className="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-blue-700 hover:bg-blue-50/80 transition-all duration-200 transform active:scale-95 group cursor-pointer"
+                onClick={(e) => {
+                  e.preventDefault();
+                  scrollToSection("inicio");
+                }}
+                className="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-blue-700 transition-all duration-200 transform active:scale-95 group cursor-pointer"
               >
-                <div className="w-8 h-8 rounded-xl bg-blue-100/80 text-blue-700 border border-blue-200/70 flex items-center justify-center shadow-xs group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 transition-all duration-200">
-                  <Home className="w-4 h-4 transition-transform group-hover:scale-110" />
+                <div className="relative w-9 h-9 rounded-2xl bg-gradient-to-b from-blue-400 via-blue-500 to-blue-600 text-white flex items-center justify-center shadow-[0_4px_10px_-1px_rgba(59,130,246,0.45),inset_0_1.5px_1px_rgba(255,255,255,0.7),inset_0_-2px_2px_rgba(0,0,0,0.2)] border-t border-white/40 transition-all duration-200 group-hover:scale-105 group-hover:shadow-[0_6px_14px_-1px_rgba(59,130,246,0.55),inset_0_1.5px_1px_rgba(255,255,255,0.8),inset_0_-2px_2px_rgba(0,0,0,0.2)] active:scale-95">
+                  <Home className="w-4.5 h-4.5 text-white drop-shadow-[0_1.5px_1px_rgba(0,0,0,0.25)] transition-transform group-hover:scale-110" />
                 </div>
                 <span className="text-[10px] font-extrabold tracking-tight">Inicio</span>
               </a>
 
-              {/* Doctor (Índigo) */}
+              {/* Doctor (3D Índigo) */}
               <a 
                 href="#preview-landing-nosotros" 
-                className="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-indigo-700 hover:bg-indigo-50/80 transition-all duration-200 transform active:scale-95 group cursor-pointer"
+                onClick={(e) => {
+                  e.preventDefault();
+                  scrollToSection("nosotros");
+                }}
+                className="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-indigo-700 transition-all duration-200 transform active:scale-95 group cursor-pointer"
               >
-                <div className="w-8 h-8 rounded-xl bg-indigo-100/80 text-indigo-700 border border-indigo-200/70 flex items-center justify-center shadow-xs group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-600 transition-all duration-200">
-                  <Award className="w-4 h-4 transition-transform group-hover:scale-110" />
+                <div className="relative w-9 h-9 rounded-2xl bg-gradient-to-b from-indigo-400 via-indigo-500 to-indigo-600 text-white flex items-center justify-center shadow-[0_4px_10px_-1px_rgba(99,102,241,0.45),inset_0_1.5px_1px_rgba(255,255,255,0.7),inset_0_-2px_2px_rgba(0,0,0,0.2)] border-t border-white/40 transition-all duration-200 group-hover:scale-105 group-hover:shadow-[0_6px_14px_-1px_rgba(99,102,241,0.55),inset_0_1.5px_1px_rgba(255,255,255,0.8),inset_0_-2px_2px_rgba(0,0,0,0.2)] active:scale-95">
+                  <Award className="w-4.5 h-4.5 text-white drop-shadow-[0_1.5px_1px_rgba(0,0,0,0.25)] transition-transform group-hover:scale-110" />
                 </div>
                 <span className="text-[10px] font-extrabold tracking-tight">{isClinica ? "Nosotros" : "Doctor"}</span>
               </a>
 
-              {/* Servicios (Teal) */}
+              {/* Servicios (3D Teal) */}
               <a 
                 href="#preview-landing-servicios" 
-                className="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-teal-700 hover:bg-teal-50/80 transition-all duration-200 transform active:scale-95 group cursor-pointer"
+                onClick={(e) => {
+                  e.preventDefault();
+                  scrollToSection("servicios");
+                }}
+                className="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-teal-700 transition-all duration-200 transform active:scale-95 group cursor-pointer"
               >
-                <div className="w-8 h-8 rounded-xl bg-teal-100/80 text-teal-700 border border-teal-200/70 flex items-center justify-center shadow-xs group-hover:bg-teal-600 group-hover:text-white group-hover:border-teal-600 transition-all duration-200">
-                  <Stethoscope className="w-4 h-4 transition-transform group-hover:scale-110" />
+                <div className="relative w-9 h-9 rounded-2xl bg-gradient-to-b from-teal-400 via-teal-500 to-teal-600 text-white flex items-center justify-center shadow-[0_4px_10px_-1px_rgba(20,184,166,0.45),inset_0_1.5px_1px_rgba(255,255,255,0.7),inset_0_-2px_2px_rgba(0,0,0,0.2)] border-t border-white/40 transition-all duration-200 group-hover:scale-105 group-hover:shadow-[0_6px_14px_-1px_rgba(20,184,166,0.55),inset_0_1.5px_1px_rgba(255,255,255,0.8),inset_0_-2px_2px_rgba(0,0,0,0.2)] active:scale-95">
+                  <Stethoscope className="w-4.5 h-4.5 text-white drop-shadow-[0_1.5px_1px_rgba(0,0,0,0.25)] transition-transform group-hover:scale-110" />
                 </div>
                 <span className="text-[10px] font-extrabold tracking-tight">Servicios</span>
               </a>
 
-              {/* Opiniones (Ámbar) */}
+              {/* Reseñas (3D Ámbar Dorado) */}
               <a 
                 href="#preview-landing-resenas" 
-                className="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-amber-700 hover:bg-amber-50/80 transition-all duration-200 transform active:scale-95 group cursor-pointer"
+                onClick={(e) => {
+                  e.preventDefault();
+                  scrollToSection("resenas");
+                }}
+                className="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-amber-700 transition-all duration-200 transform active:scale-95 group cursor-pointer"
               >
-                <div className="w-8 h-8 rounded-xl bg-amber-100/80 text-amber-700 border border-amber-200/70 flex items-center justify-center shadow-xs group-hover:bg-amber-500 group-hover:text-white group-hover:border-amber-500 transition-all duration-200">
-                  <Star className="w-4 h-4 transition-transform group-hover:scale-110 fill-current" />
+                <div className="relative w-9 h-9 rounded-2xl bg-gradient-to-b from-amber-300 via-amber-400 to-amber-500 text-amber-950 flex items-center justify-center shadow-[0_4px_10px_-1px_rgba(245,158,11,0.5),inset_0_1.5px_1px_rgba(255,255,255,0.8),inset_0_-2px_2px_rgba(0,0,0,0.2)] border-t border-white/50 transition-all duration-200 group-hover:scale-105 group-hover:shadow-[0_6px_14px_-1px_rgba(245,158,11,0.6),inset_0_1.5px_1px_rgba(255,255,255,0.9),inset_0_-2px_2px_rgba(0,0,0,0.2)] active:scale-95">
+                  <Star className="w-4.5 h-4.5 fill-amber-950 text-amber-950 drop-shadow-[0_1px_1px_rgba(255,255,255,0.4)] transition-transform group-hover:scale-110" />
                 </div>
-                <span className="text-[10px] font-extrabold tracking-tight">Opiniones</span>
+                <span className="text-[10px] font-extrabold tracking-tight">Reseñas</span>
               </a>
 
-              {/* Agendar Cita (Verde Esmeralda) */}
+              {/* Agendar Cita (3D Verde Esmeralda Hero CTA) */}
               <a 
                 href="#agendar-preview" 
-                className="flex flex-col items-center gap-1 py-1 px-2 rounded-xl bg-emerald-500/15 border border-emerald-300 text-emerald-800 shadow-xs hover:bg-emerald-600 hover:text-white transition-all duration-200 transform active:scale-95 group cursor-pointer"
+                onClick={(e) => {
+                  e.preventDefault();
+                  scrollToSection("contacto");
+                }}
+                className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-2xl transition-all duration-200 transform active:scale-95 group cursor-pointer ${
+                  data.estiloCta === "estatico_pulso"
+                    ? "bg-emerald-600/15 border-2 border-emerald-400 text-emerald-950 shadow-md"
+                    : "bg-emerald-500/15 border border-emerald-300/80 text-emerald-950 shadow-xs hover:bg-emerald-500/25"
+                }`}
               >
-                <div className="relative w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-200">
-                  <Calendar className="w-4 h-4" />
-                  <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-300"></span>
+                <div className={`relative w-9 h-9 rounded-2xl ${
+                  data.estiloCta === "estatico_pulso"
+                    ? "bg-gradient-to-b from-emerald-400 via-emerald-600 to-emerald-800 ring-2 ring-emerald-400 shadow-[0_6px_16px_-1px_rgba(16,185,129,0.7),inset_0_2px_1.5px_rgba(255,255,255,0.8),inset_0_-2.5px_2px_rgba(0,0,0,0.3)] animate-pulse"
+                    : "bg-gradient-to-b from-emerald-400 via-emerald-500 to-emerald-700 shadow-[0_5px_12px_-1px_rgba(16,185,129,0.55),inset_0_2px_1.5px_rgba(255,255,255,0.75),inset_0_-2.5px_2px_rgba(0,0,0,0.25)]"
+                } text-white border-t border-white/50 flex items-center justify-center transition-all duration-200 group-hover:scale-110 active:scale-95`}>
+                  <Calendar className="w-4.5 h-4.5 text-white drop-shadow-[0_1.5px_1px_rgba(0,0,0,0.3)]" />
+                  <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-80"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-gradient-to-br from-emerald-200 to-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9),inset_0_1px_1px_white] border border-white"></span>
                   </span>
                 </div>
-                <span className="text-[10px] font-black tracking-tight">Cita</span>
+                <span className="text-[10px] font-black tracking-tight text-emerald-900 group-hover:text-emerald-700">{data.estiloCta === "estatico_pulso" ? "Agendar" : "Cita"}</span>
               </a>
             </nav>
           )
@@ -4445,12 +5409,109 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
           )}
         </AnimatePresence>
 
+        {/* MODAL LECTURA ARTÍCULO COMPLETO DE BLOG */}
+        <AnimatePresence>
+          {selectedBlogPostModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 text-left"
+              onClick={() => setSelectedBlogPostModal(null)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 15 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 15 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-2xl max-w-2xl w-full max-h-[88vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden relative"
+              >
+                <div className="relative h-48 sm:h-64 bg-slate-100 overflow-hidden shrink-0">
+                  <img
+                    src={selectedBlogPostModal.imagenUrl || undefined}
+                    alt={selectedBlogPostModal.titulo}
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setSelectedBlogPostModal(null)}
+                    className="absolute top-3 right-3 p-2 rounded-full bg-slate-900/80 hover:bg-slate-950 text-white shadow-md transition-all cursor-pointer hover:scale-105"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                  <span className={`absolute bottom-3 left-4 text-[10px] font-extrabold uppercase tracking-widest bg-${getC("600")} text-white px-3 py-1 rounded-full shadow-xs`}>
+                    {selectedBlogPostModal.categoria}
+                  </span>
+                </div>
+
+                <div className="p-5 sm:p-6 overflow-y-auto space-y-4">
+                  <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
+                    <span>{selectedBlogPostModal.fecha}</span>
+                    <span>•</span>
+                    <span>{selectedBlogPostModal.tiempoLectura}</span>
+                    <span>•</span>
+                    <span className="text-emerald-700 font-extrabold bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200/60">
+                      Autor: {data.nombreMedico || "Médico Especialista"}
+                    </span>
+                  </div>
+
+                  <h2 className="text-xl sm:text-2xl font-extrabold text-slate-950 leading-tight font-display">
+                    {selectedBlogPostModal.titulo}
+                  </h2>
+
+                  <div className={`p-3.5 rounded-xl bg-${getC("50")} border-l-4 border-${getC("600")} text-xs sm:text-sm text-slate-700 font-medium leading-relaxed italic`}>
+                    {selectedBlogPostModal.extracto}
+                  </div>
+
+                  <div className="text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-line space-y-3 font-normal pt-1">
+                    {selectedBlogPostModal.contenido}
+                  </div>
+                </div>
+
+                <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-between items-center shrink-0">
+                  <span className="text-xs text-slate-500 font-medium hidden sm:inline">
+                    Contenido educativo médico E-E-A-T
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedBlogPostModal(null)}
+                    className={`ml-auto px-4 py-2 rounded-xl bg-${getC("600")} hover:bg-${getC("700")} text-white text-xs font-extrabold transition-all cursor-pointer shadow-xs`}
+                  >
+                    Cerrar Lectura
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* MODAL COMPONENTE COMPARTIBLE DE GUÍA / EBOOK */}
         <PatientGuideModal
           guide={shareModalGuide}
           data={data}
           isOpen={Boolean(shareModalGuide)}
           onClose={() => setShareModalGuide(null)}
+        />
+
+        {/* MODAL DE DETALLE DE SERVICIO / PROCEDIMIENTO */}
+        <ServiceDetailModal
+          service={selectedServiceForDetail}
+          data={data}
+          onClose={() => setSelectedServiceForDetail(null)}
+          onSelectService={(serviceTitle) => {
+            setSelectedServiceForAppointment(serviceTitle);
+            setBookingService(serviceTitle);
+            scrollToSection("contacto");
+          }}
+          onUpdateServiceMedia={(updatedSrv) => {
+            if ((data as any).updateField) {
+              const updatedList = data.servicios.map((s) => s.id === updatedSrv.id ? updatedSrv : s);
+              (data as any).updateField("servicios", updatedList);
+            }
+            setSelectedServiceForDetail(updatedSrv);
+          }}
+          getC={getC}
         />
 
       </div>

@@ -24,7 +24,15 @@ import {
   Building2,
   Timer,
   Globe,
-  FileText
+  FileText,
+  Film,
+  Loader2,
+  Code,
+  Play,
+  ShieldCheck,
+  Eye,
+  Maximize2,
+  X
 } from "lucide-react";
 import { MedicalIconSelector } from "../MedicalIconSelector";
 import { compressAndConvertToWebP, formatBytes } from "../../utils/imageCompressor";
@@ -59,13 +67,119 @@ export function FormServicesCases({
   onChange,
   updateField
 }: FormServicesCasesProps) {
+  const [uploadingGalleryIdx, setUploadingGalleryIdx] = React.useState<number | null>(null);
+  const [newGalleryUrlInput, setNewGalleryUrlInput] = React.useState<{ [key: number]: string }>({});
+  const [newEmbedInput, setNewEmbedInput] = React.useState<{ [key: number]: string }>({});
+  const [previewLightbox, setPreviewLightbox] = React.useState<{ url: string; title: string } | null>(null);
+
   const handleServiceChange = (index: number, field: keyof ServiceItem, value: any) => {
+    updateServiceFields(index, { [field]: value });
+  };
+
+  const updateServiceFields = (index: number, patch: Partial<ServiceItem>) => {
     const newServices = [...(data.servicios || [])];
     newServices[index] = {
       ...newServices[index],
-      [field]: value
+      ...patch
     };
     updateField("servicios", newServices);
+  };
+
+  const handleAddGalleryPhotoUrl = (srvIdx: number) => {
+    const url = (newGalleryUrlInput[srvIdx] || "").trim();
+    if (!url) return;
+    const currentSrv = (data.servicios || [])[srvIdx];
+    if (!currentSrv) return;
+    const currentGallery = currentSrv.galeriaFotos || [];
+    if (currentGallery.length >= 6) return;
+    
+    const updatedGallery = [...currentGallery, url];
+    handleServiceChange(srvIdx, "galeriaFotos", updatedGallery);
+    setNewGalleryUrlInput(prev => ({ ...prev, [srvIdx]: "" }));
+  };
+
+  const handleUploadGalleryPhotoFile = async (srvIdx: number, file: File) => {
+    const currentSrv = (data.servicios || [])[srvIdx];
+    if (!currentSrv) return;
+    const currentGallery = currentSrv.galeriaFotos || [];
+    if (currentGallery.length >= 6) return;
+
+    setUploadingGalleryIdx(srvIdx);
+    try {
+      const res = await compressAndConvertToWebP(file, { maxWidth: 1200, maxHeight: 900, quality: 0.85 });
+      const updatedGallery = [...currentGallery, res.dataUrl];
+      handleServiceChange(srvIdx, "galeriaFotos", updatedGallery);
+    } catch {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === "string") {
+          const updatedGallery = [...currentGallery, reader.result];
+          handleServiceChange(srvIdx, "galeriaFotos", updatedGallery);
+        }
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      setUploadingGalleryIdx(null);
+    }
+  };
+
+  const handleRemoveGalleryPhoto = (srvIdx: number, photoIdx: number) => {
+    const currentSrv = (data.servicios || [])[srvIdx];
+    if (!currentSrv) return;
+    const currentGallery = currentSrv.galeriaFotos || [];
+    const updatedGallery = currentGallery.filter((_, i) => i !== photoIdx);
+    handleServiceChange(srvIdx, "galeriaFotos", updatedGallery);
+  };
+
+  const getEmbedList = (srv: ServiceItem): string[] => {
+    if (srv.codigosEmbed && srv.codigosEmbed.length > 0) {
+      return srv.codigosEmbed;
+    }
+    const fallback: string[] = [];
+    if (srv.codigoEmbed && srv.codigoEmbed.trim()) fallback.push(srv.codigoEmbed.trim());
+    if (srv.reelUrl && srv.reelUrl.trim() && !fallback.includes(srv.reelUrl.trim())) fallback.push(srv.reelUrl.trim());
+    if (srv.videoUrl && srv.videoUrl.trim() && !fallback.includes(srv.videoUrl.trim())) fallback.push(srv.videoUrl.trim());
+    return fallback;
+  };
+
+  const handleAddEmbedCodeItem = (srvIdx: number) => {
+    const val = (newEmbedInput[srvIdx] || "").trim();
+    if (!val) return;
+    const currentSrv = (data.servicios || [])[srvIdx];
+    if (!currentSrv) return;
+    const currentEmbeds = getEmbedList(currentSrv);
+    if (currentEmbeds.length >= 8) return;
+
+    const updatedEmbeds = [...currentEmbeds, val];
+    updateServiceFields(srvIdx, {
+      codigosEmbed: updatedEmbeds,
+      codigoEmbed: updatedEmbeds[0] || "",
+      reelUrl: updatedEmbeds[0] || ""
+    });
+    setNewEmbedInput(prev => ({ ...prev, [srvIdx]: "" }));
+  };
+
+  const handleUpdateEmbedCodeItem = (srvIdx: number, embedIdx: number, value: string) => {
+    const currentSrv = (data.servicios || [])[srvIdx];
+    if (!currentSrv) return;
+    const currentEmbeds = [...getEmbedList(currentSrv)];
+    currentEmbeds[embedIdx] = value;
+    updateServiceFields(srvIdx, {
+      codigosEmbed: currentEmbeds,
+      codigoEmbed: currentEmbeds[0] || "",
+      reelUrl: currentEmbeds[0] || ""
+    });
+  };
+
+  const handleRemoveEmbedCodeItem = (srvIdx: number, embedIdx: number) => {
+    const currentSrv = (data.servicios || [])[srvIdx];
+    if (!currentSrv) return;
+    const currentEmbeds = getEmbedList(currentSrv).filter((_, i) => i !== embedIdx);
+    updateServiceFields(srvIdx, {
+      codigosEmbed: currentEmbeds,
+      codigoEmbed: currentEmbeds[0] || "",
+      reelUrl: currentEmbeds[0] || ""
+    });
   };
 
   const autoGenerateSlug = (index: number) => {
@@ -391,12 +505,31 @@ export function FormServicesCases({
 
                         {/* Previsualizador en proporción 5:4 */}
                         <div className="sm:col-span-4 flex flex-col gap-1">
-                          <label className="text-[10px] font-bold text-slate-600 uppercase">
-                            Vista Previa 5:4
+                          <label className="text-[10px] font-bold text-slate-600 uppercase flex items-center justify-between">
+                            <span>Vista Previa 5:4</span>
+                            {srv.imagenUrl && (
+                              <span className="text-[9px] font-bold text-blue-600 flex items-center gap-0.5">
+                                <Eye className="w-3 h-3" /> Clic para ampliar
+                              </span>
+                            )}
                           </label>
-                          <div className="w-full aspect-[5/4] rounded-xl overflow-hidden border border-slate-200 bg-slate-100 relative shadow-2xs">
+                          <div 
+                            className={`w-full aspect-[5/4] rounded-xl overflow-hidden border border-slate-200 bg-slate-100 relative shadow-2xs group ${srv.imagenUrl ? "cursor-pointer" : ""}`}
+                            onClick={() => {
+                              if (srv.imagenUrl) {
+                                setPreviewLightbox({ url: srv.imagenUrl, title: `${srv.titulo || "Tratamiento"} - Foto de Portada` });
+                              }
+                            }}
+                          >
                             {srv.imagenUrl ? (
-                              <img src={srv.imagenUrl} alt="Preview" className="w-full h-full object-cover" />
+                              <>
+                                <img src={srv.imagenUrl} alt="Preview" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                                <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                  <span className="p-1.5 rounded-lg bg-slate-900/90 text-white text-[10px] font-bold flex items-center gap-1 shadow-md">
+                                    <Maximize2 className="w-3 h-3 text-blue-400" /> Ver HD
+                                  </span>
+                                </div>
+                              </>
                             ) : (
                               <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 p-2 text-center">
                                 <ImageIcon className="w-6 h-6 mb-1 opacity-50" />
@@ -551,6 +684,28 @@ export function FormServicesCases({
                         </div>
                       </div>
 
+                      {/* 🛡️ Cobertura Seguros / Reembolso SRI */}
+                      <div className="flex flex-col justify-between gap-1 bg-white p-2.5 rounded-lg border border-slate-200/80 col-span-1 sm:col-span-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <label className="text-[10px] font-extrabold text-emerald-950 uppercase flex items-center gap-1.5">
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span>Mostrar Badge "🛡️ Cobertura Seguros / Reembolso"</span>
+                          </label>
+                          <label className="inline-flex items-center gap-2 cursor-pointer bg-emerald-50 hover:bg-emerald-100/80 px-2.5 py-1 rounded-lg border border-emerald-200/90 text-xs font-extrabold text-emerald-900 transition-all shrink-0">
+                            <input
+                              type="checkbox"
+                              checked={srv.aplicaReembolso !== false}
+                              onChange={(e) => handleServiceChange(idx, "aplicaReembolso", e.target.checked)}
+                              className="rounded text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5"
+                            />
+                            <span>{srv.aplicaReembolso !== false ? "✓ Visible en Tarjeta y Modal" : "🚫 Oculto (Procedimiento Complejo / Sin Reembolso)"}</span>
+                          </label>
+                        </div>
+                        <p className="text-[10px] text-slate-500 leading-tight pt-0.5">
+                          Actívalo si la Factura Electrónica SRI emitida para este tratamiento permite el trámite de reembolso médico con seguros privados. Desactívalo para cirugías complejas, tratamientos estéticos o procedimientos no reembolsables.
+                        </p>
+                      </div>
+
                       {/* ⏳ Duración de la Cita */}
                       <div className="flex flex-col gap-1 bg-white p-2.5 rounded-lg border border-slate-200/80">
                         <label className="text-[10px] font-bold text-blue-900 uppercase flex items-center gap-1" htmlFor={`srv-duracion-${idx}`}>
@@ -622,6 +777,165 @@ export function FormServicesCases({
                       placeholder="Explica en qué consiste el procedimiento, su técnica y beneficios para el paciente..."
                       className="px-3 py-2 rounded-xl border border-slate-200 text-xs focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all resize-none bg-white text-slate-800"
                     />
+                  </div>
+
+                  {/* GALERÍA DE FOTOS ADICIONALES (HASTA 6 IMÁGENES) */}
+                  <div className="p-3 bg-emerald-50/50 rounded-xl border border-emerald-200/80 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-extrabold uppercase tracking-wide text-emerald-900 flex items-center gap-1.5">
+                        <ImageIcon className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Galería de Fotografías Clínicas (Hasta 6)</span>
+                      </p>
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+                        {(srv.galeriaFotos || []).length} / 6 fotos
+                      </span>
+                    </div>
+
+                    {/* MINIATURAS DE LA GALERÍA */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                      {(srv.galeriaFotos || []).map((imgUrl, gIdx) => (
+                        <div 
+                          key={gIdx} 
+                          className="relative group aspect-4/3 rounded-xl overflow-hidden border border-emerald-300 bg-slate-900 shadow-2xs hover:shadow-md transition-all cursor-pointer"
+                          onClick={() => setPreviewLightbox({ url: imgUrl, title: `${srv.titulo || "Tratamiento"} - Foto Clínica #${gIdx + 1}` })}
+                        >
+                          <img src={imgUrl} alt={`Foto ${gIdx + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                          <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                            <span className="p-1 rounded-md bg-slate-900/90 text-white text-[9px] font-bold flex items-center gap-1">
+                              <Eye className="w-3 h-3 text-emerald-400" /> Ver HD
+                            </span>
+                          </div>
+                          <span className="absolute top-1 left-1 bg-slate-900/80 text-white text-[8px] font-black px-1.5 py-0.5 rounded">
+                            Foto #{gIdx + 1}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveGalleryPhoto(idx, gIdx);
+                            }}
+                            className="absolute top-1 right-1 p-1 bg-red-600 hover:bg-red-700 text-white rounded-full shadow-xs cursor-pointer transition-transform hover:scale-110 z-10"
+                            title="Eliminar foto de galería"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* FORMULARIO PARA AGREGAR IMAGEN A GALERÍA SI ES MENOR A 6 */}
+                    {(srv.galeriaFotos || []).length < 6 && (
+                      <div className="pt-1 flex flex-col sm:flex-row items-center gap-2">
+                        {/* Subida rápida desde archivo local */}
+                        <label className="w-full sm:w-auto px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-extrabold flex items-center justify-center gap-1.5 cursor-pointer transition-colors shrink-0">
+                          {uploadingGalleryIdx === idx ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Upload className="w-3.5 h-3.5" />
+                          )}
+                          <span>Subir foto</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              if (f) handleUploadGalleryPhotoFile(idx, f);
+                              e.target.value = "";
+                            }}
+                            disabled={uploadingGalleryIdx === idx}
+                          />
+                        </label>
+
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">ó URL:</span>
+
+                        {/* Pegar URL de imagen */}
+                        <input
+                          type="url"
+                          value={newGalleryUrlInput[idx] || ""}
+                          onChange={(e) => setNewGalleryUrlInput(prev => ({ ...prev, [idx]: e.target.value }))}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleAddGalleryPhotoUrl(idx);
+                            }
+                          }}
+                          placeholder="https://..."
+                          className="flex-1 w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 outline-none focus:border-emerald-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleAddGalleryPhotoUrl(idx)}
+                          className="w-full sm:w-auto px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold cursor-pointer transition-colors shrink-0"
+                        >
+                          + Agregar
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* CÓDIGOS EMBED & REELS (HASTA 8) */}
+                  <div className="p-3 bg-purple-50/50 rounded-xl border border-purple-200/80 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-extrabold uppercase tracking-wide text-purple-900 flex items-center gap-1.5">
+                        <Film className="w-3.5 h-3.5 text-purple-600" />
+                        <span>Códigos Embed & Videos / Reels (Hasta 8)</span>
+                      </p>
+                      <span className="text-[10px] font-bold text-purple-800 bg-purple-100 px-2 py-0.5 rounded-full">
+                        {getEmbedList(srv).length} / 8 videos
+                      </span>
+                    </div>
+
+                    {/* LISTA DE EMBEDS ACTUALES */}
+                    <div className="space-y-1.5">
+                      {getEmbedList(srv).map((embVal, embIdx) => (
+                        <div key={embIdx} className="flex items-center gap-2 bg-white p-1.5 rounded-lg border border-purple-200">
+                          <span className="text-[10px] font-black text-purple-700 w-5 text-center shrink-0">#{embIdx + 1}</span>
+                          <input
+                            type="text"
+                            value={embVal}
+                            onChange={(e) => handleUpdateEmbedCodeItem(idx, embIdx, e.target.value)}
+                            placeholder="URL de Reel o código <iframe ...>"
+                            className="flex-1 px-2 py-1 text-xs font-mono text-slate-800 border-0 outline-none bg-transparent"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveEmbedCodeItem(idx, embIdx)}
+                            className="p-1 text-slate-400 hover:text-red-600 cursor-pointer transition-colors shrink-0"
+                            title="Eliminar embed"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* AGREGAR OTRO EMBED SI ES MENOR A 8 */}
+                    {getEmbedList(srv).length < 8 && (
+                      <div className="pt-1 flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={newEmbedInput[idx] || ""}
+                          onChange={(e) => setNewEmbedInput(prev => ({ ...prev, [idx]: e.target.value }))}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleAddEmbedCodeItem(idx);
+                            }
+                          }}
+                          placeholder="Pega URL de Reel (Instagram, TikTok, YT) o código <iframe>..."
+                          className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 outline-none focus:border-purple-500 font-mono"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleAddEmbedCodeItem(idx)}
+                          className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-[11px] font-extrabold cursor-pointer transition-colors shrink-0 flex items-center gap-1"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Agregar</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -757,6 +1071,52 @@ export function FormServicesCases({
           </div>
         )}
       </div>
+      {/* MODAL DE PREVISUALIZACIÓN DE IMÁGENES EN ALTA RESOLUCIÓN */}
+      {previewLightbox && (
+        <div 
+          className="fixed inset-0 z-[120] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 select-none"
+          onClick={() => setPreviewLightbox(null)}
+        >
+          <div 
+            className="bg-slate-900 border border-slate-700/80 rounded-3xl max-w-2xl w-full p-4 shadow-2xl flex flex-col gap-3 relative overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+              <div className="flex items-center gap-2 min-w-0">
+                <ImageIcon className="w-4 h-4 text-emerald-400 shrink-0" />
+                <h4 className="text-xs sm:text-sm font-bold text-white truncate">{previewLightbox.title}</h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewLightbox(null)}
+                className="p-1.5 rounded-full bg-slate-800 hover:bg-red-600 text-white transition-colors cursor-pointer"
+                title="Cerrar (Esc)"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="w-full max-h-[65vh] flex items-center justify-center rounded-2xl overflow-hidden bg-black/60 p-1">
+              <img 
+                src={previewLightbox.url} 
+                alt={previewLightbox.title} 
+                className="max-h-[60vh] max-w-full object-contain rounded-xl shadow-lg"
+              />
+            </div>
+
+            <div className="flex items-center justify-between pt-1 text-[11px] text-slate-400">
+              <span>Resolución WebP optimizada</span>
+              <button
+                type="button"
+                onClick={() => setPreviewLightbox(null)}
+                className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold transition-colors cursor-pointer"
+              >
+                Cerrar vista
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

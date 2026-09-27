@@ -43,7 +43,7 @@ import { GbpPostExporterModal } from "../GbpPostExporterModal";
 
 interface FormSocialReviewsProps {
   data: MedicalLandingData;
-  onChange: (newData: MedicalLandingData) => void;
+  onChange: (newData: MedicalLandingData | ((prev: MedicalLandingData) => MedicalLandingData)) => void;
   updateField: (field: keyof MedicalLandingData, value: any) => void;
 }
 
@@ -72,30 +72,48 @@ export function FormSocialReviews({
   const videosList = data.redesSocialesVideos || [];
 
   const handleVideoChange = (index: number, field: keyof SocialVideoItem, value: any) => {
-    const newVideos = [...videosList];
-    newVideos[index] = {
-      ...newVideos[index],
-      [field]: value
-    };
-    updateField("redesSocialesVideos", newVideos);
+    onChange((prev) => {
+      const currentVideos = prev.redesSocialesVideos || [];
+      const newVideos = [...currentVideos];
+      newVideos[index] = {
+        ...newVideos[index],
+        [field]: value
+      };
+      return {
+        ...prev,
+        redesSocialesVideos: newVideos
+      };
+    });
   };
 
   const addVideo = () => {
-    if (videosList.length >= 6) return;
-    const newVid: SocialVideoItem = {
-      id: `vid-${Date.now()}`,
-      plataforma: "instagram",
-      titulo: `Reel / Video Médico ${videosList.length + 1}`,
-      videoUrl: "https://www.instagram.com/reel/...",
-      thumbnailUrl: "https://images.unsplash.com/photo-1576091160550-2173dba999ef?q=80&w=600&auto=format&fit=crop",
-      descripcion: "Breve explicación de la consulta o tratamiento médico."
-    };
-    updateField("redesSocialesVideos", [...videosList, newVid]);
+    onChange((prev) => {
+      const currentVideos = prev.redesSocialesVideos || [];
+      if (currentVideos.length >= 6) return prev;
+      const newVid: SocialVideoItem = {
+        id: `vid-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        plataforma: "instagram",
+        titulo: "",
+        videoUrl: "",
+        thumbnailUrl: "",
+        descripcion: ""
+      };
+      return {
+        ...prev,
+        redesSocialesVideos: [...currentVideos, newVid]
+      };
+    });
   };
 
   const removeVideo = (index: number) => {
-    const newVideos = videosList.filter((_, i) => i !== index);
-    updateField("redesSocialesVideos", newVideos);
+    onChange((prev) => {
+      const currentVideos = prev.redesSocialesVideos || [];
+      const newVideos = currentVideos.filter((_, i) => i !== index);
+      return {
+        ...prev,
+        redesSocialesVideos: newVideos
+      };
+    });
   };
 
   const handleReviewChange = (index: number, field: keyof ReviewItem, value: any) => {

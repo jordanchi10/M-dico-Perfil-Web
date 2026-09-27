@@ -1,26 +1,151 @@
 @import "tailwindcss";
 
-/* Keyframe animación Latido / Heartbeat */
+/* Keyframe animación Latido / Heartbeat Suave y Sutil */
 @keyframes heartbeat {
-  0%, 100% {
+  0%, 80%, 100% {
     transform: scale(1);
   }
-  14% {
-    transform: scale(1.04);
+  88% {
+    transform: scale(1.025);
   }
-  28% {
+  94% {
     transform: scale(1);
   }
-  42% {
-    transform: scale(1.06);
-  }
-  70% {
-    transform: scale(1);
+  97% {
+    transform: scale(1.035);
   }
 }
 
 .animate-heartbeat {
-  animation: heartbeat 1.8s ease-in-out infinite;
+  animation: heartbeat 3.6s ease-in-out infinite;
+}
+
+/* Clases para el borde neón suave estático (Google Profile Card - sin latido) */
+.neon-card-soft {
+  border-color: rgba(99, 102, 241, 0.45);
+  box-shadow: 0 0 0 1.5px rgba(99, 102, 241, 0.25), 0 0 16px 2px rgba(99, 102, 241, 0.15), 0 4px 16px -2px rgba(0, 0, 0, 0.04);
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.neon-card-soft:hover {
+  border-color: rgba(59, 130, 246, 0.65);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.45), 0 0 20px 4px rgba(99, 102, 241, 0.25), 0 6px 20px -2px rgba(0, 0, 0, 0.06);
+}
+
+/* Keyframe y clases para el borde neón suave en el botón Google Maps */
+@keyframes neon-pulse-soft-btn {
+  0%, 100% {
+    box-shadow: 0 0 0 1.5px rgba(59, 130, 246, 0.45), 0 0 10px 2px rgba(59, 130, 246, 0.25);
+    border-color: rgba(59, 130, 246, 0.55);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 2.5px rgba(37, 99, 235, 0.85), 0 0 16px 4px rgba(99, 102, 241, 0.45);
+    border-color: rgba(37, 99, 235, 0.9);
+    transform: scale(1.025);
+  }
+}
+
+.neon-pulse-btn {
+  animation: neon-pulse-soft-btn 3.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, background-color 0.25s ease;
+}
+
+.neon-pulse-btn:hover {
+  animation-play-state: paused;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.95), 0 0 20px 5px rgba(99, 102, 241, 0.5);
+  border-color: rgba(37, 99, 235, 1);
+}
+
+/* Keyframe y clases para el borde neón animado redondeado del Asistente Virtual */
+@keyframes assistantNeonSpin {
+  0% {
+    transform: rotate(0deg);
+    -webkit-transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+    -webkit-transform: rotate(360deg);
+  }
+}
+
+@-webkit-keyframes assistantNeonSpin {
+  0% {
+    -webkit-transform: rotate(0deg);
+  }
+  100% {
+    -webkit-transform: rotate(360deg);
+  }
+}
+
+.assistant-neon-card-wrapper {
+  position: relative !important;
+  border-radius: 24px !important;
+  padding: 3px !important;
+  overflow: hidden !important;
+  background-color: #ffffff !important;
+  clip-path: inset(0 round 24px) !important;
+  -webkit-clip-path: inset(0 round 24px) !important;
+  isolation: isolate !important;
+  contain: paint !important;
+  transform: translateZ(0) !important;
+  -webkit-transform: translateZ(0) !important;
+  will-change: transform !important;
+  box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.12), 0 4px 6px -2px rgba(0, 0, 0, 0.04) !important;
+}
+
+.assistant-neon-spinner {
+  position: absolute !important;
+  top: -50% !important;
+  left: -50% !important;
+  width: 200% !important;
+  height: 200% !important;
+  background: conic-gradient(from 0deg, #3b82f6 0deg, #f59e0b 120deg, #ef4444 240deg, #3b82f6 360deg) !important;
+  animation: assistantNeonSpin 5s linear infinite !important;
+  -webkit-animation: assistantNeonSpin 5s linear infinite !important;
+  pointer-events: none !important;
+  z-index: 1 !important;
+  transform-origin: center center !important;
+  -webkit-transform-origin: center center !important;
+}
+
+#asistente-medico-ia-widget {
+  position: relative !important;
+  z-index: 10 !important;
+  background-color: #ffffff !important;
+  border-radius: 21px !important;
+  width: 100% !important;
+}
+
+/* Borde neón sutil para el botón de consultar en vista Mobile */
+.assistant-neon-btn-wrapper {
+  position: relative !important;
+  border-radius: 12px !important;
+  padding: 1.5px !important;
+  overflow: hidden !important;
+  clip-path: inset(0 round 12px) !important;
+  -webkit-clip-path: inset(0 round 12px) !important;
+  background-color: #0f172a !important;
+  isolation: isolate !important;
+  contain: paint !important;
+  transform: translateZ(0) !important;
+  -webkit-transform: translateZ(0) !important;
+}
+
+.assistant-neon-btn-spinner {
+  position: absolute !important;
+  top: -50% !important;
+  left: -50% !important;
+  width: 200% !important;
+  height: 200% !important;
+  background: conic-gradient(from 0deg, #60a5fa 0deg, #fcd34d 120deg, #f87171 240deg, #60a5fa 360deg) !important;
+  opacity: 0.85 !important;
+  animation: assistantNeonSpin 6s linear infinite !important;
+  -webkit-animation: assistantNeonSpin 6s linear infinite !important;
+  pointer-events: none !important;
+  z-index: 1 !important;
+  transform-origin: center center !important;
+  -webkit-transform-origin: center center !important;
 }
 
 /* 

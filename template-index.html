@@ -111,8 +111,59 @@
     .animation-delay-300 {
       animation-delay: 300ms;
     }
-    .animation-delay-400 {
-      animation-delay: 400ms;
+    /* Keyframe y clases para el borde neón animado redondeado del Asistente Virtual */
+    @keyframes assistantNeonSpin {
+      0% {
+        transform: rotate(0deg);
+        -webkit-transform: rotate(0deg);
+      }
+      100% {
+        transform: rotate(360deg);
+        -webkit-transform: rotate(360deg);
+      }
+    }
+
+    @-webkit-keyframes assistantNeonSpin {
+      0% {
+        -webkit-transform: rotate(0deg);
+      }
+      100% {
+        -webkit-transform: rotate(360deg);
+      }
+    }
+
+    .assistant-neon-card-wrapper {
+      position: relative !important;
+      overflow: hidden !important;
+      border-radius: 24px !important;
+      -webkit-border-radius: 24px !important;
+      clip-path: inset(0 round 24px) !important;
+      -webkit-clip-path: inset(0 round 24px) !important;
+      isolation: isolate !important;
+      contain: paint !important;
+      transform: translateZ(0) !important;
+      -webkit-transform: translateZ(0) !important;
+      will-change: transform !important;
+      box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.12), 0 4px 6px -2px rgba(0, 0, 0, 0.04) !important;
+    }
+
+    /* COMPONENTE INDEPENDIENTE: ACORDEÓN DE PREGUNTAS FRECUENTES (FAQ) */
+    .faq-accordion-container {
+      position: relative;
+      z-index: 1;
+      isolation: isolate;
+    }
+
+    .faq-card-item {
+      position: relative;
+      background-color: #ffffff;
+      border: 1px solid rgba(226, 232, 240, 0.9);
+      border-radius: 1rem;
+      transition: all 0.2s ease-in-out;
+    }
+
+    .faq-card-item:hover {
+      border-color: rgba(203, 213, 225, 1);
     }
   </style>
 
@@ -297,7 +348,7 @@
     
     <!-- Contenedor del Logotipo (Visible únicamente en Mobile/Tablet, Oculto en Desktop con lg:hidden) -->
     <div class="col-span-12 lg:hidden w-full flex justify-center mb-6 animate-fade-in-up">
-      <img src="{{LOGO_URL}}" alt="Logotipo {{NOMBRE_MEDICO}}" class="h-10 sm:h-12 w-auto object-contain filter drop-shadow-sm" />
+      <img src="{{LOGO_URL}}" alt="Logotipo {{NOMBRE_MEDICO}} - {{ESPECIALIDAD}} en {{CIUDAD}}, Ecuador" class="h-10 sm:h-12 w-auto object-contain filter drop-shadow-sm" loading="lazy" decoding="async" />
     </div>
 
     <!-- Contenedor solo visible en Desktop/Laptop (hidden lg:flex) -->
@@ -361,7 +412,7 @@
         <div class="lg:col-span-5 relative flex justify-center animate-fade-in-up animation-delay-200">
           <div class="absolute inset-0 bg-clinical-600/10 rounded-[3rem] rotate-3 scale-95 blur-lg" aria-hidden="true"></div>
           <div class="relative rounded-[2.5rem] overflow-hidden border-4 border-white shadow-2xl max-w-sm sm:max-w-md w-full">
-            <img src="{{FOTO_URL_PROFESIONAL}}" alt="{{NOMBRE_MEDICO}} - Especialista Certificado" class="w-full aspect-[4/5] object-cover" loading="eager" referrerPolicy="no-referrer" />
+            <img src="{{FOTO_URL_PROFESIONAL}}" alt="{{NOMBRE_MEDICO}} - Especialista en {{ESPECIALIDAD}} en {{CIUDAD}}, Ecuador" class="w-full aspect-[4/5] object-cover" loading="eager" fetchpriority="high" decoding="async" referrerPolicy="no-referrer" />
             <div class="absolute bottom-0 inset-x-0 p-5 bg-gradient-to-t from-gray-900/90 via-gray-900/40 to-transparent text-white">
               <p class="text-xs font-bold uppercase tracking-widest text-clinical-100">Cédula Profesional</p>
               <p class="text-sm font-bold text-white">{{CEDULA_PROFESIONAL}}</p>
@@ -458,7 +509,6 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center mb-12">
       <span class="text-xs font-bold text-clinical-600 uppercase tracking-widest bg-clinical-50 px-3 py-1 rounded-full mb-3 inline-block">Portafolio Médico</span>
       <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-2">Tratamientos Especializados</h2>
-      <p class="text-gray-500 max-w-2xl mx-auto mt-3 text-sm md:text-base">Servicios integrales diseñados bajo estándares internacionales para garantizar la seguridad, máxima precisión y resultados excelentes en {{CIUDAD}}.</p>
     </div>
 
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -535,7 +585,7 @@
         <!-- Video 1 -->
         <div class="group relative bg-slate-50 border border-slate-200/90 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
           <div class="relative aspect-[4/5] sm:aspect-[9/16] max-h-[320px] w-full bg-slate-900 overflow-hidden">
-            <img src="https://images.unsplash.com/photo-1576091160550-2173dba999ef?q=80&w=600&auto=format&fit=crop" alt="Reel: ¿Cuándo consultar a un especialista?" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90" loading="lazy" />
+            <img src="https://images.unsplash.com/photo-1576091160550-2173dba999ef?q=80&w=600&auto=format&fit=crop" alt="Video informativo de {{ESPECIALIDAD}}: ¿Cuándo consultar a {{NOMBRE_MEDICO}} en {{CIUDAD}}?" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90" loading="lazy" decoding="async" />
             <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/30"></div>
             <span class="absolute top-3 left-3 text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 text-white shadow-md">
               📸 Instagram Reel
@@ -561,7 +611,7 @@
         <!-- Video 2 -->
         <div class="group relative bg-slate-50 border border-slate-200/90 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
           <div class="relative aspect-[4/5] sm:aspect-[9/16] max-h-[320px] w-full bg-slate-900 overflow-hidden">
-            <img src="https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?q=80&w=600&auto=format&fit=crop" alt="TikTok: 3 Mitos sobre Tratamientos Médicos" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90" loading="lazy" />
+            <img src="https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?q=80&w=600&auto=format&fit=crop" alt="Video educativo de {{NOMBRE_MEDICO}} sobre mitos de tratamientos en {{ESPECIALIDAD}} - {{CIUDAD}}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90" loading="lazy" decoding="async" />
             <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/30"></div>
             <span class="absolute top-3 left-3 text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-slate-900 text-cyan-300 shadow-md">
               🎵 TikTok Video
@@ -587,7 +637,7 @@
         <!-- Video 3 -->
         <div class="group relative bg-slate-50 border border-slate-200/90 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
           <div class="relative aspect-[4/5] sm:aspect-[9/16] max-h-[320px] w-full bg-slate-900 overflow-hidden">
-            <img src="https://images.unsplash.com/photo-1629909613654-28e377c37b09?q=80&w=600&auto=format&fit=crop" alt="Facebook: Protocolos de Consulta Médica" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90" loading="lazy" />
+            <img src="https://images.unsplash.com/photo-1629909613654-28e377c37b09?q=80&w=600&auto=format&fit=crop" alt="Protocolos de consulta y atención médica en {{ESPECIALIDAD}} con {{NOMBRE_MEDICO}} en {{CIUDAD}}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90" loading="lazy" decoding="async" />
             <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/30"></div>
             <span class="absolute top-3 left-3 text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-blue-600 text-white shadow-md">
               📘 Facebook Video
@@ -631,11 +681,11 @@
         
         <div class="relative w-full aspect-[4/3] rounded-2xl overflow-hidden select-none" id="before-after-slider">
           <!-- Imagen de Después (Fondo) -->
-          <img src="{{IMAGEN_DESPUES_URL}}" alt="Resultado Después del Tratamiento" class="absolute inset-0 w-full h-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
+          <img src="{{IMAGEN_DESPUES_URL}}" alt="Resultado clínico después del tratamiento de {{ESPECIALIDAD}} con {{NOMBRE_MEDICO}} en {{CIUDAD}}" class="absolute inset-0 w-full h-full object-cover" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
           
           <!-- Imagen de Antes (Superposición con clip-path) -->
           <div class="absolute inset-0 w-full h-full overflow-hidden" id="before-image-wrapper" style="clip-path: polygon(0 0, 50% 0, 50% 100%, 0 100%)">
-            <img src="{{IMAGEN_ANTES_URL}}" alt="Estado Antes del Tratamiento" class="absolute inset-0 w-full h-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
+            <img src="{{IMAGEN_ANTES_URL}}" alt="Estado clínico antes del tratamiento de {{ESPECIALIDAD}} con {{NOMBRE_MEDICO}} en {{CIUDAD}}" class="absolute inset-0 w-full h-full object-cover" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
             <span class="absolute top-4 left-4 bg-red-600/90 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">Antes</span>
           </div>
           
@@ -655,66 +705,92 @@
     </div>
   </section>
 
-  <!-- SECCIÓN PREGUNTAS FRECUENTES (FAQ) -->
-  <section id="faq" class="py-16 md:py-24 bg-white">
+  <!-- SECCIÓN ASISTENTE VIRTUAL DE CONSULTA -->
+  <section id="faq" class="py-16 md:py-24 bg-white relative">
     <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="text-center mb-12">
-        <span class="text-xs font-bold text-clinical-600 uppercase tracking-widest bg-clinical-50 px-3 py-1 rounded-full mb-3 inline-block">FAQ Pacientes</span>
-        <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-2">Preguntas Frecuentes de la Consulta</h2>
-        <p class="text-gray-500 mt-3 text-sm">Respuestas claras del especialista para disipar tus dudas previas a la cita médica.</p>
+      
+      <!-- Encabezado de Sección -->
+      <div class="text-center mb-10">
+        <span class="text-xs font-bold text-clinical-600 uppercase tracking-widest bg-clinical-50 border border-clinical-100 px-3 py-1 rounded-full mb-3 inline-block">Asistente Virtual IA</span>
+        <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-2 tracking-tight">Asistente Virtual de Consulta</h2>
+        <p class="text-gray-500 mt-2 text-sm sm:text-base max-w-2xl mx-auto">Resuelve tus preguntas e inquietudes de forma inmediata y confidencial sobre la atención con {{NOMBRE_MEDICO}}.</p>
       </div>
 
-      <div class="divide-y divide-gray-100 border-t border-b border-gray-100">
-        
-        <!-- Pregunta 1 -->
-        <div class="border-b border-gray-100 last:border-0 py-4">
-          <button class="flex items-center justify-between w-full text-left font-semibold text-gray-900 hover:text-clinical-600 py-2 focus:outline-none focus:ring-2 focus:ring-blue-100 rounded-lg px-2 transition-colors"
-                  aria-expanded="false" 
-                  aria-controls="faq-answer-0"
-                  onclick="toggleFaq(0)">
-            <span>{{PREGUNTA_1}}</span>
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-500 transform transition-transform duration-300" id="faq-icon-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-          <div id="faq-answer-0" class="hidden mt-2 px-2 text-gray-600 text-sm leading-relaxed" aria-hidden="true">
-            <p>{{RESPUESTA_1}}</p>
-          </div>
-        </div>
+      <!-- COMPONENTE INDEPENDIENTE 1: TARJETA ASISTENTE VIRTUAL DE CONSULTA (CON BORDE NEÓN AISLADO) -->
+      <div class="my-6 assistant-neon-card-wrapper" style="position: relative; overflow: hidden; contain: paint; transform: translateZ(0); -webkit-transform: translateZ(0); border-radius: 24px; -webkit-border-radius: 24px; clip-path: inset(0 round 24px); -webkit-clip-path: inset(0 round 24px); background-color: #ffffff; padding: 3px; isolation: isolate;">
+        <!-- Recorrido animado de borde neón estilo Google AI Studio -->
+        <div class="assistant-neon-spinner" style="position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: conic-gradient(from 0deg, #3b82f6 0deg, #f59e0b 120deg, #ef4444 240deg, #3b82f6 360deg); animation: assistantNeonSpin 5s linear infinite; -webkit-animation: assistantNeonSpin 5s linear infinite; pointer-events: none; z-index: 1;"></div>
 
-        <!-- Pregunta 2 -->
-        <div class="border-b border-gray-100 last:border-0 py-4">
-          <button class="flex items-center justify-between w-full text-left font-semibold text-gray-900 hover:text-clinical-600 py-2 focus:outline-none focus:ring-2 focus:ring-blue-100 rounded-lg px-2 transition-colors"
-                  aria-expanded="false" 
-                  aria-controls="faq-answer-1"
-                  onclick="toggleFaq(1)">
-            <span>{{PREGUNTA_2}}</span>
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-500 transform transition-transform duration-300" id="faq-icon-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-          <div id="faq-answer-1" class="hidden mt-2 px-2 text-gray-600 text-sm leading-relaxed" aria-hidden="true">
-            <p>{{RESPUESTA_2}}</p>
-          </div>
-        </div>
+        <div id="asistente-medico-ia-widget" class="relative z-10 rounded-[21px] bg-white p-5 sm:p-6 md:p-7 text-left transition-all" style="position: relative; z-index: 10; background-color: #ffffff; border-radius: 21px; -webkit-border-radius: 21px; width: 100%;">
+          <!-- Detalle visual sutil de fondo -->
+          <div class="absolute top-0 right-0 w-64 h-64 bg-slate-50 rounded-full blur-3xl pointer-events-none -mr-16 -mt-16 opacity-70"></div>
 
-        <!-- Pregunta 3 -->
-        <div class="border-b border-gray-100 last:border-0 py-4">
-          <button class="flex items-center justify-between w-full text-left font-semibold text-gray-900 hover:text-clinical-600 py-2 focus:outline-none focus:ring-2 focus:ring-blue-100 rounded-lg px-2 transition-colors"
-                  aria-expanded="false" 
-                  aria-controls="faq-answer-2"
-                  onclick="toggleFaq(2)">
-            <span>{{PREGUNTA_3}}</span>
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-500 transform transition-transform duration-300" id="faq-icon-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-          <div id="faq-answer-2" class="hidden mt-2 px-2 text-gray-600 text-sm leading-relaxed" aria-hidden="true">
-            <p>{{RESPUESTA_3}}</p>
+          <!-- Cabecera del Widget -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4 mb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-500 text-white flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0">
+                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div>
+                <div class="flex items-center gap-2 flex-wrap">
+                  <h3 class="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight">Asistente Virtual de Consulta</h3>
+                  <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200/80 uppercase tracking-wide">
+                    <span class="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse"></span>
+                    100% Local & Privado
+                  </span>
+                </div>
+                <p class="text-xs text-slate-500 font-medium mt-0.5">Resuelve tus preguntas sobre la atención con {{NOMBRE_MEDICO}}</p>
+              </div>
+            </div>
           </div>
-        </div>
 
+          <!-- Buscador Rápidamente Accesible -->
+          <form onsubmit="event.preventDefault(); handleMedicalAssistantSubmit();" class="space-y-3">
+            <div class="flex flex-col sm:flex-row gap-2.5">
+              <div class="relative flex-1">
+                <input
+                  type="text"
+                  id="assistant-query-input"
+                  placeholder="Ej: ¿Qué seguros aceptan? ¿Cuál es el costo? ¿Dónde atiende?"
+                  class="w-full bg-slate-50/80 hover:bg-slate-50 focus:bg-white text-slate-900 placeholder-slate-400 text-xs sm:text-sm rounded-xl px-4 py-3 pl-10 border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all outline-none"
+                />
+                <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <button
+                type="submit"
+                onclick="handleMedicalAssistantSubmit()"
+                class="hidden sm:inline-flex bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs sm:text-sm px-5 py-3 rounded-xl items-center justify-center gap-2 transition-all cursor-pointer shrink-0"
+              >
+                <span>Consultar</span>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+              </button>
+            </div>
+
+            <!-- Botón Consultar Mobile con Borde Neón Sutil -->
+            <div class="sm:hidden mt-2.5 assistant-neon-btn-wrapper w-full" style="position: relative; overflow: hidden; contain: paint; transform: translateZ(0); -webkit-transform: translateZ(0); border-radius: 12px; -webkit-border-radius: 12px; clip-path: inset(0 round 12px); -webkit-clip-path: inset(0 round 12px); background-color: #0f172a; padding: 1.5px; isolation: isolate;">
+              <div class="assistant-neon-btn-spinner" style="position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: conic-gradient(from 0deg, #60a5fa 0deg, #fcd34d 120deg, #f87171 240deg, #60a5fa 360deg); opacity: 0.85; animation: assistantNeonSpin 6s linear infinite; -webkit-animation: assistantNeonSpin 6s linear infinite; pointer-events: none; z-index: 1;"></div>
+              <button
+                type="submit"
+                onclick="handleMedicalAssistantSubmit()"
+                class="relative z-10 w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs py-2.5 px-4 rounded-[10.5px] flex items-center justify-center gap-2 transition-all cursor-pointer"
+                style="position: relative; z-index: 10; background-color: #0f172a;"
+              >
+                <span>Consultar</span>
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
+
     </div>
   </section>
 
@@ -842,7 +918,7 @@
         <!-- Artículo 1 -->
         <article class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col group hover:border-clinical-200 hover:shadow-md transition-all duration-300">
           <div class="relative overflow-hidden aspect-[16/10] bg-slate-100">
-            <img src="https://images.unsplash.com/photo-1505751172876-fa1923c5c528?q=80&w=600&auto=format&fit=crop" alt="Cuidados de salud" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
+            <img src="https://images.unsplash.com/photo-1505751172876-fa1923c5c528?q=80&w=600&auto=format&fit=crop" alt="Artículo de {{ESPECIALIDAD}}: 5 Consejos Clave para una Recuperación Rápida por {{NOMBRE_MEDICO}} en {{CIUDAD}}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" decoding="async" />
             <span class="absolute top-4 left-4 bg-white/90 backdrop-blur-sm text-clinical-700 text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider shadow-sm">Recuperación</span>
           </div>
           <div class="p-6 flex-1 flex flex-col justify-between">
@@ -867,7 +943,7 @@
         <!-- Artículo 2 -->
         <article class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col group hover:border-clinical-200 hover:shadow-md transition-all duration-300">
           <div class="relative overflow-hidden aspect-[16/10] bg-slate-100">
-            <img src="https://images.unsplash.com/photo-1581594693702-fbdc51b2763b?q=80&w=600&auto=format&fit=crop" alt="Consulta médica especialista" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
+            <img src="https://images.unsplash.com/photo-1581594693702-fbdc51b2763b?q=80&w=600&auto=format&fit=crop" alt="Guía médica de {{ESPECIALIDAD}}: Cuándo Consultar al Especialista {{NOMBRE_MEDICO}} en {{CIUDAD}}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" decoding="async" />
             <span class="absolute top-4 left-4 bg-white/90 backdrop-blur-sm text-clinical-700 text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider shadow-sm">Prevención</span>
           </div>
           <div class="p-6 flex-1 flex flex-col justify-between">
@@ -892,7 +968,7 @@
         <!-- Artículo 3 -->
         <article class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col group hover:border-clinical-200 hover:shadow-md transition-all duration-300">
           <div class="relative overflow-hidden aspect-[16/10] bg-slate-100">
-            <img src="https://images.unsplash.com/photo-1498837167922-ddd27525d352?q=80&w=600&auto=format&fit=crop" alt="Vida saludable" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
+            <img src="https://images.unsplash.com/photo-1498837167922-ddd27525d352?q=80&w=600&auto=format&fit=crop" alt="Medicina preventiva y bienestar en {{ESPECIALIDAD}} con {{NOMBRE_MEDICO}} en {{CIUDAD}}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" decoding="async" />
             <span class="absolute top-4 left-4 bg-white/90 backdrop-blur-sm text-clinical-700 text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider shadow-sm">Bienestar</span>
           </div>
           <div class="p-6 flex-1 flex flex-col justify-between">
@@ -1226,7 +1302,7 @@
     <div class="bg-white rounded-3xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
       <!-- Cabecera con Imagen -->
       <div class="relative h-48 sm:h-64 bg-slate-100 shrink-0">
-        <img id="modal-blog-img" src="" alt="" class="w-full h-full object-cover" referrerPolicy="no-referrer" />
+        <img id="modal-blog-img" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E" alt="Artículo médico por {{NOMBRE_MEDICO}} - Especialista en {{ESPECIALIDAD}} en {{CIUDAD}}" class="w-full h-full object-cover" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
         <button onclick="closeBlogModal()" class="absolute top-4 right-4 bg-white/95 backdrop-blur-sm p-2 rounded-full text-gray-700 hover:text-gray-950 hover:scale-105 shadow-md transition-all cursor-pointer">
           <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
         </button>
@@ -1388,23 +1464,27 @@
       document.body.style.overflow = '';
     }
 
-    // 2. Acordeón Interactivo de FAQs con Accesibilidad ARIA
+    // 2. Acordeón Interactivo de FAQs con Accesibilidad ARIA (Componente Independiente)
     function toggleFaq(index) {
       const answerElement = document.getElementById(`faq-answer-${index}`);
       const iconElement = document.getElementById(`faq-icon-${index}`);
-      const buttonElement = answerElement.previousElementSibling;
+      if (!answerElement) return;
+
+      const buttonElement = answerElement.previousElementSibling || answerElement.parentElement?.querySelector('button');
+      if (!buttonElement) return;
+
       const isExpanded = buttonElement.getAttribute('aria-expanded') === 'true';
 
       if (isExpanded) {
         answerElement.classList.add('hidden');
         buttonElement.setAttribute('aria-expanded', 'false');
         answerElement.setAttribute('aria-hidden', 'true');
-        iconElement.classList.remove('rotate-180');
+        if (iconElement) iconElement.classList.remove('rotate-180');
       } else {
         answerElement.classList.remove('hidden');
         buttonElement.setAttribute('aria-expanded', 'true');
         answerElement.setAttribute('aria-hidden', 'false');
-        iconElement.classList.add('rotate-180');
+        if (iconElement) iconElement.classList.add('rotate-180');
       }
     }
 
@@ -1459,7 +1539,7 @@
       if (!post) return;
       
       document.getElementById('modal-blog-img').src = post.imagenUrl;
-      document.getElementById('modal-blog-img').alt = post.titulo;
+      document.getElementById('modal-blog-img').alt = post.titulo + ' - {{NOMBRE_MEDICO}}, Especialista en {{ESPECIALIDAD}} en {{CIUDAD}}';
       document.getElementById('modal-blog-category').innerText = post.categoria;
       document.getElementById('modal-blog-date').innerText = post.fecha;
       document.getElementById('modal-blog-time').innerText = post.tiempoLectura;

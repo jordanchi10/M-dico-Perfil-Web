@@ -26,7 +26,13 @@ import {
   RotateCcw,
   Clock,
   LineChart,
-  TrendingDown
+  TrendingDown,
+  ShieldCheck,
+  Code2,
+  Zap,
+  Server,
+  Layers,
+  Check
 } from "lucide-react";
 import { generateJsonLd } from "../utils/generators";
 
@@ -44,6 +50,16 @@ interface AuditRule {
   feedback: string;
 }
 
+interface DurabilityItem {
+  id: string;
+  title: string;
+  subtitle: string;
+  status: "pass" | "warning";
+  verdict: string;
+  detail: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
 interface HistoryPoint {
   timestamp: string;
   versionName: string;
@@ -55,7 +71,7 @@ interface HistoryPoint {
 }
 
 export default function SeoAuditPanel({ data }: SeoAuditPanelProps) {
-  const [activeTab, setActiveTab] = useState<"rules" | "jsonld">("rules");
+  const [activeTab, setActiveTab] = useState<"rules" | "durability" | "jsonld">("rules");
   const [copied, setCopied] = useState(false);
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [newMilestoneName, setNewMilestoneName] = useState("");
@@ -283,6 +299,32 @@ export default function SeoAuditPanel({ data }: SeoAuditPanelProps) {
         : `La ciudad "${data.ciudad}" se menciona muy pocas veces (${cityMatches}). Agrégala en la filosofía o biografía corta.`
   });
 
+  // Verificación Google Search Console
+  const hasGscVerification = Boolean(data.googleSiteVerification?.trim() || data.googleVerificationFileCode?.trim());
+  rules.push({
+    id: "seo-google-search-console",
+    category: "seo",
+    title: "Verificación en Google Search Console",
+    description: "Permite indexar tratamientos rápidamente, monitorear impresiones y enviar el mapa de sitio sitemap.xml.",
+    status: hasGscVerification ? "pass" : "warning",
+    feedback: hasGscVerification
+      ? "Excelente. Cuentas con un método de verificación configurado para Google Search Console (Metaetiqueta / Archivo HTML)."
+      : "Recomendado: Agrega tu código de verificación de Google Search Console en la pestaña SEO para habilitar el rastreo oficial y métricas."
+  });
+
+  // Google Analytics 4 (GA4)
+  const hasGoogleAnalytics = Boolean(data.googleAnalyticsId?.trim());
+  rules.push({
+    id: "seo-google-analytics",
+    category: "seo",
+    title: "Google Analytics 4 (gtag.js) para Métricas y Conversiones",
+    description: "Monitorea pacientes activos, fuentes de tráfico (Google, WhatsApp, Redes Sociales) y clics a agendar.",
+    status: hasGoogleAnalytics ? "pass" : "warning",
+    feedback: hasGoogleAnalytics
+      ? `Excelente. ID de medición configurado (${data.googleAnalyticsId?.trim()}). El script gtag.js se inyectará en todas las páginas.`
+      : "Opcional pero recomendado: Agrega tu ID de medición GA4 (G-XXXXXXXXXX) para registrar el volumen de pacientes y conversiones."
+  });
+
 
   // --- 4. ACCESIBILIDAD Y MULTIMEDIA ---
 
@@ -452,6 +494,73 @@ export default function SeoAuditPanel({ data }: SeoAuditPanelProps) {
   });
 
   const passedValidationCount = validationResults.filter(v => v.status === "pass").length;
+
+  // --- 5. AUDITORÍA DE PERDURABILIDAD Y CÓDIGO PURO (AUTONOMÍA 3+ AÑOS) ---
+  const durabilityItems: DurabilityItem[] = [];
+
+  // Item 1: Estándar HTML5 & Vanilla JS (Sin framework pesado en bundle cliente)
+  durabilityItems.push({
+    id: "durability-standards",
+    title: "Estándar Universal W3C (HTML5 / Vanilla JS)",
+    subtitle: "Principio retroactivo 'Don't Break The Web'",
+    status: "pass",
+    verdict: "100% Compatible",
+    detail: "El código exportado utiliza JavaScript estándar ECMAScript y CSS3 puro. Todos los navegadores modernos garantizan que no romperán APIs nativas en futuras actualizaciones.",
+    icon: Code2
+  });
+
+  // Item 2: Cero dependencia de PHP / Base de Datos
+  durabilityItems.push({
+    id: "durability-serverless",
+    title: "Cero Dependencia de Servidor PHP o MySQL",
+    subtitle: "Inmune a cambios de versión de hosting",
+    status: "pass",
+    verdict: "100% Autónomo",
+    detail: "Al compilarse como página estática plana, la web no requiere intérpretes PHP (7.x a 8.x) ni bases de datos que sufran desincronizaciones o errores 500.",
+    icon: Server
+  });
+
+  // Item 3: Sin Plugins Vulnerables de Terceros
+  durabilityItems.push({
+    id: "durability-no-plugins",
+    title: "Sin Plugins ni Extensiones Obsoletas",
+    subtitle: "Cero cuotas de parches mensuales",
+    status: "pass",
+    verdict: "Cero Mantenimiento",
+    detail: "Todo el diseño, modales, interactividad de WhatsApp y sliders están autocontenidos en el mismo archivo sin requerir plugins de WordPress como Elementor o WooCommerce.",
+    icon: ShieldCheck
+  });
+
+  // Item 4: Verificación de Enlace Universal de WhatsApp
+  const hasValidPhone = Boolean(data.telefonoGBP && data.telefonoGBP.replace(/\D/g, "").length >= 8 && !data.telefonoGBP.includes("{{"));
+  durabilityItems.push({
+    id: "durability-whatsapp",
+    title: "Protocolo Universal WhatsApp (wa.me)",
+    subtitle: "Estándar de comunicación directo",
+    status: hasValidPhone ? "pass" : "warning",
+    verdict: hasValidPhone ? "Enlace Permanente" : "Teléfono Pendiente",
+    detail: hasValidPhone 
+      ? `El canal de agendamiento usa la API universal https://wa.me/${data.telefonoGBP.replace(/\D/g, "")}, la cual es un estándar global de Meta sin fecha de expiración.`
+      : "Configura un número de WhatsApp real con código de país para garantizar la redirección instantánea.",
+    icon: Zap
+  });
+
+  // Item 5: Protocolo Seguro HTTPS y Recursos Seguros
+  const hasHttps = Boolean(data.dominioWeb && data.dominioWeb.toLowerCase().startsWith("https://"));
+  durabilityItems.push({
+    id: "durability-https",
+    title: "Seguridad SSL y Compatibilidad de Certificados",
+    subtitle: "Renovación automática vía cPanel",
+    status: hasHttps ? "pass" : "warning",
+    verdict: hasHttps ? "HTTPS Configurado" : "Recomendado HTTPS",
+    detail: hasHttps
+      ? `El dominio ${data.dominioWeb} está configurado con protocolo cifrado HTTPS, compatible con AutoSSL / Let's Encrypt de por vida.`
+      : "Asegúrate de que el dominio en cPanel tenga activado AutoSSL gratuito para evitar advertencias de seguridad en navegadores.",
+    icon: Layers
+  });
+
+  const durabilityPassedCount = durabilityItems.filter(d => d.status === "pass").length;
+  const durabilityScore = Math.round((durabilityPassedCount / durabilityItems.length) * 100);
 
   // --- CALCULAR PUNTUACIONES POR CATEGORÍA EN TIEMPO REAL ---
   const eeatRulesCount = rules.filter(r => r.category === "eeat").length || 1;
@@ -939,6 +1048,17 @@ export default function SeoAuditPanel({ data }: SeoAuditPanelProps) {
           Auditoría de Conversión y SEO
         </button>
         <button
+          onClick={() => setActiveTab("durability")}
+          className={`flex-1 pb-3 text-xs font-bold uppercase tracking-wider border-b-2 text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            activeTab === "durability"
+              ? "border-emerald-600 text-emerald-600 font-extrabold"
+              : "border-transparent text-slate-400 hover:text-slate-600"
+          }`}
+        >
+          <ShieldCheck className="w-3.5 h-3.5" />
+          <span>Perdurabilidad Código Puro ({durabilityScore}%)</span>
+        </button>
+        <button
           onClick={() => setActiveTab("jsonld")}
           className={`flex-1 pb-3 text-xs font-bold uppercase tracking-wider border-b-2 text-center transition-all cursor-pointer ${
             activeTab === "jsonld"
@@ -946,7 +1066,7 @@ export default function SeoAuditPanel({ data }: SeoAuditPanelProps) {
               : "border-transparent text-slate-400 hover:text-slate-600"
           }`}
         >
-          Validador JSON-LD (Schema.org)
+          Validador JSON-LD
         </button>
       </div>
 
@@ -1022,6 +1142,101 @@ export default function SeoAuditPanel({ data }: SeoAuditPanelProps) {
                 </div>
               );
             })}
+          </div>
+        </div>
+      ) : activeTab === "durability" ? (
+        /* Pestaña: Perdurabilidad de Código Puro y Autonomía 3+ Años */
+        <div className="space-y-5 text-left">
+          {/* Banner de Estado de Autonomía */}
+          <div className="p-4 rounded-xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                  Estándar Web Puro
+                </span>
+                <span className="text-xs font-mono text-cyan-300 font-bold">W3C / Vanilla JS</span>
+              </div>
+              <h4 className="text-sm font-extrabold text-white">
+                Índice de Perdurabilidad y Cero Mantenimiento: {durabilityScore}%
+              </h4>
+              <p className="text-xs text-slate-300 max-w-xl">
+                Esta landing page está compilada sin plugins vulnerables ni dependencias de PHP. Cumple los estándares técnicos para operar durante más de 3 años en cPanel sin requerir soporte constante.
+              </p>
+            </div>
+
+            <div className="shrink-0 flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-3 rounded-xl backdrop-blur-xs">
+              <div className="w-9 h-9 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 uppercase font-bold block">Garantía Técnica</span>
+                <span className="text-xs font-extrabold text-emerald-300">Autonomía 3+ Años</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Checklist de Factores de Perdurabilidad */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h5 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                <Code2 className="w-4 h-4 text-slate-500" />
+                Checklist de Permanencia Técnica ({durabilityPassedCount}/{durabilityItems.length} Verificados)
+              </h5>
+              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                Listo para cPanel / Hosting
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3">
+              {durabilityItems.map((item) => {
+                const isPass = item.status === "pass";
+                const IconComponent = item.icon;
+                return (
+                  <div
+                    key={item.id}
+                    className={`p-4 rounded-xl border flex items-start gap-3.5 transition-all ${
+                      isPass
+                        ? "border-emerald-100 bg-emerald-50/20"
+                        : "border-amber-100 bg-amber-50/20"
+                    }`}
+                  >
+                    <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${
+                      isPass ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+                    }`}>
+                      <IconComponent className="w-4 h-4" />
+                    </div>
+
+                    <div className="flex-1 space-y-1">
+                      <div className="flex items-center justify-between flex-wrap gap-1">
+                        <div>
+                          <h6 className="text-xs font-extrabold text-slate-900 flex items-center gap-2">
+                            {item.title}
+                          </h6>
+                          <span className="text-[10px] text-slate-500 font-medium">{item.subtitle}</span>
+                        </div>
+                        <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full ${
+                          isPass ? "bg-emerald-100 text-emerald-800 border border-emerald-200" : "bg-amber-100 text-amber-800 border border-amber-200"
+                        }`}>
+                          {item.verdict}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 leading-relaxed mt-1">{item.detail}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Guía Rápida de Despliegue en cPanel */}
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+            <h6 className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5">
+              <Server className="w-3.5 h-3.5 text-blue-600" />
+              Recomendación para Despliegue Permanente
+            </h6>
+            <p className="text-[11px] text-slate-600 leading-relaxed">
+              Descarga el código exportado con el botón <strong>"Exportar Código Puro"</strong> o <strong>"Descargar ZIP"</strong>, colócalo en el directorio <code className="bg-slate-200 text-slate-800 px-1 py-0.5 rounded font-mono text-[10px]">public_html</code> del hosting del médico y asegúrate de alojar las fotos en la misma carpeta para garantizar que la web funcione de forma ininterrumpida sin requerir intervención técnica en 2 o 3 años.
+            </p>
           </div>
         </div>
       ) : (

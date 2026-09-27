@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { defaultMedicalData, MedicalLandingData, ProfileBackupPackage, SavedClientProfile } from "../types";
+import { ClinicGalleryImage, defaultMedicalData, MedicalLandingData, ProfileBackupPackage, SavedClientProfile } from "../types";
 
 const SAVED_PROFILES_STORAGE_KEY = "medical_landing_profiles_catalog_v1";
 const ACTIVE_PROFILE_ID_KEY = "medical_landing_active_profile_id_v1";
@@ -24,6 +24,9 @@ export function validateAndNormalizeMedicalData(raw: any): MedicalLandingData {
   const nombreMedico = typeof raw.nombreMedico === "string" && raw.nombreMedico.trim() ? raw.nombreMedico.trim() : base.nombreMedico;
   const especialidad = typeof raw.especialidad === "string" && raw.especialidad.trim() ? raw.especialidad.trim() : base.especialidad;
   const cedulaProfesional = typeof raw.cedulaProfesional === "string" ? raw.cedulaProfesional : base.cedulaProfesional;
+  const registroSenescyt = typeof raw.registroSenescyt === "string" ? raw.registroSenescyt : (base.registroSenescyt || "");
+  const codigoAcessMsp = typeof raw.codigoAcessMsp === "string" ? raw.codigoAcessMsp : (base.codigoAcessMsp || "");
+  const mostrarRegistroPublico = typeof raw.mostrarRegistroPublico === "boolean" ? raw.mostrarRegistroPublico : Boolean(base.mostrarRegistroPublico);
   const universidad = typeof raw.universidad === "string" ? raw.universidad : base.universidad;
   const anosExperiencia = typeof raw.anosExperiencia === "number" && !isNaN(raw.anosExperiencia) ? raw.anosExperiencia : (parseInt(raw.anosExperiencia, 10) || base.anosExperiencia);
   const fotoUrl = typeof raw.fotoUrl === "string" && raw.fotoUrl.trim() ? raw.fotoUrl.trim() : base.fotoUrl;
@@ -48,7 +51,7 @@ export function validateAndNormalizeMedicalData(raw: any): MedicalLandingData {
   const linkedinUrl = typeof raw.linkedinUrl === "string" ? raw.linkedinUrl : (base.linkedinUrl || "");
 
   let redesSocialesVideos = base.redesSocialesVideos || [];
-  if (Array.isArray(raw.redesSocialesVideos) && raw.redesSocialesVideos.length > 0) {
+  if (Array.isArray(raw.redesSocialesVideos)) {
     redesSocialesVideos = raw.redesSocialesVideos.slice(0, 6).map((vid: any, idx: number) => ({
       id: typeof vid.id === "string" && vid.id.trim() ? vid.id : `video-${Date.now()}-${idx}`,
       plataforma: (vid.plataforma === "tiktok" || vid.plataforma === "facebook" || vid.plataforma === "youtube") ? vid.plataforma : "instagram",
@@ -98,30 +101,32 @@ export function validateAndNormalizeMedicalData(raw: any): MedicalLandingData {
 
   // 4. Servicios
   let servicios = base.servicios;
-  if (Array.isArray(raw.servicios) && raw.servicios.length > 0) {
+  if (Array.isArray(raw.servicios)) {
     servicios = raw.servicios.map((srv: any, idx: number) => ({
+      ...srv,
       id: typeof srv.id === "string" && srv.id.trim() ? srv.id : `srv-${Date.now()}-${idx}`,
       titulo: typeof srv.titulo === "string" ? srv.titulo : `Servicio Clínico ${idx + 1}`,
       descripcion: typeof srv.descripcion === "string" ? srv.descripcion : "Descripción del procedimiento médico.",
-      icono: typeof srv.icono === "string" && srv.icono.trim() ? srv.icono : "Stethoscope"
+      icono: typeof srv.icono === "string" && srv.icono.trim() ? srv.icono : "Stethoscope",
+      aplicaReembolso: typeof srv.aplicaReembolso === "boolean" ? srv.aplicaReembolso : true
     }));
   }
 
   // 5. Casos Antes y Después
   let casosAntesDespues = base.casosAntesDespues;
-  if (Array.isArray(raw.casosAntesDespues) && raw.casosAntesDespues.length > 0) {
+  if (Array.isArray(raw.casosAntesDespues)) {
     casosAntesDespues = raw.casosAntesDespues.map((caso: any, idx: number) => ({
       id: typeof caso.id === "string" && caso.id.trim() ? caso.id : `caso-${Date.now()}-${idx}`,
       titulo: typeof caso.titulo === "string" ? caso.titulo : `Caso Clínico ${idx + 1}`,
       descripcion: typeof caso.descripcion === "string" ? caso.descripcion : "Evolución clínica satisfactoria.",
-      imgBefore: typeof caso.imgBefore === "string" ? caso.imgBefore : base.casosAntesDespues[0]?.imgBefore || "",
-      imgAfter: typeof caso.imgAfter === "string" ? caso.imgAfter : base.casosAntesDespues[0]?.imgAfter || ""
+      imgBefore: typeof caso.imgBefore === "string" ? caso.imgBefore : "",
+      imgAfter: typeof caso.imgAfter === "string" ? caso.imgAfter : ""
     }));
   }
 
-  // 6. FAQs
+  // 6. FAQs & Asistente Virtual IA
   let faqs = base.faqs;
-  if (Array.isArray(raw.faqs) && raw.faqs.length > 0) {
+  if (Array.isArray(raw.faqs)) {
     faqs = raw.faqs.map((faq: any, idx: number) => ({
       id: typeof faq.id === "string" && faq.id.trim() ? faq.id : `faq-${Date.now()}-${idx}`,
       pregunta: typeof faq.pregunta === "string" ? faq.pregunta : "¿Pregunta médica frecuente?",
@@ -129,9 +134,25 @@ export function validateAndNormalizeMedicalData(raw: any): MedicalLandingData {
     }));
   }
 
+  let asistentePreguntas = base.asistentePreguntas || faqs;
+  if (Array.isArray(raw.asistentePreguntas)) {
+    asistentePreguntas = raw.asistentePreguntas.map((faq: any, idx: number) => ({
+      id: typeof faq.id === "string" && faq.id.trim() ? faq.id : `asist-faq-${Date.now()}-${idx}`,
+      pregunta: typeof faq.pregunta === "string" ? faq.pregunta : "¿Pregunta para asistente virtual?",
+      respuesta: typeof faq.respuesta === "string" ? faq.respuesta : "Respuesta configurada para el asistente virtual."
+    }));
+  }
+
+  const sincronizarFaqsAsistente = typeof raw.sincronizarFaqsAsistente === "boolean" ? raw.sincronizarFaqsAsistente : (base.sincronizarFaqsAsistente ?? true);
+  const asistenteFotoUrl = typeof raw.asistenteFotoUrl === "string" ? raw.asistenteFotoUrl : (base.asistenteFotoUrl || "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?q=80&w=800&auto=format&fit=crop");
+  const asistenteNombre = typeof raw.asistenteNombre === "string" ? raw.asistenteNombre : (base.asistenteNombre || "Valeria - Asistente");
+  const asistenteMensajeBienvenida = typeof raw.asistenteMensajeBienvenida === "string" ? raw.asistenteMensajeBienvenida : (base.asistenteMensajeBienvenida || "¡Hola! Soy la asistente. ¿En qué te puedo ayudar hoy?");
+  const asistenteTono = typeof raw.asistenteTono === "string" ? raw.asistenteTono as any : (base.asistenteTono || "empatico");
+  const asistenteInstruccionesEspeciales = typeof raw.asistenteInstruccionesEspeciales === "string" ? raw.asistenteInstruccionesEspeciales : (base.asistenteInstruccionesEspeciales || "");
+
   // 7. Reseñas y Google Reviews
   let resenas = base.resenas;
-  if (Array.isArray(raw.resenas) && raw.resenas.length > 0) {
+  if (Array.isArray(raw.resenas)) {
     resenas = raw.resenas.map((r: any, idx: number) => ({
       id: typeof r.id === "string" && r.id.trim() ? r.id : `res-${Date.now()}-${idx}`,
       paciente: typeof r.paciente === "string" ? r.paciente : "Paciente Verificado",
@@ -150,7 +171,7 @@ export function validateAndNormalizeMedicalData(raw: any): MedicalLandingData {
 
   // 8. Blog Posts
   let blogPosts = base.blogPosts;
-  if (Array.isArray(raw.blogPosts) && raw.blogPosts.length > 0) {
+  if (Array.isArray(raw.blogPosts)) {
     blogPosts = raw.blogPosts.map((post: any, idx: number) => ({
       id: typeof post.id === "string" && post.id.trim() ? post.id : `blog-${Date.now()}-${idx}`,
       titulo: typeof post.titulo === "string" ? post.titulo : `Artículo de Salud ${idx + 1}`,
@@ -159,7 +180,7 @@ export function validateAndNormalizeMedicalData(raw: any): MedicalLandingData {
       contenido: typeof post.contenido === "string" ? post.contenido : "<p>Contenido educativo para pacientes.</p>",
       fecha: typeof post.fecha === "string" ? post.fecha : "Reciente",
       categoria: typeof post.categoria === "string" ? post.categoria : "Salud",
-      imagenUrl: typeof post.imagenUrl === "string" ? post.imagenUrl : base.blogPosts[0]?.imagenUrl || "",
+      imagenUrl: typeof post.imagenUrl === "string" ? post.imagenUrl : "",
       tiempoLectura: typeof post.tiempoLectura === "string" ? post.tiempoLectura : "3 min de lectura"
     }));
   }
@@ -174,6 +195,12 @@ export function validateAndNormalizeMedicalData(raw: any): MedicalLandingData {
   const faviconUrl = typeof raw.faviconUrl === "string" ? raw.faviconUrl : (base.faviconUrl || "");
   const pwaIconUrl = typeof raw.pwaIconUrl === "string" ? raw.pwaIconUrl : (base.pwaIconUrl || "");
   const pwaAppTitle = typeof raw.pwaAppTitle === "string" ? raw.pwaAppTitle : (base.pwaAppTitle || "");
+  const pwaShortName = typeof raw.pwaShortName === "string" ? raw.pwaShortName : (base.pwaShortName || "");
+  const pwaThemeColor = typeof raw.pwaThemeColor === "string" ? raw.pwaThemeColor : (base.pwaThemeColor || "#1e6fd9");
+  const pwaBackgroundColor = typeof raw.pwaBackgroundColor === "string" ? raw.pwaBackgroundColor : (base.pwaBackgroundColor || "#ffffff");
+  const pwaStatusBarStyle = (raw.pwaStatusBarStyle === "default" || raw.pwaStatusBarStyle === "black-translucent" || raw.pwaStatusBarStyle === "black")
+    ? raw.pwaStatusBarStyle
+    : (base.pwaStatusBarStyle || "default");
   const ogImageUrl = typeof raw.ogImageUrl === "string" ? raw.ogImageUrl : (base.ogImageUrl || "");
   const ogImageSource = (raw.ogImageSource === "foto" || raw.ogImageSource === "logo" || raw.ogImageSource === "pwa_icon" || raw.ogImageSource === "custom")
     ? raw.ogImageSource
@@ -199,13 +226,49 @@ export function validateAndNormalizeMedicalData(raw: any): MedicalLandingData {
   const logoTamanoDesktop = typeof raw.logoTamanoDesktop === "number" ? raw.logoTamanoDesktop : (base.logoTamanoDesktop || 60);
 
   const precioConsulta = typeof raw.precioConsulta === "string" ? raw.precioConsulta : base.precioConsulta;
-  const metodosPago = Array.isArray(raw.metodosPago) ? raw.metodosPago : base.metodosPago;
-  const fotosConsultorio = Array.isArray(raw.fotosConsultorio) ? raw.fotosConsultorio : base.fotosConsultorio;
-  const ordenSecciones = Array.isArray(raw.ordenSecciones) ? raw.ordenSecciones : base.ordenSecciones;
+  const metodosPago = Array.isArray(raw.metodosPago) ? raw.metodosPago.filter((m: any) => typeof m === "string") : base.metodosPago;
+  const habilitarTeleconsulta = typeof raw.habilitarTeleconsulta === "boolean" ? raw.habilitarTeleconsulta : (base.habilitarTeleconsulta ?? true);
+  const precioTeleconsulta = typeof raw.precioTeleconsulta === "string" ? raw.precioTeleconsulta : (base.precioTeleconsulta || "$40 USD");
+  const plataformasTeleconsulta = Array.isArray(raw.plataformasTeleconsulta) ? raw.plataformasTeleconsulta.filter((p: any) => typeof p === "string") : (base.plataformasTeleconsulta || ["Zoom", "Google Meet", "WhatsApp Video"]);
+  const requisitosTeleconsulta = typeof raw.requisitosTeleconsulta === "string" ? raw.requisitosTeleconsulta : (base.requisitosTeleconsulta || "Conexión a internet estable, espacio privado y documentos/estudios médicos previos digitales en PDF o fotos.");
+  const coberturaTeleconsulta = typeof raw.coberturaTeleconsulta === "string" ? raw.coberturaTeleconsulta : (base.coberturaTeleconsulta || "Atención para pacientes de todo el Ecuador y el exterior");
+  const beneficiosTeleconsulta = Array.isArray(raw.beneficiosTeleconsulta) ? raw.beneficiosTeleconsulta.filter((b: any) => typeof b === "string") : (base.beneficiosTeleconsulta || [
+    "Receta Médica Digital con firma electrónica oficial autorizada",
+    "Órdenes de laboratorio y exámenes de diagnóstico en PDF",
+    "Informe clínico de valoración y plan de tratamiento",
+    "Revisión posterior de exámenes sin costo adicional"
+  ]);
+  const subtituloInstalaciones = typeof raw.subtituloInstalaciones === "string" ? raw.subtituloInstalaciones : (base.subtituloInstalaciones || "Instalaciones & Tecnología");
+  const tituloInstalaciones = typeof raw.tituloInstalaciones === "string" ? raw.tituloInstalaciones : (base.tituloInstalaciones || "Espacios Diseñados para tu Bienestar");
+  const descripcionInstalaciones = typeof raw.descripcionInstalaciones === "string" ? raw.descripcionInstalaciones : (base.descripcionInstalaciones || "Conoce nuestro consultorio, salas de atención e instrumental médico preparado bajo los más estrictos protocolos de bioseguridad, privacidad y confort.");
+
+  let fotosConsultorio = base.fotosConsultorio || [];
+  if (Array.isArray(raw.fotosConsultorio)) {
+    fotosConsultorio = raw.fotosConsultorio.map((f: any, idx: number) => {
+      if (typeof f === "string") {
+        return {
+          id: `foto-cons-${Date.now()}-${idx}`,
+          url: f,
+          titulo: `Instalación Médica ${idx + 1}`,
+          descripcion: "Espacios diseñados para tu bienestar y confort."
+        };
+      }
+      if (typeof f === "object" && f !== null) {
+        return {
+          id: typeof f.id === "string" && f.id.trim() ? f.id : `foto-cons-${Date.now()}-${idx}`,
+          url: typeof f.url === "string" ? f.url : "",
+          titulo: typeof f.titulo === "string" ? f.titulo : `Instalación Médica ${idx + 1}`,
+          descripcion: typeof f.descripcion === "string" ? f.descripcion : ""
+        };
+      }
+      return null;
+    }).filter((f: any): f is ClinicGalleryImage => Boolean(f && f.url));
+  }
+  const ordenSecciones = Array.isArray(raw.ordenSecciones) ? raw.ordenSecciones.filter((s: any) => typeof s === "string") : base.ordenSecciones;
   const designVersion = typeof raw.designVersion === "number" ? raw.designVersion : 1;
 
   let guiasPacientes = base.guiasPacientes || [];
-  if (Array.isArray(raw.guiasPacientes) && raw.guiasPacientes.length > 0) {
+  if (Array.isArray(raw.guiasPacientes)) {
     guiasPacientes = raw.guiasPacientes.map((guia: any, idx: number) => ({
       id: typeof guia.id === "string" && guia.id.trim() ? guia.id : `guia-${Date.now()}-${idx}`,
       titulo: typeof guia.titulo === "string" ? guia.titulo : `Guía Médica ${idx + 1}`,
@@ -223,6 +286,9 @@ export function validateAndNormalizeMedicalData(raw: any): MedicalLandingData {
     nombreMedico,
     especialidad,
     cedulaProfesional,
+    registroSenescyt,
+    codigoAcessMsp,
+    mostrarRegistroPublico,
     universidad,
     anosExperiencia,
     fotoUrl,
@@ -244,6 +310,10 @@ export function validateAndNormalizeMedicalData(raw: any): MedicalLandingData {
     faviconUrl,
     pwaIconUrl,
     pwaAppTitle,
+    pwaShortName,
+    pwaThemeColor,
+    pwaBackgroundColor,
+    pwaStatusBarStyle,
     ogImageUrl,
     ogImageSource,
     filosofia,
@@ -274,6 +344,13 @@ export function validateAndNormalizeMedicalData(raw: any): MedicalLandingData {
     servicios,
     casosAntesDespues,
     faqs,
+    asistenteFotoUrl,
+    asistentePreguntas,
+    sincronizarFaqsAsistente,
+    asistenteNombre,
+    asistenteMensajeBienvenida,
+    asistenteTono,
+    asistenteInstruccionesEspeciales,
     resenas,
     habilitarGoogleReviewsWidget,
     googlePlaceId,
@@ -287,6 +364,15 @@ export function validateAndNormalizeMedicalData(raw: any): MedicalLandingData {
     estiloCta,
     precioConsulta,
     metodosPago,
+    habilitarTeleconsulta,
+    precioTeleconsulta,
+    plataformasTeleconsulta,
+    requisitosTeleconsulta,
+    coberturaTeleconsulta,
+    beneficiosTeleconsulta,
+    subtituloInstalaciones,
+    tituloInstalaciones,
+    descripcionInstalaciones,
     fotosConsultorio,
     ordenSecciones,
     designVersion,
@@ -317,18 +403,22 @@ export function parseImportFile(fileContent: string, fileName?: string): {
 
       // 1.1 Si es un paquete de backup de múltiples perfiles
       if (parsed && parsed.tipoExportacion === "lote_completo" && Array.isArray(parsed.perfiles)) {
-        const validProfiles: SavedClientProfile[] = parsed.perfiles.map((p: any) => ({
-          id: p.id || `profile-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-          nombreCliente: p.nombreCliente || p.data?.nombreMedico || "Cliente Médico",
-          nombreMedico: p.data?.nombreMedico || p.nombreMedico || "Médico Especialista",
-          especialidad: p.data?.especialidad || p.especialidad || "Medicina General",
-          ciudad: p.data?.ciudad || p.ciudad || "Ecuador",
-          clinica: p.data?.nombreClinicaGBP || p.clinica || "Consultorio Médico",
-          fechaCreacion: p.fechaCreacion || new Date().toISOString(),
-          fechaActualizacion: p.fechaActualizacion || new Date().toISOString(),
-          notasInternas: p.notasInternas || "",
-          data: validateAndNormalizeMedicalData(p.data || p)
-        }));
+        const validProfiles: SavedClientProfile[] = parsed.perfiles.map((p: any) => {
+          const esp = p.data?.especialidad || p.especialidad || "Medicina General";
+          return {
+            id: p.id || `profile-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+            nombreCliente: p.nombreCliente || p.data?.nombreMedico || "Cliente Médico",
+            nombreMedico: p.data?.nombreMedico || p.nombreMedico || "Médico Especialista",
+            especialidad: esp,
+            ciudad: p.data?.ciudad || p.ciudad || "Ecuador",
+            clinica: p.data?.nombreClinicaGBP || p.clinica || "Consultorio Médico",
+            fechaCreacion: p.fechaCreacion || p.fechaActualizacion || new Date().toISOString(),
+            fechaActualizacion: p.fechaActualizacion || p.fechaCreacion || new Date().toISOString(),
+            notasInternas: p.notasInternas || "",
+            etiquetaEspecialidad: p.etiquetaEspecialidad || esp,
+            data: validateAndNormalizeMedicalData(p.data || p)
+          };
+        });
 
         return {
           success: true,
@@ -344,16 +434,18 @@ export function parseImportFile(fileContent: string, fileName?: string): {
         const validProfiles: SavedClientProfile[] = parsed.map((p: any) => {
           const actualData = p.data || p;
           const normalized = validateAndNormalizeMedicalData(actualData);
+          const esp = normalized.especialidad || p.especialidad || "Medicina General";
           return {
             id: p.id || `profile-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
             nombreCliente: p.nombreCliente || `${normalized.nombreMedico} - ${normalized.especialidad}`,
             nombreMedico: normalized.nombreMedico,
-            especialidad: normalized.especialidad,
+            especialidad: esp,
             ciudad: normalized.ciudad,
             clinica: normalized.nombreClinicaGBP,
-            fechaCreacion: p.fechaCreacion || new Date().toISOString(),
-            fechaActualizacion: p.fechaActualizacion || new Date().toISOString(),
+            fechaCreacion: p.fechaCreacion || p.fechaActualizacion || new Date().toISOString(),
+            fechaActualizacion: p.fechaActualizacion || p.fechaCreacion || new Date().toISOString(),
             notasInternas: p.notasInternas || "",
+            etiquetaEspecialidad: p.etiquetaEspecialidad || esp,
             data: normalized
           };
         });
@@ -456,10 +548,16 @@ export function getSavedProfiles(): SavedClientProfile[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      return parsed.map(p => ({
-        ...p,
-        data: validateAndNormalizeMedicalData(p.data)
-      }));
+      return parsed.map(p => {
+        const esp = p.data?.especialidad || p.especialidad || "Medicina General";
+        return {
+          ...p,
+          etiquetaEspecialidad: (p.etiquetaEspecialidad || esp).trim(),
+          fechaCreacion: p.fechaCreacion || p.fechaActualizacion || new Date().toISOString(),
+          fechaActualizacion: p.fechaActualizacion || p.fechaCreacion || new Date().toISOString(),
+          data: validateAndNormalizeMedicalData(p.data)
+        };
+      });
     }
     return [];
   } catch (err) {
@@ -475,7 +573,8 @@ export function saveProfile(
   profileData: MedicalLandingData, 
   customNombreCliente?: string,
   existingId?: string,
-  notas?: string
+  notas?: string,
+  etiquetaEspecialidad?: string
 ): SavedClientProfile {
   const profiles = getSavedProfiles();
   const now = new Date().toISOString();
@@ -486,6 +585,9 @@ export function saveProfile(
   const ciudad = profileData.ciudad.trim() || "Ecuador";
   const defaultClientName = `${doctorName} - ${especialidad} (${ciudad})`;
 
+  const existingProfile = existingId ? profiles.find(p => p.id === existingId) : undefined;
+  const finalTag = etiquetaEspecialidad?.trim() || existingProfile?.etiquetaEspecialidad?.trim() || especialidad;
+
   const newProfile: SavedClientProfile = {
     id,
     nombreCliente: customNombreCliente?.trim() || defaultClientName,
@@ -493,9 +595,10 @@ export function saveProfile(
     especialidad,
     ciudad,
     clinica: profileData.nombreClinicaGBP.trim() || "Consultorio Médico",
-    fechaCreacion: existingId ? (profiles.find(p => p.id === existingId)?.fechaCreacion || now) : now,
+    fechaCreacion: existingProfile?.fechaCreacion || now,
     fechaActualizacion: now,
-    notasInternas: notas !== undefined ? notas : (profiles.find(p => p.id === existingId)?.notasInternas || ""),
+    notasInternas: notas !== undefined ? notas : (existingProfile?.notasInternas || ""),
+    etiquetaEspecialidad: finalTag,
     data: validateAndNormalizeMedicalData(profileData)
   };
 
@@ -514,6 +617,32 @@ export function saveProfile(
   }
 
   return newProfile;
+}
+
+/**
+ * Actualiza directamente la etiqueta de especialidad de un perfil sin alterar el resto de sus datos
+ */
+export function updateProfileTag(id: string, nuevaEtiqueta: string): SavedClientProfile | null {
+  const profiles = getSavedProfiles();
+  const index = profiles.findIndex(p => p.id === id);
+  if (index === -1) return null;
+
+  const now = new Date().toISOString();
+  const cleanTag = nuevaEtiqueta.trim() || profiles[index].especialidad || "Medicina General";
+  
+  profiles[index] = {
+    ...profiles[index],
+    etiquetaEspecialidad: cleanTag,
+    fechaActualizacion: now
+  };
+
+  try {
+    localStorage.setItem(SAVED_PROFILES_STORAGE_KEY, JSON.stringify(profiles));
+  } catch (err) {
+    console.error("Error al actualizar etiqueta de especialidad:", err);
+  }
+
+  return profiles[index];
 }
 
 /**
@@ -547,7 +676,8 @@ export function duplicateProfile(id: string): SavedClientProfile | null {
     duplicatedData,
     `${target.nombreCliente} (Copia)`,
     undefined,
-    target.notasInternas
+    target.notasInternas,
+    target.etiquetaEspecialidad
   );
 
   return newProfile;
@@ -564,9 +694,13 @@ export function importBatchProfiles(newProfiles: SavedClientProfile[], mergeMode
   newProfiles.forEach(p => {
     // Si ya existe id igual, regenerar id único para no pisar sin querer
     const safeId = map.has(p.id) ? `profile-${Date.now()}-${Math.random().toString(36).substring(2, 6)}` : p.id;
+    const esp = p.data?.especialidad || p.especialidad || "Medicina General";
     map.set(safeId, {
       ...p,
       id: safeId,
+      etiquetaEspecialidad: p.etiquetaEspecialidad || esp,
+      fechaCreacion: p.fechaCreacion || new Date().toISOString(),
+      fechaActualizacion: p.fechaActualizacion || new Date().toISOString(),
       data: validateAndNormalizeMedicalData(p.data)
     });
   });
@@ -610,7 +744,11 @@ export function setActiveProfileId(id: string | null): void {
 /**
  * Exporta un perfil individual como archivo .json descargable
  */
-export function downloadProfileAsJson(data: MedicalLandingData, customFilename?: string): void {
+export function downloadProfileAsJson(
+  data: MedicalLandingData, 
+  customFilename?: string,
+  etiquetaEspecialidad?: string
+): void {
   const sanitizedDoctor = (data.nombreMedico || "medico")
     .toLowerCase()
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -618,14 +756,16 @@ export function downloadProfileAsJson(data: MedicalLandingData, customFilename?:
     .replace(/(^-|-$)/g, "");
 
   const filename = customFilename || `perfil-cliente-${sanitizedDoctor || "medico"}.json`;
+  const tag = (etiquetaEspecialidad || data.especialidad || "Medicina General").trim();
   
   const payload = {
-    version: "1.0",
+    version: "1.1",
     tipoExportacion: "individual",
     fechaExportacion: new Date().toISOString(),
     cliente: {
       nombreMedico: data.nombreMedico,
       especialidad: data.especialidad,
+      etiquetaEspecialidad: tag,
       ciudad: data.ciudad,
       clinica: data.nombreClinicaGBP
     },
@@ -645,19 +785,41 @@ export function downloadProfileAsJson(data: MedicalLandingData, customFilename?:
 }
 
 /**
- * Exporta TODO el catálogo de perfiles (Backup completo para migración o respaldo de agencia)
+ * Exporta TODO el catálogo de perfiles (Backup completo para migración, respaldo y organización por especialidad)
+ * Permite opcionalmente exportar el lote completo o filtrado por una etiqueta de especialidad específica
  */
-export function downloadAllProfilesBackup(): void {
-  const profiles = getSavedProfiles();
+export function downloadAllProfilesBackup(filtroEtiqueta?: string): void {
+  const allProfiles = getSavedProfiles();
+  const isFiltered = Boolean(filtroEtiqueta && filtroEtiqueta !== "todas" && filtroEtiqueta !== "todos");
+  
+  const profiles = isFiltered
+    ? allProfiles.filter(p => (p.etiquetaEspecialidad || p.especialidad || "").toLowerCase().trim() === filtroEtiqueta!.toLowerCase().trim())
+    : allProfiles;
+
   const dateStr = new Date().toISOString().split("T")[0];
-  const filename = `backup-clientes-medicos-${dateStr}-${profiles.length}-perfiles.json`;
+  const tagSlug = isFiltered
+    ? `-${filtroEtiqueta!.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-")}`
+    : "";
+  const filename = `backup-clientes-medicos${tagSlug}-${dateStr}-${profiles.length}-perfiles.json`;
+
+  // Resumen estadístico agrupado por especialidad / etiqueta
+  const resumenPorEspecialidad: Record<string, number> = {};
+  allProfiles.forEach(p => {
+    const tag = (p.etiquetaEspecialidad || p.especialidad || "Medicina General").trim();
+    resumenPorEspecialidad[tag] = (resumenPorEspecialidad[tag] || 0) + 1;
+  });
 
   const backupPackage: ProfileBackupPackage = {
-    version: "1.0",
+    version: "1.1",
     tipoExportacion: "lote_completo",
     fechaExportacion: new Date().toISOString(),
     perfilesCount: profiles.length,
-    perfiles: profiles
+    etiquetaFiltro: isFiltered ? filtroEtiqueta : undefined,
+    resumenPorEspecialidad,
+    perfiles: profiles.map(p => ({
+      ...p,
+      etiquetaEspecialidad: (p.etiquetaEspecialidad || p.especialidad || "Medicina General").trim()
+    }))
   };
 
   const jsonStr = JSON.stringify(backupPackage, null, 2);
@@ -670,4 +832,162 @@ export function downloadAllProfilesBackup(): void {
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+}
+
+/**
+ * Genera una plantilla de datos médicos limpia desde cero (en blanco / placeholder limpio)
+ * lista para que el usuario construya un nuevo médico o clínica sin datos precargados.
+ */
+export function createBlankMedicalData(options?: {
+  nombreMedico?: string;
+  especialidad?: string;
+  ciudad?: string;
+  tipoEnfoque?: "medico" | "clinica";
+}): MedicalLandingData {
+  const base = JSON.parse(JSON.stringify(defaultMedicalData)) as MedicalLandingData;
+
+  const doctorName = options?.nombreMedico?.trim() || "Dr. Nuevo Médico";
+  const especialidad = options?.especialidad?.trim() || "Medicina General";
+  const ciudad = options?.ciudad?.trim() || "Quito";
+  const tipoEnfoque = options?.tipoEnfoque || "medico";
+
+  return {
+    ...base,
+    tipoEnfoqueLanding: tipoEnfoque,
+    nombreMedico: doctorName,
+    especialidad: especialidad,
+    cedulaProfesional: "",
+    registroSenescyt: "",
+    codigoAcessMsp: "",
+    mostrarRegistroPublico: false,
+    universidad: "",
+    anosExperiencia: 5,
+    fotoUrl: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=600&auto=format&fit=crop",
+    logoUrl: "",
+    faviconUrl: "",
+    pwaIconUrl: "",
+    filosofia: "Compromiso absoluto con la salud, bienestar y atención cálida de nuestros pacientes.",
+    biografiaCurta: `${tipoEnfoque === "clinica" ? "Centro médico especializado" : "Médico especialista"} dedicado a la atención integral y diagnósticos precisos en ${ciudad}, Ecuador.`,
+    mision: `Proporcionar atención médica de excelencia en ${especialidad}, priorizando la seguridad y salud del paciente.`,
+    vision: `Ser un referente de confianza y calidad médica en ${ciudad} y el Ecuador.`,
+    valores: ["Ética & Confianza", "Atención Humana", "Calidad Médica", "Seguridad del Paciente"],
+    dominioWeb: "",
+    nombreClinicaGBP: tipoEnfoque === "clinica" ? `Centro Médico ${ciudad}` : `Consultorio Dr. ${doctorName}`,
+    direccionFisica: `Av. Principal y Secundaria, Edificio Médico, ${ciudad}`,
+    ciudad: ciudad,
+    estadoRegion: ciudad === "Guayaquil" ? "Guayas" : ciudad === "Cuenca" ? "Azuay" : "Pichincha",
+    codigoPostal: "",
+    pais: "Ecuador",
+    latitud: "-0.1807",
+    longitud: "-78.4678",
+    telefonoGBP: "+593 99 000 0000",
+    whatsappUrl: "https://wa.me/593990000000",
+    whatsappMensajePlantilla: "Hola Dr(a). {{medico}}, deseo consultar información para {{servicio}} en {{ciudad}}.",
+    facebookUrl: "",
+    instagramUrl: "",
+    tiktokUrl: "",
+    youtubeUrl: "",
+    linkedinUrl: "",
+    redesSocialesVideos: [],
+    emailContacto: "contacto@consultoriomedico.ec",
+    doctoraliaUrl: "",
+    horarios: {
+      semana: "Lunes a Viernes: 09:00 AM - 06:00 PM",
+      sabado: "Sábados: 09:00 AM - 01:00 PM",
+      domingo: "Domingos: Cerrado (Previa Cita)"
+    },
+    aseguradoras: ["Saludsa", "Humana", "Ecuasanitas", "IESS (Reembolso)"],
+    hospitalesdondeOpera: [],
+    asociaciones: ["Colegio de Médicos", "Ministerio de Salud Pública del Ecuador (MSP)"],
+    certificados: ["Título Profesional Registrado", "Actualización Médica Continua"],
+    reconocimientos: [],
+    backlinksAutoridad: [],
+    servicios: [
+      {
+        id: `srv-${Date.now()}-1`,
+        titulo: `Consulta Especializada de ${especialidad}`,
+        slug: "consulta-especializada",
+        descripcion: `Evaluación clínica integral, anamnesis y diagnóstico especializado enfocado en ${especialidad}.`,
+        icono: "Stethoscope",
+        imagenUrl: "https://images.unsplash.com/photo-1579684385127-1ef15d508118?q=80&w=800&auto=format&fit=crop",
+        precio: "$40 USD",
+        duracion: "45 min",
+        recuperacion: "Inmediata",
+        modalidad: "Presencial y Online",
+        badgeEtiqueta: "Servicio Principal",
+        destacado: true
+      },
+      {
+        id: `srv-${Date.now()}-2`,
+        titulo: "Evaluación Diagnóstica y Control Preventivo",
+        slug: "evaluacion-diagnostica-control-preventivo",
+        descripcion: "Revisión clínica exhaustiva y plan de tratamiento personalizado preventivo.",
+        icono: "Activity",
+        imagenUrl: "https://images.unsplash.com/photo-1516549655169-df83a0774514?q=80&w=800&auto=format&fit=crop",
+        precio: "A consultar",
+        duracion: "30 min",
+        recuperacion: "Inmediata",
+        modalidad: "Presencial",
+        badgeEtiqueta: "Frecuente",
+        destacado: false
+      }
+    ],
+    casosAntesDespues: [],
+    resenas: [
+      {
+        id: `res-${Date.now()}-1`,
+        paciente: "Paciente Verificado",
+        comentario: "Excelente atención médica, puntualidad y calidez humana. Explicación muy detallada del diagnóstico.",
+        estrellas: 5,
+        fecha: "Hace 1 semana • Google Review"
+      }
+    ],
+    blogPosts: [],
+    faqs: [
+      {
+        id: `faq-${Date.now()}-1`,
+        pregunta: "¿Cómo puedo agendar una consulta médica?",
+        respuesta: `Puedes agendar tu cita rápidamente haciendo clic en el botón de WhatsApp o llamando directamente al número de atención ${ciudad}.`
+      },
+      {
+        id: `faq-${Date.now()}-2`,
+        pregunta: "¿Qué formas de pago aceptan?",
+        respuesta: "Aceptamos efectivo, transferencias bancarias directas, tarjetas de débito/crédito y emitimos factura para reembolso con aseguradoras privadas."
+      }
+    ],
+    fotosConsultorio: [
+      {
+        id: `foto-cons-${Date.now()}-1`,
+        url: "https://images.unsplash.com/photo-1629909613654-28e377c37b09?q=80&w=800&auto=format&fit=crop",
+        titulo: "Área de Atención y Consultorio",
+        descripcion: "Instalaciones diseñadas para la comodidad y privacidad de los pacientes."
+      }
+    ],
+    guiasPacientes: []
+  };
+}
+
+/**
+ * Crea y guarda directamente en el catálogo un cliente nuevo en blanco listo para editar
+ */
+export function createNewBlankProfile(options?: {
+  nombreMedico?: string;
+  especialidad?: string;
+  etiquetaEspecialidad?: string;
+  ciudad?: string;
+  tipoEnfoque?: "medico" | "clinica";
+  notas?: string;
+}): SavedClientProfile {
+  const blankData = createBlankMedicalData(options);
+  const clientName = `${blankData.nombreMedico} - ${blankData.especialidad} (${blankData.ciudad})`;
+  
+  const saved = saveProfile(
+    blankData,
+    clientName,
+    undefined,
+    options?.notas || "Cliente nuevo creado desde cero listo para personalizar.",
+    options?.etiquetaEspecialidad || options?.especialidad || blankData.especialidad
+  );
+
+  return saved;
 }

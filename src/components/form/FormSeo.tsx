@@ -45,9 +45,27 @@ import {
   Share2,
   Smartphone,
   Image,
-  Upload
+  Upload,
+  ChevronDown,
+  ChevronUp,
+  BarChart3,
+  Activity,
+  TrendingUp
 } from "lucide-react";
-import { generateJsonLd, normalizeDomainUrl, generateRobotsTxt, generateSitemapXml, generateLlmsTxt, getActiveFaviconUrl, getActiveOgImageUrl } from "../../utils/generators";
+import { 
+  generateJsonLd, 
+  normalizeDomainUrl, 
+  generateRobotsTxt, 
+  generateSitemapXml, 
+  generateLlmsTxt, 
+  getActiveFaviconUrl, 
+  getActiveOgImageUrl,
+  extractGoogleVerificationCode,
+  getGoogleHtmlVerificationFilename,
+  getGoogleHtmlVerificationContent,
+  extractGoogleAnalyticsId,
+  generateGoogleAnalyticsScript
+} from "../../utils/generators";
 import { compressAndConvertToWebP } from "../../utils/imageCompressor";
 import { GbpPostExporterModal } from "../GbpPostExporterModal";
 
@@ -70,6 +88,18 @@ export function FormSeo({
   const [isGbpExporterOpen, setIsGbpExporterOpen] = useState(false);
   const [seoPreviewTab, setSeoPreviewTab] = useState<'serp' | 'social'>('serp');
 
+  // Estados para Google Search Console
+  const [gscVerificationTab, setGscVerificationTab] = useState<'meta' | 'file' | 'dns'>('meta');
+  const [copiedGscMeta, setCopiedGscMeta] = useState(false);
+  const [copiedGscFileContent, setCopiedGscFileContent] = useState(false);
+  const [copiedGscFilename, setCopiedGscFilename] = useState(false);
+  const [copiedGscDns, setCopiedGscDns] = useState(false);
+  const [copiedGscSitemapUrl, setCopiedGscSitemapUrl] = useState(false);
+
+  // Estados para Google Analytics (GA4)
+  const [copiedGaScript, setCopiedGaScript] = useState(false);
+  const [copiedGaId, setCopiedGaId] = useState(false);
+
   // Estados para Módulo de Backlinks & Autoridad Médica E-E-A-T
   const [newPortalNombre, setNewPortalNombre] = useState("");
   const [newTipoPortal, setNewTipoPortal] = useState<BacklinkAuthorityItem["tipoPortal"]>("colegio_medico");
@@ -87,6 +117,7 @@ export function FormSeo({
   const [importSuccessMsg, setImportSuccessMsg] = useState<string | null>(null);
   const [importErrorMsg, setImportErrorMsg] = useState<string | null>(null);
   const [showAdvancedManualForm, setShowAdvancedManualForm] = useState(false);
+  const [isSubdomainsVisible, setIsSubdomainsVisible] = useState(false);
 
   const activeFavicon = getActiveFaviconUrl(data);
   const activeOgImage = getActiveOgImageUrl(data);
@@ -454,6 +485,20 @@ Genera la lista con los portales más relevantes de ${ciudad}, Ecuador respetand
     }
     const updatedData = { ...data, dominioWeb: cleanUrl, metaTitulo: title, metaDescripcion: desc };
     schemaScript.textContent = generateJsonLd(updatedData, cleanUrl);
+
+    // 8. Verificación de Google Search Console
+    const cleanGscCode = extractGoogleVerificationCode(data.googleSiteVerification);
+    let gscMetaEl = document.querySelector("meta[name='google-site-verification']") as HTMLMetaElement;
+    if (cleanGscCode) {
+      if (!gscMetaEl) {
+        gscMetaEl = document.createElement("meta");
+        gscMetaEl.name = "google-site-verification";
+        document.head.appendChild(gscMetaEl);
+      }
+      gscMetaEl.content = cleanGscCode;
+    } else if (gscMetaEl) {
+      gscMetaEl.remove();
+    }
   };
 
   const handleInjectDomain = (domainToInject?: string) => {
@@ -673,11 +718,11 @@ Estado: Listo para enrutamiento HTTPS SSL automático.`;
       <div className="border-b border-slate-100 pb-3 flex items-start justify-between">
         <div>
           <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-            <Globe className="w-4 h-4 text-blue-600" />
-            SEO Médico, Dominio Web & Inyección de Código
+            <Sparkles className="w-4 h-4 text-indigo-600" />
+            Vinculación SEO con Inteligencia Artificial & Dominio Web
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Ingresa la URL o subdominio del médico e inyéctala automáticamente en etiquetas canónicas, Open Graph, Sitemap XML, Robots.txt y Schema Physician.
+            Ingresa la URL o subdominio del médico e inyéctala automáticamente en etiquetas canónicas, Open Graph, Sitemap XML, Robots.txt, esquemas Schema Physician y optimización de citaciones para motores de IA.
           </p>
         </div>
         <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-blue-50 text-blue-800 border border-blue-200">
@@ -805,48 +850,64 @@ Estado: Listo para enrutamiento HTTPS SSL automático.`;
                 Opciones generadas en tiempo real según el enlace o término que ingresaste (<code className="text-amber-300 font-mono font-bold">{activeSlug}</code>):
               </p>
             </div>
-            <span className="text-[10px] text-slate-400 font-mono">Haz clic en una opción para inyectarla directo</span>
+            <button
+              type="button"
+              onClick={() => setIsSubdomainsVisible(prev => !prev)}
+              className="flex items-center gap-1.5 text-xs font-extrabold text-blue-300 hover:text-white bg-slate-700/80 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-600 hover:border-blue-400 cursor-pointer transition-colors shadow-2xs"
+              title={isSubdomainsVisible ? "Ocultar sugerencias de subdominios" : "Mostrar sugerencias de subdominios"}
+            >
+              <span>{isSubdomainsVisible ? "Ocultar sugerencias" : "Ver sugerencias"}</span>
+              {isSubdomainsVisible ? (
+                <ChevronUp className="w-3.5 h-3.5 text-blue-300" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5 text-blue-300" />
+              )}
+            </button>
           </div>
 
-          {/* Subdominio Principal .medico.ec */}
-          <div className="space-y-1.5">
-            <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1">
-              🏥 Subdominio Principal (.medico.ec):
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {primarySubdomains.map((opt) => (
-                <button
-                  key={opt}
-                  type="button"
-                  onClick={() => handleInjectDomain(opt)}
-                  className="text-[11px] font-mono px-3 py-1.5 rounded-lg bg-slate-700/80 hover:bg-blue-600/60 text-blue-200 hover:text-white border border-slate-600 hover:border-blue-400 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs group"
-                >
-                  <span>{opt}</span>
-                  <Zap className="w-3 h-3 text-amber-400 opacity-60 group-hover:opacity-100 transition-opacity" />
-                </button>
-              ))}
-            </div>
-          </div>
+          {isSubdomainsVisible && (
+            <div className="space-y-3 pt-2 border-t border-slate-700/60 animate-fade-in">
+              {/* Subdominio Principal .medico.ec */}
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1">
+                  🏥 Subdominio Principal (.medico.ec):
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {primarySubdomains.map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => handleInjectDomain(opt)}
+                      className="text-[11px] font-mono px-3 py-1.5 rounded-lg bg-slate-700/80 hover:bg-blue-600/60 text-blue-200 hover:text-white border border-slate-600 hover:border-blue-400 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs group"
+                    >
+                      <span>{opt}</span>
+                      <Zap className="w-3 h-3 text-amber-400 opacity-60 group-hover:opacity-100 transition-opacity" />
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-          {/* Subdominio Secundario .med1.ec */}
-          <div className="space-y-1.5 pt-1">
-            <span className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider flex items-center gap-1">
-              ⚡ Subdominio Secundario (.med1.ec):
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {secondarySubdomains.map((opt) => (
-                <button
-                  key={opt}
-                  type="button"
-                  onClick={() => handleInjectDomain(opt)}
-                  className="text-[11px] font-mono px-3 py-1.5 rounded-lg bg-slate-700/80 hover:bg-blue-600/60 text-blue-200 hover:text-white border border-slate-600 hover:border-blue-400 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs group"
-                >
-                  <span>{opt}</span>
-                  <Zap className="w-3 h-3 text-amber-400 opacity-60 group-hover:opacity-100 transition-opacity" />
-                </button>
-              ))}
+              {/* Subdominio Secundario .med1.ec */}
+              <div className="space-y-1.5 pt-1">
+                <span className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider flex items-center gap-1">
+                  ⚡ Subdominio Secundario (.med1.ec):
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {secondarySubdomains.map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => handleInjectDomain(opt)}
+                      className="text-[11px] font-mono px-3 py-1.5 rounded-lg bg-slate-700/80 hover:bg-blue-600/60 text-blue-200 hover:text-white border border-slate-600 hover:border-blue-400 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs group"
+                    >
+                      <span>{opt}</span>
+                      <Zap className="w-3 h-3 text-amber-400 opacity-60 group-hover:opacity-100 transition-opacity" />
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* CHECKLIST DE COBERTURA DE CÓDIGO INYECTADO */}
@@ -980,7 +1041,7 @@ Estado: Listo para enrutamiento HTTPS SSL automático.`;
                     `<!-- CÓDIGO METATAGS & CANONICAL INYECTADO EN HEAD -->
 <title>${data.metaTitulo || `${data.nombreMedico || 'Doctor'} | ${data.especialidad || 'Medicina'} en ${data.ciudad || 'Ecuador'}`}</title>
 <meta name="description" content="${data.metaDescripcion || `Sitio oficial de ${data.nombreMedico || 'Doctor'}`}">
-
+${extractGoogleVerificationCode(data.googleSiteVerification) ? `\n<!-- VERIFICACIÓN GOOGLE SEARCH CONSOLE -->\n<meta name="google-site-verification" content="${extractGoogleVerificationCode(data.googleSiteVerification)}">\n` : ''}${generateGoogleAnalyticsScript(data.googleAnalyticsId) ? `\n${generateGoogleAnalyticsScript(data.googleAnalyticsId)}\n` : ''}
 <!-- URL CANÓNICA Y SITEMAP GOOGLE -->
 <link rel="canonical" href="${normalizeDomainUrl(data.dominioWeb || primarySubdomains[0])}/">
 <link rel="sitemap" type="application/xml" title="Sitemap" href="${normalizeDomainUrl(data.dominioWeb || primarySubdomains[0])}/sitemap.xml">
@@ -1505,6 +1566,611 @@ Estado: Listo para enrutamiento HTTPS SSL automático.`;
           </div>
         </div>
       </div>
+
+      {/* 3.5. GOOGLE SEARCH CONSOLE (GSC) - VERIFICACIÓN DE PROPIEDAD & INDEXACIÓN */}
+      {(() => {
+        const cleanGscCode = extractGoogleVerificationCode(data.googleSiteVerification);
+        const activeGscFilename = getGoogleHtmlVerificationFilename(data.googleVerificationFileCode || cleanGscCode);
+        const activeGscFileContent = activeGscFilename ? getGoogleHtmlVerificationContent(activeGscFilename) : "";
+        const activeDomainForGsc = normalizeDomainUrl(data.dominioWeb || "https://tu-consultorio-medico.ec");
+        const sitemapGscUrl = `${activeDomainForGsc}/sitemap.xml`;
+        const isVerified = Boolean(cleanGscCode || data.googleVerificationFileCode);
+
+        const handleDownloadHtmlFile = () => {
+          if (!activeGscFilename) return;
+          const content = activeGscFileContent || getGoogleHtmlVerificationContent(activeGscFilename);
+          const blob = new Blob([content], { type: "text/html;charset=utf-8" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = activeGscFilename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        };
+
+        return (
+          <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 shrink-0">
+                    <Search className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                    Google Search Console (GSC)
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 uppercase tracking-wide">
+                      Verificación Oficial
+                    </span>
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-600 pl-9">
+                  Valida la titularidad de tu dominio web para activar la indexación acelerada en Google, monitorear términos médicos de búsqueda y enviar tu mapa de sitio.
+                </p>
+              </div>
+
+              <div className="pl-9 sm:pl-0 shrink-0">
+                {isVerified ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    Código Configurado
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                    <Info className="w-3.5 h-3.5 text-amber-600" />
+                    Sin Verificación
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Pestañas de Método de Verificación */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl overflow-x-auto scrollbar-none">
+              <button
+                type="button"
+                onClick={() => setGscVerificationTab('meta')}
+                className={`flex-1 min-w-[130px] py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  gscVerificationTab === 'meta'
+                    ? "bg-white text-blue-700 shadow-xs border border-slate-200/80"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Code className="w-3.5 h-3.5" />
+                1. Metaetiqueta HTML
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setGscVerificationTab('file')}
+                className={`flex-1 min-w-[140px] py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  gscVerificationTab === 'file'
+                    ? "bg-white text-blue-700 shadow-xs border border-slate-200/80"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <FileCode className="w-3.5 h-3.5" />
+                2. Archivo HTML
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setGscVerificationTab('dns')}
+                className={`flex-1 min-w-[130px] py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  gscVerificationTab === 'dns'
+                    ? "bg-white text-blue-700 shadow-xs border border-slate-200/80"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Globe className="w-3.5 h-3.5" />
+                3. Registro DNS TXT
+              </button>
+            </div>
+
+            {/* CONTENIDO PESTAÑA 1: METAETIQUETA HTML */}
+            {gscVerificationTab === 'meta' && (
+              <div className="space-y-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                  <label htmlFor="googleSiteVerification" className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Code className="w-3.5 h-3.5 text-blue-600" />
+                    Código o Metaetiqueta de Google
+                    <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                      Recomendado
+                    </span>
+                  </label>
+                  <span className="text-[10px] text-slate-500">
+                    Se inyecta automáticamente en &lt;head&gt;
+                  </span>
+                </div>
+
+                <div className="relative">
+                  <input
+                    id="googleSiteVerification"
+                    type="text"
+                    value={data.googleSiteVerification ?? ""}
+                    onChange={(e) => updateField("googleSiteVerification", e.target.value)}
+                    placeholder='ej: 4-7xABcdEF... o <meta name="google-site-verification" content="..." />'
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-mono text-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all bg-white"
+                  />
+                </div>
+
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Pega el código que te proporciona Google Search Console en la opción <strong>&quot;Etiqueta HTML&quot;</strong>. Si pegas la etiqueta HTML completa, el sistema extraerá automáticamente el token para garantizar una inyección limpia.
+                </p>
+
+                {cleanGscCode ? (
+                  <div className="space-y-2 p-3 rounded-lg bg-emerald-50/70 border border-emerald-200 text-emerald-950">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold flex items-center gap-1.5 text-emerald-900">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        Metaetiqueta lista e inyectada en tiempo real:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(`<meta name="google-site-verification" content="${cleanGscCode}">`);
+                          setCopiedGscMeta(true);
+                          setTimeout(() => setCopiedGscMeta(false), 2000);
+                        }}
+                        className="px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all shadow-xs shrink-0"
+                      >
+                        {copiedGscMeta ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedGscMeta ? "¡Copiado!" : "Copiar Meta Tag"}</span>
+                      </button>
+                    </div>
+
+                    <pre className="p-2.5 rounded-md bg-slate-900 text-emerald-300 font-mono text-[11px] overflow-x-auto whitespace-pre-wrap select-all">
+                      {`<meta name="google-site-verification" content="${cleanGscCode}">`}
+                    </pre>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                      <span className="text-[10px] text-emerald-800">
+                        ✓ Inyectada en index.html y en todas las páginas de servicios para la exportación ZIP y despliegue FTP.
+                      </span>
+
+                      {!data.googleVerificationFileCode && (
+                        <button
+                          type="button"
+                          onClick={() => updateField("googleVerificationFileCode", cleanGscCode)}
+                          className="text-[11px] font-bold text-blue-700 hover:text-blue-900 underline flex items-center gap-1 cursor-pointer"
+                        >
+                          Usar también este código para generar el Archivo HTML →
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-2.5 rounded-lg bg-blue-50/60 border border-blue-200/80 text-blue-900 text-[11px] flex items-center gap-2">
+                    <Info className="w-4 h-4 text-blue-600 shrink-0" />
+                    <span>
+                      En Google Search Console, selecciona la propiedad de tu web, elige el método <strong>&quot;Etiqueta HTML&quot;</strong>, copia el código y pégalo arriba.
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* CONTENIDO PESTAÑA 2: ARCHIVO HTML */}
+            {gscVerificationTab === 'file' && (
+              <div className="space-y-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                  <label htmlFor="googleVerificationFileCode" className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <FileCode className="w-3.5 h-3.5 text-blue-600" />
+                    Nombre del Archivo o Código de Google (google[código].html)
+                  </label>
+                  {cleanGscCode && !data.googleVerificationFileCode && (
+                    <button
+                      type="button"
+                      onClick={() => updateField("googleVerificationFileCode", cleanGscCode)}
+                      className="text-[11px] font-bold text-blue-600 hover:text-blue-800 underline cursor-pointer"
+                    >
+                      Copiar desde Metaetiqueta
+                    </button>
+                  )}
+                </div>
+
+                <div className="relative">
+                  <input
+                    id="googleVerificationFileCode"
+                    type="text"
+                    value={data.googleVerificationFileCode ?? ""}
+                    onChange={(e) => updateField("googleVerificationFileCode", e.target.value)}
+                    placeholder="ej: google4-7xABcdEF.html o 4-7xABcdEF"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-mono text-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all bg-white"
+                  />
+                </div>
+
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Google Search Console permite verificar descargando un archivo HTML con formato <code>google[código].html</code>. Puedes ingresar el nombre del archivo o simplemente el código asignado.
+                </p>
+
+                {activeGscFilename ? (
+                  <div className="space-y-3 p-3 rounded-lg bg-white border border-slate-200">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                      <div className="space-y-0.5">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+                          Archivo a generar en la raíz de tu web:
+                        </span>
+                        <div className="font-mono text-xs font-bold text-blue-700 flex items-center gap-1.5">
+                          <FileCode className="w-3.5 h-3.5" />
+                          {activeGscFilename}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(activeGscFilename);
+                            setCopiedGscFilename(true);
+                            setTimeout(() => setCopiedGscFilename(false), 2000);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all border border-slate-200"
+                        >
+                          {copiedGscFilename ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                          <span>{copiedGscFilename ? "¡Copiado!" : "Copiar Nombre"}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleDownloadHtmlFile}
+                          className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all shadow-xs"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>Descargar {activeGscFilename}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+                          Contenido estricto del archivo (según especificación Google):
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(activeGscFileContent);
+                            setCopiedGscFileContent(true);
+                            setTimeout(() => setCopiedGscFileContent(false), 2000);
+                          }}
+                          className="text-[10px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
+                        >
+                          {copiedGscFileContent ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                          <span>{copiedGscFileContent ? "¡Copiado!" : "Copiar Contenido"}</span>
+                        </button>
+                      </div>
+
+                      <pre className="p-2.5 rounded-md bg-slate-900 text-amber-300 font-mono text-[11px] overflow-x-auto whitespace-pre-wrap select-all">
+                        {activeGscFileContent}
+                      </pre>
+                    </div>
+
+                    <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-950 text-[11px] flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <div className="leading-relaxed">
+                        <strong>Inclusión Automática en Despliegues:</strong> Al generar el archivo <strong>ZIP</strong> o desplegar por <strong>FTP</strong> desde el Panel de Código, este archivo se compilará y colocará automáticamente en la raíz pública (<code>{activeDomainForGsc}/{activeGscFilename}</code>) para que Google lo verifique de inmediato.
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-2.5 rounded-lg bg-amber-50/70 border border-amber-200 text-amber-900 text-[11px] flex items-center gap-2">
+                    <Info className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>
+                      Ingresa el nombre del archivo de verificación (ej. <code>google4-7xABcdEF.html</code>) para habilitar la descarga y empaquetado automático.
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* CONTENIDO PESTAÑA 3: REGISTRO DNS TXT */}
+            {gscVerificationTab === 'dns' && (
+              <div className="space-y-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                <div className="space-y-1">
+                  <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Globe className="w-3.5 h-3.5 text-blue-600" />
+                    Verificación a Nivel de Dominio (Registro DNS TXT)
+                  </h4>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    Si eres propietario de tu propio dominio (ej. <code>.ec</code> o <code>.com</code>) administrado en Cloudflare, cPanel, GoDaddy o Hostinger, puedes verificar todas las versiones (http, https, www) mediante un solo registro DNS de tipo TXT.
+                  </p>
+                </div>
+
+                <div className="p-3 rounded-lg bg-white border border-slate-200 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                    <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-150">
+                      <span className="block text-[10px] font-bold text-slate-500 uppercase">Tipo de Registro</span>
+                      <span className="font-mono font-bold text-blue-700">TXT</span>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-150">
+                      <span className="block text-[10px] font-bold text-slate-500 uppercase">Nombre / Host</span>
+                      <span className="font-mono font-bold text-slate-800">@ (o raíz de dominio)</span>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-150">
+                      <span className="block text-[10px] font-bold text-slate-500 uppercase">TTL</span>
+                      <span className="font-mono font-bold text-slate-800">Automático / 3600</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+                        Valor o Destino del Registro TXT:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const txtValue = `google-site-verification=${cleanGscCode || 'TU_CODIGO_DE_GOOGLE'}`;
+                          navigator.clipboard.writeText(txtValue);
+                          setCopiedGscDns(true);
+                          setTimeout(() => setCopiedGscDns(false), 2000);
+                        }}
+                        className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
+                      >
+                        {copiedGscDns ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedGscDns ? "¡Copiado!" : "Copiar Registro TXT"}</span>
+                      </button>
+                    </div>
+
+                    <pre className="p-2.5 rounded-md bg-slate-900 text-blue-300 font-mono text-[11px] overflow-x-auto whitespace-pre-wrap select-all">
+                      {`google-site-verification=${cleanGscCode || 'TU_CODIGO_DE_GOOGLE'}`}
+                    </pre>
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-lg bg-blue-50/70 border border-blue-200 text-blue-900 text-[11px] space-y-1">
+                  <div className="font-bold flex items-center gap-1 text-blue-950">
+                    <Info className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    Pasos rápidos para tu proveedor DNS:
+                  </div>
+                  <ul className="list-disc list-inside space-y-0.5 text-slate-700 pl-1">
+                    <li><strong>Cloudflare:</strong> DNS &gt; Registros &gt; Añadir registro &gt; Tipo: TXT, Nombre: @, Contenido: el valor de arriba.</li>
+                    <li><strong>cPanel / Webhosting:</strong> Editor de Zona DNS &gt; Administrar &gt; Añadir registro TXT.</li>
+                    <li><strong>Hostinger / GoDaddy:</strong> Administración DNS &gt; Añadir nuevo registro TXT.</li>
+                  </ul>
+                </div>
+              </div>
+            )}
+
+            {/* SECCIÓN VINCULADA: ENVÍO DEL SITEMAP XML */}
+            <div className="p-3.5 rounded-xl bg-gradient-to-r from-blue-50/60 to-indigo-50/60 border border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <FileCode className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span className="text-xs font-bold text-slate-900">
+                    Paso siguiente: Enviar Sitemap XML a Google Search Console
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-600 font-mono break-all">
+                  {sitemapGscUrl}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(sitemapGscUrl);
+                    setCopiedGscSitemapUrl(true);
+                    setTimeout(() => setCopiedGscSitemapUrl(false), 2000);
+                  }}
+                  className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all border border-slate-200 shadow-2xs"
+                >
+                  {copiedGscSitemapUrl ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                  <span>{copiedGscSitemapUrl ? "¡URL Copiada!" : "Copiar URL Sitemap"}</span>
+                </button>
+
+                <a
+                  href="https://search.google.com/search-console"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-xs"
+                >
+                  <span>Abrir Search Console</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 3.6. GOOGLE ANALYTICS 4 (GA4) - MÉTRICAS DE PACIENTES & CONVERSIONES */}
+      {(() => {
+        const cleanGaId = extractGoogleAnalyticsId(data.googleAnalyticsId);
+        const gaScriptContent = generateGoogleAnalyticsScript(data.googleAnalyticsId);
+        const isGaConfigured = Boolean(cleanGaId);
+
+        return (
+          <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-200/80 shrink-0">
+                    <BarChart3 className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                    Google Analytics 4 (GA4 &amp; gtag.js)
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 uppercase tracking-wide">
+                      Métricas &amp; Conversiones
+                    </span>
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-600 pl-9">
+                  Mide en tiempo real las visitas de pacientes, canales de captación (Google Orgánico, WhatsApp, Instagram, Facebook) y clics de agendamiento.
+                </p>
+              </div>
+
+              <div className="pl-9 sm:pl-0 shrink-0">
+                {isGaConfigured ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    GA4 Activo ({cleanGaId})
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                    <Info className="w-3.5 h-3.5 text-amber-600" />
+                    Sin Configurar
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Formulario de Entrada GA4 */}
+            <div className="space-y-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                <label htmlFor="googleAnalyticsId" className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <Activity className="w-3.5 h-3.5 text-amber-600" />
+                  ID de Medición de Google Analytics (Flujo Web)
+                  <span className="text-[10px] text-blue-700 font-semibold bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                    Formato: G-XXXXXXXXXX
+                  </span>
+                </label>
+                <span className="text-[10px] text-slate-500">
+                  Inyección oficial en &lt;head&gt;
+                </span>
+              </div>
+
+              <div className="relative">
+                <input
+                  id="googleAnalyticsId"
+                  type="text"
+                  value={data.googleAnalyticsId ?? ""}
+                  onChange={(e) => updateField("googleAnalyticsId", e.target.value)}
+                  placeholder='ej: G-1A2B3C4D5E o pega la etiqueta completa <!-- Google tag (gtag.js) -->...'
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-mono text-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition-all bg-white"
+                />
+              </div>
+
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Pega tu <strong>ID de Medición</strong> de Google Analytics 4 (ej. <code>G-XXXXXXXXXX</code>) o el bloque de código <code>gtag.js</code> completo. El sistema detecta y extrae automáticamente tu identificador para compilar el script con el formato oficial optimizado.
+              </p>
+
+              {isGaConfigured ? (
+                <div className="space-y-2.5 p-3.5 rounded-lg bg-amber-50/70 border border-amber-200 text-amber-950">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <span className="text-xs font-bold flex items-center gap-1.5 text-amber-900">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      Script gtag.js generado e inyectado en el &lt;head&gt;:
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(cleanGaId);
+                          setCopiedGaId(true);
+                          setTimeout(() => setCopiedGaId(false), 2000);
+                        }}
+                        className="px-2.5 py-1 rounded-md bg-white hover:bg-slate-100 text-slate-700 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all border border-amber-300 shadow-2xs shrink-0"
+                      >
+                        {copiedGaId ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedGaId ? "¡ID Copiado!" : "Copiar ID"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(gaScriptContent);
+                          setCopiedGaScript(true);
+                          setTimeout(() => setCopiedGaScript(false), 2000);
+                        }}
+                        className="px-2.5 py-1 rounded-md bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all shadow-xs shrink-0"
+                      >
+                        {copiedGaScript ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedGaScript ? "¡Script Copiado!" : "Copiar Script gtag.js"}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <pre className="p-2.5 rounded-md bg-slate-900 text-amber-300 font-mono text-[11px] overflow-x-auto whitespace-pre-wrap select-all">
+                    {gaScriptContent}
+                  </pre>
+
+                  <div className="text-[10px] text-amber-900 flex items-center gap-1.5 pt-0.5">
+                    <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>
+                      Inyectado automáticamente en <code>index.html</code>, en todas las páginas de servicios (<code>/servicios/</code>), exportación ZIP y despliegue FTP.
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 rounded-lg bg-blue-50/60 border border-blue-200/80 text-blue-900 text-[11px] space-y-1.5">
+                  <div className="font-bold flex items-center gap-1.5 text-blue-950">
+                    <Info className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    ¿Dónde encontrar tu ID de Medición en Google Analytics 4?
+                  </div>
+                  <ol className="list-decimal list-inside space-y-1 text-slate-700 pl-1">
+                    <li>Entra a <strong>Google Analytics</strong> con tu cuenta de Gmail médica.</li>
+                    <li>Haz clic en el ícono de engranaje <strong>Administrar (⚙️)</strong> abajo a la izquierda.</li>
+                    <li>En la columna de propiedad, ingresa a <strong>Flujos de datos</strong> &gt; selecciona la pestaña <strong>Web</strong>.</li>
+                    <li>Haz clic sobre el flujo de tu web y copia el <strong>ID de medición</strong> (inicia con <code>G-</code>).</li>
+                  </ol>
+                </div>
+              )}
+            </div>
+
+            {/* Módulo de Eventos Médicos & Conversiones Rastreadas */}
+            <div className="p-3.5 rounded-xl bg-gradient-to-r from-amber-50/50 to-orange-50/50 border border-amber-200/70 space-y-2.5">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-amber-600 shrink-0" />
+                <h4 className="text-xs font-bold text-slate-900">
+                  Eventos Clave y Conversiones Médicas Monitoreadas
+                </h4>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Con tu ID de Google Analytics activo, podrás analizar los canales que más citas te generan:
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                <div className="p-2 rounded-lg bg-white border border-amber-100 flex items-start gap-2 shadow-2xs">
+                  <span className="text-base">📱</span>
+                  <div>
+                    <span className="font-bold text-slate-800 block">Clics a WhatsApp</span>
+                    <span className="text-slate-500 text-[10px]">Pacientes que inician conversación directa para agendar.</span>
+                  </div>
+                </div>
+
+                <div className="p-2 rounded-lg bg-white border border-amber-100 flex items-start gap-2 shadow-2xs">
+                  <span className="text-base">📞</span>
+                  <div>
+                    <span className="font-bold text-slate-800 block">Llamadas al Consultorio</span>
+                    <span className="text-slate-500 text-[10px]">Pacientes móviles que pulsan para llamar por teléfono.</span>
+                  </div>
+                </div>
+
+                <div className="p-2 rounded-lg bg-white border border-amber-100 flex items-start gap-2 shadow-2xs">
+                  <span className="text-base">📅</span>
+                  <div>
+                    <span className="font-bold text-slate-800 block">Agendamiento en Línea</span>
+                    <span className="text-slate-500 text-[10px]">Interacciones con formularios o plataformas como Doctoralia.</span>
+                  </div>
+                </div>
+
+                <div className="p-2 rounded-lg bg-white border border-amber-100 flex items-start gap-2 shadow-2xs">
+                  <span className="text-base">🩺</span>
+                  <div>
+                    <span className="font-bold text-slate-800 block">Visitas a Tratamientos</span>
+                    <span className="text-slate-500 text-[10px]">Procedimientos médicos más consultados por la audiencia.</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end pt-1">
+                <a
+                  href="https://analytics.google.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-xs"
+                >
+                  <span>Abrir Google Analytics</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 4. SITEMAP XML & ROBOTS.TXT GENERATOR */}
       <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">

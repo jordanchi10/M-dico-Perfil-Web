@@ -58,6 +58,41 @@ const CLINIC_PHOTO_PRESETS = [
     titulo: "Equipamiento e Instrumental Clínico",
     descripcion: "Instrumentos médicos estériles y tecnología de vanguardia para atención especializada.",
     url: "https://images.unsplash.com/photo-1581594693702-fbdc51b2763b?q=80&w=800&auto=format&fit=crop"
+  },
+  {
+    titulo: "Estación de Monitoreo & Diagnóstico",
+    descripcion: "Equipos de visualización digital y monitorización continua del paciente.",
+    url: "https://images.unsplash.com/photo-1538108149393-fbbd81895907?q=80&w=800&auto=format&fit=crop"
+  },
+  {
+    titulo: "Área de Recuperación & Confort",
+    descripcion: "Ambiente tranquilo y acogedor para reposo post-tratamiento bajo supervisión.",
+    url: "https://images.unsplash.com/photo-1512678080530-7760d81faba6?q=80&w=800&auto=format&fit=crop"
+  },
+  {
+    titulo: "Cabina de Tratamientos Especializados",
+    descripcion: "Espacio ergonómico y esterilizado para intervenciones clínicas de precisión.",
+    url: "https://images.unsplash.com/photo-1631217868264-e5b90bb7e133?q=80&w=800&auto=format&fit=crop"
+  },
+  {
+    titulo: "Sala de Esterilización & Bioseguridad",
+    descripcion: "Protocolos hospitalarios de desinfección y trazabilidad de instrumental médico.",
+    url: "https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?q=80&w=800&auto=format&fit=crop"
+  },
+  {
+    titulo: "Módulo de Atención Personalizada",
+    descripcion: "Espacio reservado para explicación de diagnósticos y planes de tratamiento.",
+    url: "https://images.unsplash.com/photo-1579684385127-1ef15d508118?q=80&w=800&auto=format&fit=crop"
+  },
+  {
+    titulo: "Espacio de Terapia & Rehabilitación",
+    descripcion: "Instalaciones amplias y equipadas para seguimiento de recuperación clínica.",
+    url: "https://images.unsplash.com/photo-1576091160550-2173dba999ef?q=80&w=800&auto=format&fit=crop"
+  },
+  {
+    titulo: "Laboratorio Clínico & Muestras",
+    descripcion: "Equipamiento de toma de muestras con conservación y bioseguridad garantizada.",
+    url: "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?q=80&w=800&auto=format&fit=crop"
   }
 ];
 
@@ -73,7 +108,7 @@ export const ClinicGalleryManager: React.FC<ClinicGalleryManagerProps> = ({
   const [dragActive, setDragActive] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const maxPhotos = 5;
+  const maxPhotos = 12;
   const isMaxReached = photos.length >= maxPhotos;
 
   // Helper para procesar archivo a Base64 con compresión WebP
@@ -243,7 +278,7 @@ export const ClinicGalleryManager: React.FC<ClinicGalleryManagerProps> = ({
                 </span>
               </h3>
               <p className="text-[11px] text-slate-500">
-                Sube hasta 5 fotos del consultorio, recepción o equipos. Se presentarán en un carrusel interactivo después de 'Nosotros'.
+                Sube hasta 12 fotos del consultorio, recepción o equipos. Se presentarán en un carrusel interactivo después de 'Nosotros'.
               </p>
             </div>
           </div>
@@ -300,7 +335,7 @@ export const ClinicGalleryManager: React.FC<ClinicGalleryManagerProps> = ({
             </button>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 max-h-[460px] overflow-y-auto pr-1">
             {CLINIC_PHOTO_PRESETS.map((preset, idx) => {
               const alreadyAdded = photos.some((p) => p.url === preset.url);
               return (
@@ -534,7 +569,7 @@ export const ClinicGalleryManager: React.FC<ClinicGalleryManagerProps> = ({
       {isMaxReached && (
         <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 flex items-center gap-2">
           <Info className="w-4 h-4 text-blue-600 shrink-0" />
-          <span>Has completado las 5 fotografías permitidas para la galería de tu consultorio.</span>
+          <span>Has completado las {maxPhotos} fotografías permitidas para la galería de tu consultorio.</span>
         </div>
       )}
     </div>

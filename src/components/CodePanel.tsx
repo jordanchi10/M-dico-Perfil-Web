@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { MedicalLandingData } from "../types";
 import JSZip from "jszip";
 import { motion, AnimatePresence } from "motion/react";
@@ -17,9 +17,16 @@ import {
   generateRobotsTxt,
   generateServicePageHtml,
   slugifyMedicalService,
-  normalizeDomainUrl
+  normalizeDomainUrl,
+  getGoogleHtmlVerificationFilename,
+  getGoogleHtmlVerificationContent
 } from "../utils/generators";
+import { prepareDataForHostingExport } from "../utils/exportZipPacker";
 import { downloadProfileAsJson } from "../utils/profileStorage";
+import { runLocalSeoAudit } from "../utils/localSeoAuditor";
+import { LocalSeoAuditModal } from "./LocalSeoAuditModal";
+import FtpDeployModal from "./FtpDeployModal";
+import FtpDeployForm from "./FtpDeployForm";
 import { 
   Download, 
   Copy, 
@@ -40,15 +47,26 @@ import {
   ExternalLink,
   Bot,
   MapPin,
-  Key
+  Key,
+  UploadCloud,
+  Eye,
+  EyeOff,
+  Folder,
+  RefreshCw,
+  Zap,
+  Trash2,
+  FileCode,
+  AlertTriangle,
+  Image as ImageIcon
 } from "lucide-react";
 
 interface CodePanelProps {
   data: MedicalLandingData;
+  onUpdateData?: (newData: MedicalLandingData | ((prev: MedicalLandingData) => MedicalLandingData)) => void;
   key?: React.Key;
 }
 
-type CodeTab = "html" | "css" | "sitemap" | "robots" | "jsonld" | "manifest" | "sw" | "profileJson" | "docs";
+type CodeTab = "html" | "css" | "sitemap" | "robots" | "jsonld" | "manifest" | "sw" | "profileJson" | "docs" | "ftp";
 
 interface PwaCheckItem {
   id: string;
@@ -102,12 +120,17 @@ const PWA_CHECKLIST_ITEMS: PwaCheckItem[] = [
   }
 ];
 
-export default function CodePanel({ data }: CodePanelProps) {
+export default function CodePanel({ data, onUpdateData }: CodePanelProps) {
   const [activeTab, setActiveTab] = useState<CodeTab>("html");
   const [copied, setCopied] = useState<boolean>(false);
   const [copiedSpecific, setCopiedSpecific] = useState<"html" | "jsonld" | "profileJson" | null>(null);
   const [exporting, setExporting] = useState<boolean>(false);
+  const [showFtpModal, setShowFtpModal] = useState<boolean>(false);
+  const [isLocalSeoModalOpen, setIsLocalSeoModalOpen] = useState<boolean>(false);
   const [version, setVersion] = useState<string>(() => Date.now().toString());
+
+  // Auditoría en tiempo real de SEO Local (NAP & Coordenadas)
+  const localSeoAudit = useMemo(() => runLocalSeoAudit(data), [data]);
 
   // Estado del checklist de verificación PWA
   const [checkedPwaItems, setCheckedPwaItems] = useState<Record<string, boolean>>({
@@ -157,51 +180,116 @@ export default function CodePanel({ data }: CodePanelProps) {
   const totalPwaCount = PWA_CHECKLIST_ITEMS.length;
   const pwaPercentage = Math.round((completedPwaCount / totalPwaCount) * 100);
 
-  const handleExportZip = async () => {
+  const handleOpenFtp = () => {
+    const audit = runLocalSeoAudit(data);
+    if (!audit.isComplete) {
+      setIsLocalSeoModalOpen(true);
+      return;
+    }
+    setShowFtpModal(true);
+  };
+
+  const handleExportZip = async (overrideData?: MedicalLandingData, bypassAudit = false) => {
+    const dataToExport = overrideData || data;
+
+    // 0. Auditoría de SEO Local obligatoria antes de permitir la descarga
+    if (!bypassAudit) {
+      const audit = runLocalSeoAudit(dataToExport);
+      if (!audit.isComplete) {
+        setIsLocalSeoModalOpen(true);
+        return;
+      }
+    }
+
     try {
       setExporting(true);
       const zip = new JSZip();
       
+      // 1. Procesar data para empaquetar imágenes físicas en la carpeta local /img/ del hosting
+      const { exportedData, assets } = await prepareDataForHostingExport(dataToExport);
+
+      // 2. Empaquetar cada imagen física en la carpeta img/ del ZIP
+      if (assets.length > 0) {
+        const imgFolder = zip.folder("img");
+        if (imgFolder) {
+          assets.forEach(asset => {
+            // asset.filename es "img/nombre.webp", extraemos solo el nombre del archivo
+            const cleanFileName = asset.filename.replace(/^img\//, "");
+            imgFolder.file(cleanFileName, asset.blob);
+          });
+        }
+      }
+
+      // 3. Generar código HTML y complementos con rutas de imágenes sólidas y locales
+      const zipHtmlCode = generateHtmlFile(exportedData, activeDomain, version);
+      const zipCssCode = generateDynamicStylesCss(exportedData);
+      const zipSitemapCode = generateSitemapXml(exportedData, activeDomain);
+      const zipRobotsCode = generateRobotsTxt(exportedData, activeDomain);
+      const zipManifestCode = generateManifestJson(exportedData);
+      const zipSwCode = generateServiceWorkerJs(exportedData, version);
+      const zipJsonldCode = generateJsonLd(exportedData, activeDomain);
+      const zipProfileJsonCode = JSON.stringify({
+        version: "3.0",
+        fechaExportacion: new Date().toISOString(),
+        metadatos: {
+          medico: data.nombreMedico,
+          especialidad: data.especialidad,
+          ciudad: data.ciudad,
+          clinica: data.nombreClinicaGBP,
+          dominioWeb: data.dominioWeb || activeDomain
+        },
+        data: data
+      }, null, 2);
+
       // Añadir archivos del proyecto listos para producción
-      zip.file("index.html", htmlCode);
-      zip.file("estilos-config.css", cssCode);
-      zip.file("sitemap.xml", sitemapCode);
-      zip.file("robots.txt", robotsCode);
-      zip.file("manifest.json", manifestCode);
-      zip.file("service-worker.js", swCode);
-      zip.file("schema-physician-faq.json", jsonldCode);
-      zip.file("config-perfil.json", profileJsonCode);
+      zip.file("index.html", zipHtmlCode);
+      zip.file("estilos-config.css", zipCssCode);
+      zip.file("sitemap.xml", zipSitemapCode);
+      zip.file("robots.txt", zipRobotsCode);
+      zip.file("manifest.json", zipManifestCode);
+      zip.file("service-worker.js", zipSwCode);
+      zip.file("schema-physician-faq.json", zipJsonldCode);
+      zip.file("config-perfil.json", zipProfileJsonCode);
+
+      // Archivo HTML de verificación Google Search Console (si se configuró)
+      const gscVerifyFilename = getGoogleHtmlVerificationFilename(data.googleVerificationFileCode || data.googleSiteVerification);
+      if (gscVerifyFilename) {
+        const gscVerifyContent = getGoogleHtmlVerificationContent(gscVerifyFilename);
+        zip.file(gscVerifyFilename, gscVerifyContent);
+      }
       
       // Añadir páginas SEO dedicadas para cada servicio médico
       const serviciosFolder = zip.folder("servicios");
-      (data.servicios || []).forEach(srv => {
+      (exportedData.servicios || []).forEach(srv => {
         const slug = srv.slug || slugifyMedicalService(srv.titulo);
-        const serviceHtml = generateServicePageHtml(srv, data, activeDomain, version);
+        const serviceHtml = generateServicePageHtml(srv, exportedData, activeDomain, version);
         if (serviciosFolder) {
           serviciosFolder.file(`${slug}.html`, serviceHtml);
           serviciosFolder.file(`${slug}/index.html`, serviceHtml);
         }
       });
       
-      // README Informativo con Guía de Dominio, SSL y PWA
+      // README Informativo con Guía de Dominio, SSL, PWA y Almacenamiento Local de Imágenes
       const readmeContent = `# ${data.nombreMedico} - Landing Page Médica & PWA
 ## Especialidad: ${data.especialidad} | ${data.ciudad}, Ecuador
 ### Dominio Oficial Configurado: ${activeDomain}
 
 Este paquete contiene todos los archivos estáticos optimizados y listos para producción para el despliegue del consultorio digital.
+Las imágenes del médico y consultorio están almacenadas físicamente dentro de la carpeta local \`/img/\` para máxima velocidad, autonomía y solidez durante 3+ años sin depender de servicios externos.
 
 ---
 
 ## 📦 Contenido del Paquete:
-1. \`index.html\`: Código HTML5 semántico de alto rendimiento con los 5 procedimientos principales (etiquetas <h2> para SEO), botón modal "Mis Servicios", PWA integrado, URL canónica vinculada a \`${activeDomain}\` y optimización móvil.
-2. \`estilos-config.css\`: Hoja de estilos dinámicos independiente que exporta variables CSS (:root) con la paleta de color ${data.paletaColor.toUpperCase()}, fuentes Google Fonts, radios de curvatura, sombreados y clases de componentes personalizables.
-3. \`/servicios/\`: Directorio con páginas HTML independientes y optimizadas para SEO (etiqueta MedicalProcedure, OpenGraph y JSON-LD) para cada uno de los ${(data.servicios || []).length} tratamientos médicos.
-4. \`sitemap.xml\`: Mapa del sitio XML estándar para indexación rápida en Google Search Console y Bing Webmaster Tools con todas las URLs de servicios y páginas.
-5. \`robots.txt\`: Directivas de rastreo de motores de búsqueda apuntando automáticamente al sitemap oficial.
-6. \`manifest.json\`: Archivo de configuración PWA para permitir la instalación directa en teléfonos móviles Android e iOS.
-7. \`service-worker.js\`: Script para cachear recursos de manera offline-first, garantizando velocidad instantánea de carga.
-8. \`schema-physician-faq.json\`: Marcado estructurado Schema.org (Physician + FAQPage + MedicalBusiness) para Google SERP Rich Snippets.
-9. \`config-perfil.json\`: Copia de respaldo de todos los datos para re-importar y editar este perfil médico en el generador en cualquier momento.
+1. \`index.html\`: Código HTML5 semántico de alto rendimiento con los procedimientos médicos, referencias a imágenes locales en \`/img/\`, botón modal "Mis Servicios", PWA integrado, URL canónica vinculada a \`${activeDomain}\` y optimización móvil.
+2. \`/img/\`: Carpeta que contiene todas las imágenes físicas del médico (foto principal, logotipo, consultorio, casos clínicos, iconos PWA) comprimidas en formato WebP de máxima velocidad.
+3. \`estilos-config.css\`: Hoja de estilos dinámicos independiente que exporta variables CSS (:root) con la paleta de color ${data.paletaColor.toUpperCase()}, fuentes Google Fonts, radios de curvatura, sombreados y clases de componentes personalizables.
+4. \`/servicios/\`: Directorio con páginas HTML independientes y optimizadas para SEO (etiqueta MedicalProcedure, OpenGraph y JSON-LD) para cada uno de los ${(data.servicios || []).length} tratamientos médicos.
+5. \`sitemap.xml\`: Mapa del sitio XML estándar para indexación rápida en Google Search Console y Bing Webmaster Tools con todas las URLs de servicios y páginas.
+6. \`robots.txt\`: Directivas de rastreo de motores de búsqueda apuntando automáticamente al sitemap oficial.
+7. \`manifest.json\`: Archivo de configuración PWA para permitir la instalación directa en teléfonos móviles Android e iOS.
+8. \`service-worker.js\`: Script para cachear recursos de manera offline-first, garantizando velocidad instantánea de carga.
+9. \`schema-physician-faq.json\`: Marcado estructurado Schema.org (Physician + FAQPage + MedicalBusiness) para Google SERP Rich Snippets.
+10. \`config-perfil.json\`: Copia de respaldo de todos los datos para re-importar y editar este perfil médico en el generador en cualquier momento.
 
 ---
 
@@ -376,6 +464,7 @@ Para editar textos, cambiar fotos o actualizar servicios en el futuro:
     { id: "manifest", label: "manifest.json", desc: "PWA Manifest", icon: "PWA" },
     { id: "sw", label: "service-worker.js", desc: "Offline Cache", icon: "JS" },
     { id: "profileJson", label: "config-perfil.json", desc: "Backup Re-importable", icon: "CONFIG" },
+    { id: "ftp", label: "🚀 Despliegue FTP", desc: "Subida Directa a Hosting", icon: "FTP" },
     { id: "docs", label: "Guía Técnica & PWA", desc: "Dominio, SSL & Checklist", icon: "DOCS" },
   ];
 
@@ -418,8 +507,32 @@ Para editar textos, cambiar fotos o actualizar servicios en el futuro:
           </div>
         </div>
 
-        {/* Badges de Vinculación SEO/PWA */}
+        {/* Badges de Vinculación SEO/PWA, Auditoría Local y Acceso Rápido FTP */}
         <div className="flex items-center gap-1.5 flex-wrap self-stretch md:self-auto justify-start md:justify-end">
+          {/* Badge interactivo de Auditoría SEO Local */}
+          <button
+            type="button"
+            onClick={() => setIsLocalSeoModalOpen(true)}
+            className={`text-[10px] font-mono px-2.5 py-1 rounded-md flex items-center gap-1.5 transition-all cursor-pointer border ${
+              localSeoAudit.isComplete
+                ? "bg-emerald-950/70 text-emerald-300 border-emerald-600/60 hover:bg-emerald-900/70"
+                : "bg-amber-950/80 text-amber-300 border-amber-500/70 hover:bg-amber-900/80 animate-pulse shadow-xs"
+            }`}
+            title="Herramienta de Auditoría de SEO Local (Dirección física, Teléfono GBP y Coordenadas Google Maps)"
+          >
+            {localSeoAudit.isComplete ? (
+              <>
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                <span>SEO Local: 100% Verificado</span>
+              </>
+            ) : (
+              <>
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                <span>SEO Local: {localSeoAudit.criticalErrorsCount} campos críticos pendientes</span>
+              </>
+            )}
+          </button>
+
           <span className="text-[10px] font-mono bg-blue-900/40 text-blue-200 border border-blue-700/50 px-2 py-1 rounded-md flex items-center gap-1" title="Etiqueta Canonical configurada">
             <span className="text-emerald-400">✓</span> Canonical
           </span>
@@ -432,11 +545,16 @@ Para editar textos, cambiar fotos o actualizar servicios en el futuro:
           <span className="text-[10px] font-mono bg-purple-900/40 text-purple-200 border border-purple-700/50 px-2 py-1 rounded-md flex items-center gap-1" title="Schema.org Physician estructurado">
             <span className="text-emerald-400">✓</span> Schema.org
           </span>
+          {Boolean(data.googleSiteVerification || data.googleVerificationFileCode) && (
+            <span className="text-[10px] font-mono bg-emerald-950/60 text-emerald-300 border border-emerald-600/50 px-2 py-1 rounded-md flex items-center gap-1" title="Verificación Google Search Console activa">
+              <span className="text-emerald-400">✓</span> Search Console
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Selector de pestañas y Exportador Global */}
-      <div id="code-tabs" className="flex flex-col md:flex-row items-stretch md:items-center justify-between border-b border-slate-800 bg-slate-950 px-2 md:px-4 py-2 md:py-0 gap-3 shrink-0">
+      {/* Selector de pestañas y Exportadores Globales */}
+      <div id="code-tabs" className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between border-b border-slate-800 bg-slate-950 px-2 md:px-4 py-2 xl:py-0 gap-3 shrink-0">
         <div className="flex overflow-x-auto scrollbar-none">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
@@ -459,17 +577,57 @@ Para editar textos, cambiar fotos o actualizar servicios en el futuro:
             );
           })}
         </div>
-        <div className="flex items-center px-2 md:px-0 pb-1 md:pb-0">
+        <div className="flex items-center gap-2 px-2 xl:px-0 pb-1 xl:pb-0 flex-wrap sm:flex-nowrap">
           <button
-            onClick={handleExportZip}
+            onClick={handleOpenFtp}
+            className="flex-1 sm:flex-none px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-emerald-500/10 hover:shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0 border border-emerald-400/30"
+            title="Configurar FTP y subir directamente al servidor sin descargar ZIP"
+          >
+            <UploadCloud className="w-4 h-4 text-emerald-100" />
+            <span>Subir por FTP</span>
+          </button>
+          
+          <button
+            onClick={() => handleExportZip()}
             disabled={exporting}
-            className="w-full md:w-auto px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0 border border-blue-400/20 disabled:opacity-50"
+            className={`flex-1 sm:flex-none px-3.5 py-2 text-white font-extrabold text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0 border disabled:opacity-50 ${
+              localSeoAudit.isComplete
+                ? "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 border-blue-400/20 shadow-indigo-500/10 hover:shadow-indigo-500/20"
+                : "bg-gradient-to-r from-amber-600 to-indigo-600 hover:from-amber-700 hover:to-indigo-700 border-amber-400/40 shadow-amber-500/10 hover:shadow-amber-500/20"
+            }`}
+            title={
+              localSeoAudit.isComplete
+                ? "Descargar paquete ZIP con todos los archivos e imágenes (SEO Local 100% Verificado)"
+                : `Descargar paquete ZIP (Alerta: ${localSeoAudit.criticalErrorsCount} campos de SEO Local pendientes)`
+            }
           >
             <FolderArchive className={`w-4 h-4 text-blue-100 ${exporting ? "animate-spin" : ""}`} />
-            <span>{exporting ? "Preparando ZIP..." : "Exportar Proyecto Completo (.zip)"}</span>
+            <span>{exporting ? "Preparando..." : "Descargar ZIP"}</span>
+            {!localSeoAudit.isComplete && (
+              <span className="w-2 h-2 rounded-full bg-amber-300 animate-ping" title="Requiere revisión de SEO local" />
+            )}
           </button>
         </div>
       </div>
+
+      {/* Alerta de Auditoría de SEO Local si faltan datos críticos */}
+      {!localSeoAudit.isComplete && (
+        <div className="bg-amber-950/70 border-b border-amber-500/40 px-4 sm:px-6 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs text-amber-200">
+          <div className="flex items-start sm:items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5 sm:mt-0" />
+            <span>
+              <strong>Alerta de Auditoría de SEO Local:</strong> Faltan datos críticos para Google Maps y Google Business Profile ({localSeoAudit.missingCriticalFields.join(", ")}).
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsLocalSeoModalOpen(true)}
+            className="px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 hover:text-white border border-amber-400/50 rounded-lg font-extrabold text-[11px] transition-colors cursor-pointer shrink-0"
+          >
+            Auditar y Completar Datos
+          </button>
+        </div>
+      )}
 
       {/* Barra de Acceso Rápido al Portapapeles */}
       <div id="quick-copy-bar" className="bg-slate-950/85 px-4 sm:px-6 py-3 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shrink-0">
@@ -528,8 +686,8 @@ Para editar textos, cambiar fotos o actualizar servicios en el futuro:
         </div>
       </div>
 
-      {/* Cabecera de Acciones (Solo para código descargable) */}
-      {activeTab !== "docs" && (
+      {/* Cabecera de Acciones (Solo para código descargable individual) */}
+      {activeTab !== "docs" && activeTab !== "ftp" && (
         <div id="code-actions" className="flex items-center justify-between px-4 sm:px-6 py-3 bg-slate-950/60 border-b border-slate-800 text-xs shrink-0">
           <span className="text-slate-400 flex items-center gap-1.5 font-mono">
             <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
@@ -560,7 +718,7 @@ Para editar textos, cambiar fotos o actualizar servicios en el futuro:
         </div>
       )}
 
-      {/* Editor/Visualizador de Código o Guía Técnica Interactiva */}
+      {/* Editor/Visualizador de Código, Despliegue FTP o Guía Técnica Interactiva */}
       <div id="code-display-area" className="flex-1 p-6 font-mono text-xs overflow-y-auto leading-relaxed h-[520px] bg-slate-950/90 text-emerald-400 scrollbar-thin">
         <AnimatePresence mode="wait">
           <motion.div
@@ -571,7 +729,11 @@ Para editar textos, cambiar fotos o actualizar servicios en el futuro:
             transition={{ duration: 0.15, ease: "easeOut" }}
             className="w-full"
           >
-            {activeTab === "docs" ? (
+            {activeTab === "ftp" ? (
+              <div className="font-sans">
+                <FtpDeployForm data={data} />
+              </div>
+            ) : activeTab === "docs" ? (
               <div className="font-sans text-slate-300 space-y-6 text-sm">
                 
                 {/* Encabezado de la Guía */}
@@ -849,6 +1011,27 @@ Para editar textos, cambiar fotos o actualizar servicios en el futuro:
         </AnimatePresence>
       </div>
 
+      {/* Modal de Despliegue FTP Directo a Hosting */}
+      <FtpDeployModal
+        isOpen={showFtpModal}
+        onClose={() => setShowFtpModal(false)}
+        data={data}
+      />
+
+      {/* Modal de Auditoría de SEO Local (NAP & Coordenadas) */}
+      <LocalSeoAuditModal
+        isOpen={isLocalSeoModalOpen}
+        onClose={() => setIsLocalSeoModalOpen(false)}
+        data={data}
+        onSaveData={(updatedData) => {
+          if (onUpdateData) {
+            onUpdateData(updatedData);
+          }
+        }}
+        onProceedDownload={(updatedData) => {
+          handleExportZip(updatedData || data, true);
+        }}
+      />
     </div>
   );
 }

@@ -6,7 +6,7 @@
 import { MedicalLandingData, DEFAULT_SECTION_ORDER } from "../types";
 import { getMedicalIconSvg } from "./medicalIcons";
 import { getActiveColorScale, generateScaleFromHex } from "./colorUtils";
-import { generateOpeningHoursSchema, getLiveConsultationStatus } from "./scheduleUtils";
+import { generateOpeningHoursSchema, generateOpeningHoursArray, getLiveConsultationStatus } from "./scheduleUtils";
 import { getActiveLandingStyle, generateLandingStyleCssVariables, getDynamicGoogleFontsUrl } from "./stylePresets";
 
 /**
@@ -54,6 +54,125 @@ export function getActiveOgImageUrl(data: MedicalLandingData): string {
     return data.ogImageUrl.trim();
   }
   return data.fotoUrl || data.logoUrl || "";
+}
+
+/**
+ * Extrae y limpia el token de verificación de Google Search Console.
+ * Acepta tanto el token puro (ej: "4-7xABcdEF..."), la etiqueta meta completa
+ * (<meta name="google-site-verification" content="4-7xABcdEF..." />),
+ * o formatos como google-site-verification=...
+ */
+export function extractGoogleVerificationCode(rawInput?: string): string {
+  if (!rawInput) return "";
+  const trimmed = rawInput.trim();
+  if (!trimmed) return "";
+
+  // Caso: Etiqueta HTML completa <meta ... content="XYZ" ...>
+  const metaContentMatch = trimmed.match(/content=["']([^"']+)["']/i);
+  if (metaContentMatch && metaContentMatch[1]) {
+    return metaContentMatch[1].trim();
+  }
+
+  // Caso: Formato DNS o texto google-site-verification=XYZ o google-site-verification: XYZ
+  const prefixMatch = trimmed.match(/google-site-verification[:=]\s*([a-zA-Z0-9_\-]+)/i);
+  if (prefixMatch && prefixMatch[1]) {
+    return prefixMatch[1].trim();
+  }
+
+  // Caso: El usuario ingresó o pegó el token directo, limpiamos etiquetas o comillas accidentales
+  return trimmed
+    .replace(/^<meta[^>]*>/i, "")
+    .replace(/["'<>]/g, "")
+    .trim();
+}
+
+/**
+ * Normaliza el nombre del archivo de verificación HTML de Google.
+ * Google entrega nombres como "google4-7xABcdEF.html" o tokens hash.
+ */
+export function getGoogleHtmlVerificationFilename(codeOrFilename?: string): string {
+  if (!codeOrFilename) return "";
+  const trimmed = codeOrFilename.trim();
+  if (!trimmed) return "";
+
+  // Si ya es googleXYZ.html
+  if (/^google[a-zA-Z0-9_\-]+\.html$/i.test(trimmed)) {
+    return trimmed.toLowerCase();
+  }
+
+  // Extraer token si es una metaetiqueta o prefijo
+  const cleanToken = extractGoogleVerificationCode(trimmed);
+  if (!cleanToken) return "";
+
+  if (cleanToken.toLowerCase().startsWith("google")) {
+    return `${cleanToken.toLowerCase().replace(/\.html$/i, "")}.html`;
+  }
+
+  return `google${cleanToken.toLowerCase().replace(/\.html$/i, "")}.html`;
+}
+
+/**
+ * Genera el contenido exacto requerido para el archivo de verificación HTML de Google Search Console.
+ * Google espera: "google-site-verification: google[código].html"
+ */
+export function getGoogleHtmlVerificationContent(filename: string): string {
+  const cleanFilename = getGoogleHtmlVerificationFilename(filename) || filename.trim();
+  return `google-site-verification: ${cleanFilename}\n`;
+}
+
+/**
+ * Extrae y normaliza el ID de Medición de Google Analytics 4 (GA4).
+ * Acepta formatos: "G-XXXXXXXXXX", "UA-XXXXXXXX-X", o el script gtag.js completo.
+ */
+export function extractGoogleAnalyticsId(rawInput?: string): string {
+  if (!rawInput) return "";
+  const trimmed = rawInput.trim();
+  if (!trimmed) return "";
+
+  // Caso: Script completo con id=G-XXX o gtag('config', 'G-XXX')
+  const scriptIdMatch = trimmed.match(/(?:id=|config['"],\s*['"])([G|UA|AW|DC]-[a-zA-Z0-9_-]+)/i);
+  if (scriptIdMatch && scriptIdMatch[1]) {
+    return scriptIdMatch[1].trim().toUpperCase();
+  }
+
+  // Caso: Token con comillas o tags
+  const clean = trimmed
+    .replace(/^<[^>]+>/g, "")
+    .replace(/["'<>]/g, "")
+    .trim();
+
+  // Buscar patrón G- o UA- o AW-
+  const match = clean.match(/((?:G|UA|AW|DC)-[a-zA-Z0-9_-]+)/i);
+  if (match && match[1]) {
+    return match[1].trim().toUpperCase();
+  }
+
+  // Si no tiene prefijo pero parece un ID alfanumérico GA4 (ej. 7 a 15 caracteres)
+  if (/^[a-zA-Z0-9_-]{7,15}$/.test(clean)) {
+    return `G-${clean.toUpperCase()}`;
+  }
+
+  return clean.toUpperCase();
+}
+
+/**
+ * Genera el snippet oficial de Google Analytics (gtag.js) para inyectar en <head>.
+ */
+export function generateGoogleAnalyticsScript(gaId?: string): string {
+  const cleanId = extractGoogleAnalyticsId(gaId);
+  if (!cleanId) return "";
+
+  return `<!-- Google tag (gtag.js) - Google Analytics 4 -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=${cleanId}"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', '${cleanId}', {
+      page_path: window.location.pathname,
+      send_page_view: true
+    });
+  </script>`;
 }
 
 /**
@@ -141,6 +260,10 @@ export function generateLlmsTxt(data: MedicalLandingData, appUrl?: string): stri
 - **Especialidad Médica Principal**: ${specialty}
 ${registration ? `- **Acreditación Sanitaria**: ${registration}` : ''}
 ${experience ? `- **Experiencia Profesional**: ${experience}` : ''}
+${data.universidad ? `- **Formación Universitaria**: ${data.universidad}` : ''}
+${(data.certificados && data.certificados.length > 0) ? `- **Certificaciones & Diplomados**:\n${data.certificados.map(c => `  * ${c}`).join('\n')}` : ''}
+${(data.asociaciones && data.asociaciones.length > 0) ? `- **Sociedades Científicas & Asociaciones**:\n${data.asociaciones.map(a => `  * ${a}`).join('\n')}` : ''}
+${(data.reconocimientos && data.reconocimientos.length > 0) ? `- **Reconocimientos & Distinciones**:\n${data.reconocimientos.map(r => `  * ${r}`).join('\n')}` : ''}
 - **Ciudad y Sede**: ${city}, Ecuador
 - **Clínica / Centro Médico**: ${clinic}
 - **Dirección Física**: ${address}
@@ -277,6 +400,68 @@ ${serviceUrls ? serviceUrls + "\n" : ""}${blogPostUrls ? blogPostUrls + "\n" : "
 }
 
 /**
+ * Genera el archivo de configuración .htaccess para servidores Apache / LiteSpeed / cPanel
+ * Optimiza compresión Gzip/Brotli, cabeceras de seguridad, caché de navegador y redirección HTTPS.
+ */
+export function generateHtaccess(data: MedicalLandingData, appUrl?: string): string {
+  return `# .htaccess para ${data.nombreMedico || "Consultorio Médico"} - ${data.especialidad || "Especialidad"}
+# Optimización de Rendimiento, Seguridad y SEO para Apache / LiteSpeed (cPanel / Plesk)
+
+# 1. Forzar HTTPS seguro en todo el tráfico
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} off
+  RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# 2. Tipos MIME para WebP, Manifest PWA y JSON-LD
+<IfModule mod_mime.c>
+  AddType image/webp .webp
+  AddType image/svg+xml .svg .svgz
+  AddType application/manifest+json .webmanifest .json
+  AddType application/ld+json .jsonld
+  AddCharset UTF-8 .html .css .js .json .xml .txt
+</IfModule>
+
+# 3. Compresión GZIP / Deflate para carga instantánea
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css
+  AddOutputFilterByType DEFLATE application/javascript application/x-javascript application/json
+  AddOutputFilterByType DEFLATE image/svg+xml application/xml+rss
+</IfModule>
+
+# 4. Políticas de Caché del Navegador (Browser Caching)
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresDefault "access plus 1 month"
+  ExpiresByType text/html "access plus 0 seconds"
+  ExpiresByType text/css "access plus 1 month"
+  ExpiresByType application/javascript "access plus 1 month"
+  ExpiresByType image/webp "access plus 1 year"
+  ExpiresByType image/png "access plus 1 year"
+  ExpiresByType image/jpeg "access plus 1 year"
+  ExpiresByType image/svg+xml "access plus 1 year"
+  ExpiresByType image/x-icon "access plus 1 year"
+  ExpiresByType application/manifest+json "access plus 1 week"
+  ExpiresByType application/json "access plus 0 seconds"
+  ExpiresByType text/xml "access plus 1 hour"
+</IfModule>
+
+# 5. Cabeceras de Seguridad y Protección
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set X-XSS-Protection "1; mode=block"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# 6. Páginas de Error personalizadas
+ErrorDocument 404 /index.html
+`;
+}
+
+
+/**
  * Genera una página HTML independiente y optimizada para SEO para un servicio médico específico
  */
 export function generateServicePageHtml(
@@ -294,6 +479,8 @@ export function generateServicePageHtml(
   const selectedSecondaryPalette = data.colorSecundarioHex 
     ? generateScaleFromHex(data.colorSecundarioHex)
     : selectedPalette;
+  const cleanGoogleVerification = extractGoogleVerificationCode(data.googleSiteVerification);
+  const gaSnippet = generateGoogleAnalyticsScript(data.googleAnalyticsId);
 
   return `<!DOCTYPE html>
 <html lang="es" class="scroll-smooth">
@@ -301,7 +488,7 @@ export function generateServicePageHtml(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${srv.titulo} en ${data.ciudad} | Dr(a). ${data.nombreMedico} - ${data.especialidad}</title>
-  <meta name="description" content="${(srv.descripcion || '').slice(0, 155)}. Procedimiento especializado realizado por el ${data.nombreMedico}, especialista en ${data.especialidad} en ${data.ciudad}, Ecuador.">
+  <meta name="description" content="${(srv.descripcion || '').slice(0, 155)}. Procedimiento especializado realizado por el ${data.nombreMedico}, especialista en ${data.especialidad} en ${data.ciudad}, Ecuador.">${cleanGoogleVerification ? `\n  <!-- Verificación de Google Search Console -->\n  <meta name="google-site-verification" content="${cleanGoogleVerification}">` : ''}${gaSnippet ? `\n  \n  ${gaSnippet}` : ''}
   
   <link rel="canonical" href="${serviceUrl}">
   <link rel="sitemap" type="application/xml" title="Sitemap" href="${cleanAppUrl}/sitemap.xml">
@@ -558,25 +745,89 @@ export function generateJsonLd(data: MedicalLandingData, appUrl: string = "https
       }))
   ];
 
-  // Credenciales y Cédula Profesional Médica
-  const credentials = data.cedulaProfesional ? [
-    {
-      "@type": "EducationalOccupationalCredential",
-      "credentialCategory": "Licencia Médica / Cédula Profesional",
-      "identifier": data.cedulaProfesional,
-      "name": `Cédula Profesional Médica: ${data.cedulaProfesional}`
-    }
-  ] : [];
+  // Credenciales y Cédulas Médicas / SENESCYT / MSP / ACESS Ecuador (Para Google E-E-A-T & YMYL)
+  const credentials: any[] = [];
+  const mainLicenseId = data.cedulaProfesional || [
+    data.codigoAcessMsp ? `MSP Reg. ${data.codigoAcessMsp}` : '',
+    data.registroSenescyt ? `SENESCYT ${data.registroSenescyt}` : ''
+  ].filter(Boolean).join(" / ");
 
-  // Mapeo de FAQs para el marcado Schema FAQPage
-  const faqEntities = (data.faqs || []).map(faq => ({
-    "@type": "Question",
-    "name": faq.pregunta,
-    "acceptedAnswer": {
-      "@type": "Answer",
-      "text": faq.respuesta
-    }
-  }));
+  if (data.registroSenescyt) {
+    credentials.push({
+      "@type": "EducationalOccupationalCredential",
+      "credentialCategory": "Registro Profesional Título Superior SENESCYT",
+      "identifier": data.registroSenescyt,
+      "name": `Registro SENESCYT: ${data.registroSenescyt}`,
+      "recognizedBy": {
+        "@type": "GovernmentOrganization",
+        "name": "SENESCYT - Secretaría de Educación Superior, Ciencia, Tecnología e Innovación (Ecuador)"
+      }
+    });
+  }
+
+  if (data.codigoAcessMsp) {
+    credentials.push({
+      "@type": "EducationalOccupationalCredential",
+      "credentialCategory": "Permiso y Registro Sanitario MSP / ACESS",
+      "identifier": data.codigoAcessMsp,
+      "name": `Registro Habilitación Sanitaria MSP / ACESS: ${data.codigoAcessMsp}`,
+      "recognizedBy": {
+        "@type": "GovernmentOrganization",
+        "name": "ACESS / Ministerio de Salud Pública del Ecuador (MSP)"
+      }
+    });
+  }
+
+  if (data.certificados && data.certificados.length > 0) {
+    data.certificados.forEach(cert => {
+      if (cert && cert.trim()) {
+        credentials.push({
+          "@type": "EducationalOccupationalCredential",
+          "credentialCategory": "Certificación Médica Profesional Continua",
+          "name": cert.trim()
+        });
+      }
+    });
+  }
+
+  if (mainLicenseId && credentials.length === 0) {
+    credentials.push({
+      "@type": "EducationalOccupationalCredential",
+      "credentialCategory": "Licencia Médica / Cédula / Registro Sanitario Profesional",
+      "identifier": mainLicenseId,
+      "name": `Acreditación Profesional Médica: ${mainLicenseId}`
+    });
+  }
+
+  // Lista de premios y reconocimientos para Schema.org
+  const awardsList = (data.reconocimientos || []).filter(r => r && r.trim());
+
+  // Mapeo de FAQs para el marcado Schema FAQPage (con validación de texto y URL opcional)
+  const faqEntities = (data.faqs || [])
+    .filter(faq => faq && faq.pregunta && faq.pregunta.trim().length > 0 && faq.respuesta && faq.respuesta.trim().length > 0)
+    .map(faq => {
+      const questionEntity: Record<string, any> = {
+        "@type": "Question",
+        "name": faq.pregunta.trim(),
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": faq.respuesta.trim()
+        }
+      };
+
+      if (faq.enlaceUrl && faq.enlaceUrl.trim().length > 0) {
+        const rawUrl = faq.enlaceUrl.trim();
+        const fullUrl = rawUrl.startsWith("#")
+          ? `${cleanAppUrl}/${rawUrl}`
+          : rawUrl.startsWith("http")
+            ? rawUrl
+            : `${cleanAppUrl}/${rawUrl}`;
+        
+        questionEntity.acceptedAnswer.url = fullUrl;
+      }
+
+      return questionEntity;
+    });
 
   // Reseñas de pacientes válidas
   const validReviews = (data.resenas || []).filter(r => r && r.paciente?.trim() && r.comentario?.trim());
@@ -691,11 +942,13 @@ export function generateJsonLd(data: MedicalLandingData, appUrl: string = "https
       "latitude": data.latitud,
       "longitude": data.longitud
     },
+    "openingHours": generateOpeningHoursArray(data.horarios),
     "openingHoursSpecification": generateOpeningHoursSchema(data.horarios),
     "memberOf": memberOrganizations.length > 0 ? memberOrganizations : undefined,
     "hospitalAffiliation": hospitalAffiliations.length > 0 ? hospitalAffiliations : undefined,
     "alumniOf": alumniOrganizations.length > 0 ? alumniOrganizations : undefined,
     "hasCredential": credentials.length > 0 ? credentials : undefined,
+    "award": awardsList.length > 0 ? awardsList : undefined,
     "citation": citationEntities.length > 0 ? citationEntities : undefined,
     "hasOfferCatalog": offerCatalog,
     "knowsAbout": knowsAboutTopics,
@@ -1062,6 +1315,38 @@ ${ctaStyle === "estatico_pulso" ? `
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-primary-500);
 }
+
+/* ==========================================================================
+   8. HORARIOS DE ATENCIÓN - ALINEACIÓN BILATERAL ROBUSTA (MÓVIL Y DESKTOP)
+   ========================================================================== */
+#sch-semana, #sch-sabado, #sch-domingo {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 0.75rem !important;
+  width: 100% !important;
+  text-align: left !important;
+  box-sizing: border-box !important;
+  padding: 0.5rem 0.75rem !important;
+  border-radius: 0.75rem !important;
+}
+
+#sch-semana > span:first-child,
+#sch-sabado > span:first-child,
+#sch-domingo > span:first-child {
+  text-align: left !important;
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
+}
+
+#sch-semana > span:last-child,
+#sch-sabado > span:last-child,
+#sch-domingo > span:last-child {
+  text-align: right !important;
+  margin-left: auto !important;
+  display: inline-block !important;
+}
 `;
 }
 
@@ -1097,7 +1382,7 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
   const hasRedesSociales = isSectionVisible("redes_sociales");
   const hasInstalaciones = isSectionVisible("galeria") && Boolean(data.fotosConsultorio && data.fotosConsultorio.length > 0);
   const hasCasos = isSectionVisible("casos") && Boolean(data.casosAntesDespues && data.casosAntesDespues.length > 0);
-  const hasFaq = isSectionVisible("faqs") && Boolean(data.faqs && data.faqs.length > 0);
+  const hasFaq = isSectionVisible("faqs");
   const hasResenas = isSectionVisible("opiniones") && Boolean((data.resenas && data.resenas.length > 0) || (data.habilitarGoogleReviewsWidget ?? true));
   const hasBlog = isSectionVisible("blog") && Boolean(data.blogPosts && data.blogPosts.length > 0);
   const hasGuias = isSectionVisible("guias") && Boolean(data.guiasPacientes && data.guiasPacientes.length > 0);
@@ -1116,25 +1401,45 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
     if (sec.visible === false) return;
 
     if (sec.id === "hero" && hasHero) {
-      activeNavs.push({ href: '#inicio', label: 'Inicio', icon: 'home', id: 'inicio' });
-    } else if (sec.id === "eeat" && hasNosotros) {
-      activeNavs.push({ href: '#nosotros', label: isClinica ? 'Nosotros' : 'Doctor', icon: 'doctor', id: 'nosotros' });
+      if (!activeNavs.some(n => n.id === 'inicio')) {
+        activeNavs.push({ href: '#inicio', label: 'Inicio', icon: 'home', id: 'inicio' });
+      }
+    } else if (sec.id === "eeat" && (hasNosotros || hasInstalaciones)) {
+      if (!activeNavs.some(n => n.id === 'nosotros')) {
+        activeNavs.push({ href: '#nosotros', label: isClinica ? 'Nosotros' : 'Doctor', icon: 'doctor', id: 'nosotros' });
+      }
     } else if (sec.id === "servicios" && hasServicios) {
-      activeNavs.push({ href: '#servicios', label: 'Tratamientos', icon: 'servicios', id: 'servicios' });
+      if (!activeNavs.some(n => n.id === 'servicios')) {
+        activeNavs.push({ href: '#servicios', label: 'Tratamientos', icon: 'servicios', id: 'servicios' });
+      }
     } else if (sec.id === "redes_sociales" && hasRedesSociales) {
-      activeNavs.push({ href: '#redes-sociales', label: 'Redes', icon: 'video', id: 'redes-sociales' });
+      if (!activeNavs.some(n => n.id === 'redes-sociales')) {
+        activeNavs.push({ href: '#redes-sociales', label: 'Redes', icon: 'video', id: 'redes-sociales' });
+      }
     } else if (sec.id === "casos" && hasCasos) {
-      activeNavs.push({ href: '#casos', label: isClinica ? 'Casos Clínicos' : 'Mis casos', icon: 'casos', id: 'casos' });
+      if (!activeNavs.some(n => n.id === 'casos')) {
+        activeNavs.push({ href: '#casos', label: isClinica ? 'Casos Clínicos' : 'Mis casos', icon: 'casos', id: 'casos' });
+      }
     } else if (sec.id === "opiniones" && hasResenas) {
-      activeNavs.push({ href: '#resenas', label: 'Opiniones', icon: 'opiniones', id: 'resenas' });
-    } else if (sec.id === "galeria" && hasInstalaciones) {
-      activeNavs.push({ href: '#instalaciones', label: 'Galería', icon: 'clinica', id: 'instalaciones' });
-    } else if (sec.id === "faqs" && hasFaq) {
-      activeNavs.push({ href: '#faq', label: 'Preguntas', icon: 'faq', id: 'faq' });
+      if (!activeNavs.some(n => n.id === 'resenas')) {
+        activeNavs.push({ href: '#resenas', label: 'Reseñas', icon: 'opiniones', id: 'resenas' });
+      }
     } else if (sec.id === "blog" && hasBlog) {
-      activeNavs.push({ href: '#blog', label: 'Blog', icon: 'blog', id: 'blog' });
+      if (!activeNavs.some(n => n.id === 'blog')) {
+        activeNavs.push({ href: '#blog', label: 'Blog', icon: 'blog', id: 'blog' });
+      }
     } else if (sec.id === "guias" && hasGuias) {
-      activeNavs.push({ href: '#guias-pacientes', label: 'Guías', icon: 'guias', id: 'guias-pacientes' });
+      if (!activeNavs.some(n => n.id === 'guias-pacientes')) {
+        activeNavs.push({ href: '#guias-pacientes', label: 'Guías', icon: 'guias', id: 'guias-pacientes' });
+      }
+    } else if (sec.id === "horarios_ubicacion" || sec.id === "tarifas") {
+      if (!activeNavs.some(n => n.id === 'agendar')) {
+        activeNavs.push({ href: '#agendar', label: 'Cita', icon: 'cita', id: 'agendar' });
+      }
+    } else if (sec.id === "faqs" && hasFaq) {
+      if (!activeNavs.some(n => n.id === 'faq')) {
+        activeNavs.push({ href: '#faq', label: 'Asistente', icon: 'faq', id: 'faq' });
+      }
     }
   });
 
@@ -1142,15 +1447,35 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
     activeNavs.push({ href: '#agendar', label: 'Cita', icon: 'cita', id: 'agendar' });
   }
 
-  const finalMobileNavs = activeNavs.slice(0, 5);
+  // Para el menú móvil ergonómico inferior (máximo 5 botones):
+  // Reservamos SIEMPRE el 5º botón para el CTA principal de conversión ("Cita" / Agendar).
+  // Los primeros 4 botones corresponden a las secciones informativas activas principales.
+  // CRUCIAL: La sección de Reseñas (con su estrella amarilla dorada y texto "Reseñas")
+  // es un elemento primordial de credibilidad médica y conversión en móviles. Si está activa,
+  // se incluye siempre en los 4 botones móviles (en la 4ª posición, antes de Cita),
+  // manteniendo coincidencia idéntica 1:1 con la vista previa y el selector de diseño.
+  const generalNavs = activeNavs.filter(n => n.id !== 'agendar');
+  const resenasNav = generalNavs.find(n => n.id === 'resenas');
+  const nonResenasNavs = generalNavs.filter(n => n.id !== 'resenas');
+
+  let top4Navs: typeof generalNavs = [];
+  if (resenasNav) {
+    const leadNavs = nonResenasNavs.slice(0, 3);
+    top4Navs = [...leadNavs, resenasNav];
+  } else {
+    top4Navs = nonResenasNavs.slice(0, 4);
+  }
+
+  const ctaNav = activeNavs.find(n => n.id === 'agendar') || { href: '#agendar', label: 'Cita', icon: 'cita', id: 'agendar' };
+  const finalMobileNavs = [...top4Navs, ctaNav];
 
   const mobileNavHtml = finalMobileNavs.map(nav => {
     if (nav.icon === 'home') {
       return `
-    <!-- Inicio (Azul Zafiro / Clínico) -->
-    <a href="#inicio" class="flex flex-col items-center gap-1 py-1 px-2 rounded-xl text-slate-700 hover:text-blue-700 hover:bg-blue-50/80 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-blue-400/50" aria-label="Ir al inicio de la página">
-      <div class="w-8 h-8 rounded-xl bg-blue-100/80 text-blue-700 border border-blue-200/70 flex items-center justify-center shadow-xs group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 transition-all duration-200">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+    <!-- Inicio (3D Azul Zafiro) -->
+    <a href="#inicio" class="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-blue-700 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-blue-400/50 cursor-pointer" aria-label="Ir al inicio de la página">
+      <div class="relative w-9 h-9 rounded-2xl bg-gradient-to-b from-blue-400 via-blue-500 to-blue-600 text-white flex items-center justify-center shadow-[0_4px_10px_-1px_rgba(59,130,246,0.45),inset_0_1.5px_1px_rgba(255,255,255,0.7),inset_0_-2px_2px_rgba(0,0,0,0.2)] border-t border-white/40 transition-all duration-200 group-hover:scale-105 group-hover:shadow-[0_6px_14px_-1px_rgba(59,130,246,0.55),inset_0_1.5px_1px_rgba(255,255,255,0.8),inset_0_-2px_2px_rgba(0,0,0,0.2)] active:scale-95">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 text-white drop-shadow-[0_1.5px_1px_rgba(0,0,0,0.25)] transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
         </svg>
       </div>
@@ -1158,10 +1483,10 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
     </a>`;
     } else if (nav.icon === 'doctor') {
       return `
-    <!-- Especialista / Doctor (Índigo / Púrpura) -->
-    <a href="#nosotros" class="flex flex-col items-center gap-1 py-1 px-2 rounded-xl text-slate-700 hover:text-indigo-700 hover:bg-indigo-50/80 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-indigo-400/50" aria-label="Conocer trayectoria del especialista">
-      <div class="w-8 h-8 rounded-xl bg-indigo-100/80 text-indigo-700 border border-indigo-200/70 flex items-center justify-center shadow-xs group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-600 transition-all duration-200">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+    <!-- Especialista / Doctor (3D Índigo) -->
+    <a href="#nosotros" class="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-indigo-700 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-indigo-400/50 cursor-pointer" aria-label="Conocer trayectoria del especialista">
+      <div class="relative w-9 h-9 rounded-2xl bg-gradient-to-b from-indigo-400 via-indigo-500 to-indigo-600 text-white flex items-center justify-center shadow-[0_4px_10px_-1px_rgba(99,102,241,0.45),inset_0_1.5px_1px_rgba(255,255,255,0.7),inset_0_-2px_2px_rgba(0,0,0,0.2)] border-t border-white/40 transition-all duration-200 group-hover:scale-105 group-hover:shadow-[0_6px_14px_-1px_rgba(99,102,241,0.55),inset_0_1.5px_1px_rgba(255,255,255,0.8),inset_0_-2px_2px_rgba(0,0,0,0.2)] active:scale-95">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 text-white drop-shadow-[0_1.5px_1px_rgba(0,0,0,0.25)] transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
           <path stroke-linecap="round" stroke-linejoin="round" d="M19 11a2 2 0 012 2v1a2 2 0 01-2 2h-1a2 2 0 01-2-2v-1a2 2 0 012-2h1z" />
         </svg>
@@ -1170,10 +1495,10 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
     </a>`;
     } else if (nav.icon === 'servicios') {
       return `
-    <!-- Tratamientos / Servicios (Teal / Esmeralda Claro) -->
-    <a href="#servicios" class="flex flex-col items-center gap-1 py-1 px-2 rounded-xl text-slate-700 hover:text-teal-700 hover:bg-teal-50/80 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-teal-400/50" aria-label="Ver tratamientos y procedimientos médicos">
-      <div class="w-8 h-8 rounded-xl bg-teal-100/80 text-teal-700 border border-teal-200/70 flex items-center justify-center shadow-xs group-hover:bg-teal-600 group-hover:text-white group-hover:border-teal-600 transition-all duration-200">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+    <!-- Tratamientos / Servicios (3D Teal) -->
+    <a href="#servicios" class="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-teal-700 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-teal-400/50 cursor-pointer" aria-label="Ver tratamientos y procedimientos médicos">
+      <div class="relative w-9 h-9 rounded-2xl bg-gradient-to-b from-teal-400 via-teal-500 to-teal-600 text-white flex items-center justify-center shadow-[0_4px_10px_-1px_rgba(20,184,166,0.45),inset_0_1.5px_1px_rgba(255,255,255,0.7),inset_0_-2px_2px_rgba(0,0,0,0.2)] border-t border-white/40 transition-all duration-200 group-hover:scale-105 group-hover:shadow-[0_6px_14px_-1px_rgba(20,184,166,0.55),inset_0_1.5px_1px_rgba(255,255,255,0.8),inset_0_-2px_2px_rgba(0,0,0,0.2)] active:scale-95">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 text-white drop-shadow-[0_1.5px_1px_rgba(0,0,0,0.25)] transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-3-3v6m-7 5h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
       </div>
@@ -1181,10 +1506,10 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
     </a>`;
     } else if (nav.icon === 'clinica') {
       return `
-    <!-- Instalaciones (Teal / Esmeralda Claro) -->
-    <a href="#instalaciones" class="flex flex-col items-center gap-1 py-1 px-2 rounded-xl text-slate-700 hover:text-teal-700 hover:bg-teal-50/80 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-teal-400/50" aria-label="Ver fotos de instalaciones">
-      <div class="w-8 h-8 rounded-xl bg-teal-100/80 text-teal-700 border border-teal-200/70 flex items-center justify-center shadow-xs group-hover:bg-teal-600 group-hover:text-white group-hover:border-teal-600 transition-all duration-200">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+    <!-- Instalaciones (3D Teal) -->
+    <a href="#instalaciones" class="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-teal-700 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-teal-400/50 cursor-pointer" aria-label="Ver fotos de instalaciones">
+      <div class="relative w-9 h-9 rounded-2xl bg-gradient-to-b from-teal-400 via-teal-500 to-teal-600 text-white flex items-center justify-center shadow-[0_4px_10px_-1px_rgba(20,184,166,0.45),inset_0_1.5px_1px_rgba(255,255,255,0.7),inset_0_-2px_2px_rgba(0,0,0,0.2)] border-t border-white/40 transition-all duration-200 group-hover:scale-105 group-hover:shadow-[0_6px_14px_-1px_rgba(20,184,166,0.55),inset_0_1.5px_1px_rgba(255,255,255,0.8),inset_0_-2px_2px_rgba(0,0,0,0.2)] active:scale-95">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 text-white drop-shadow-[0_1.5px_1px_rgba(0,0,0,0.25)] transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
       </div>
@@ -1192,21 +1517,54 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
     </a>`;
     } else if (nav.icon === 'opiniones') {
       return `
-    <!-- Opiniones de Pacientes (Ámbar / Oro) -->
-    <a href="#resenas" class="flex flex-col items-center gap-1 py-1 px-2 rounded-xl text-slate-700 hover:text-amber-700 hover:bg-amber-50/80 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-amber-400/50" aria-label="Ver reseñas y testimonios de pacientes">
-      <div class="w-8 h-8 rounded-xl bg-amber-100/80 text-amber-700 border border-amber-200/70 flex items-center justify-center shadow-xs group-hover:bg-amber-500 group-hover:text-white group-hover:border-amber-500 transition-all duration-200">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 transition-transform group-hover:scale-110" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+    <!-- Reseñas de Pacientes (3D Ámbar Dorado) -->
+    <a href="#resenas" onclick="if(document.getElementById('resenas')){ document.getElementById('resenas').scrollIntoView({behavior: 'smooth'}); return false; }" class="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-amber-700 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-amber-400/50 cursor-pointer" aria-label="Ver reseñas y calificaciones de pacientes">
+      <div class="relative w-9 h-9 rounded-2xl bg-gradient-to-b from-amber-300 via-amber-400 to-amber-500 text-amber-950 flex items-center justify-center shadow-[0_4px_10px_-1px_rgba(245,158,11,0.5),inset_0_1.5px_1px_rgba(255,255,255,0.8),inset_0_-2px_2px_rgba(0,0,0,0.2)] border-t border-white/50 transition-all duration-200 group-hover:scale-105 group-hover:shadow-[0_6px_14px_-1px_rgba(245,158,11,0.6),inset_0_1.5px_1px_rgba(255,255,255,0.9),inset_0_-2px_2px_rgba(0,0,0,0.2)] active:scale-95">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 fill-amber-950 text-amber-950 drop-shadow-[0_1px_1px_rgba(255,255,255,0.4)] transition-transform group-hover:scale-110" viewBox="0 0 20 20" aria-hidden="true">
           <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
         </svg>
       </div>
-      <span class="text-[10px] font-extrabold tracking-tight">Opiniones</span>
+      <span class="text-[10px] font-extrabold tracking-tight">Reseñas</span>
+    </a>`;
+    } else if (nav.icon === 'casos') {
+      return `
+    <!-- Casos Clínicos (3D Púrpura) -->
+    <a href="#casos" class="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-purple-700 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-purple-400/50 cursor-pointer" aria-label="Ver casos clínicos">
+      <div class="relative w-9 h-9 rounded-2xl bg-gradient-to-b from-purple-400 via-purple-500 to-purple-600 text-white flex items-center justify-center shadow-[0_4px_10px_-1px_rgba(168,85,247,0.45),inset_0_1.5px_1px_rgba(255,255,255,0.7),inset_0_-2px_2px_rgba(0,0,0,0.2)] border-t border-white/40 transition-all duration-200 group-hover:scale-105 active:scale-95">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 text-white drop-shadow-[0_1.5px_1px_rgba(0,0,0,0.25)] transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      </div>
+      <span class="text-[10px] font-extrabold tracking-tight">${isClinica ? "Casos" : "Mis casos"}</span>
+    </a>`;
+    } else if (nav.icon === 'video') {
+      return `
+    <!-- Redes / Video (3D Rosa) -->
+    <a href="#redes-sociales" class="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-pink-700 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-pink-400/50 cursor-pointer" aria-label="Ver videos y redes">
+      <div class="relative w-9 h-9 rounded-2xl bg-gradient-to-b from-pink-400 via-pink-500 to-pink-600 text-white flex items-center justify-center shadow-[0_4px_10px_-1px_rgba(236,72,153,0.45),inset_0_1.5px_1px_rgba(255,255,255,0.7),inset_0_-2px_2px_rgba(0,0,0,0.2)] border-t border-white/40 transition-all duration-200 group-hover:scale-105 active:scale-95">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 text-white drop-shadow-[0_1.5px_1px_rgba(0,0,0,0.25)] transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+        </svg>
+      </div>
+      <span class="text-[10px] font-extrabold tracking-tight">Redes</span>
+    </a>`;
+    } else if (nav.icon === 'guias') {
+      return `
+    <!-- Guías Médicas (3D Cian) -->
+    <a href="#guias-pacientes" class="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-cyan-700 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-cyan-400/50 cursor-pointer" aria-label="Ver guías médicas">
+      <div class="relative w-9 h-9 rounded-2xl bg-gradient-to-b from-cyan-400 via-cyan-500 to-cyan-600 text-white flex items-center justify-center shadow-[0_4px_10px_-1px_rgba(6,182,212,0.45),inset_0_1.5px_1px_rgba(255,255,255,0.7),inset_0_-2px_2px_rgba(0,0,0,0.2)] border-t border-white/40 transition-all duration-200 group-hover:scale-105 active:scale-95">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 text-white drop-shadow-[0_1.5px_1px_rgba(0,0,0,0.25)] transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+        </svg>
+      </div>
+      <span class="text-[10px] font-extrabold tracking-tight">Guías</span>
     </a>`;
     } else if (nav.icon === 'faq') {
       return `
-    <!-- FAQ (Ámbar / Oro) -->
-    <a href="#faq" class="flex flex-col items-center gap-1 py-1 px-2 rounded-xl text-slate-700 hover:text-amber-700 hover:bg-amber-50/80 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-amber-400/50" aria-label="Ver preguntas frecuentes">
-      <div class="w-8 h-8 rounded-xl bg-amber-100/80 text-amber-700 border border-amber-200/70 flex items-center justify-center shadow-xs group-hover:bg-amber-500 group-hover:text-white group-hover:border-amber-500 transition-all duration-200">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+    <!-- FAQ (3D Ámbar) -->
+    <a href="#faq" class="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-amber-700 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-amber-400/50 cursor-pointer" aria-label="Ver preguntas frecuentes">
+      <div class="relative w-9 h-9 rounded-2xl bg-gradient-to-b from-amber-300 via-amber-400 to-amber-500 text-amber-950 flex items-center justify-center shadow-[0_4px_10px_-1px_rgba(245,158,11,0.5),inset_0_1.5px_1px_rgba(255,255,255,0.8),inset_0_-2px_2px_rgba(0,0,0,0.2)] border-t border-white/50 transition-all duration-200 group-hover:scale-105 active:scale-95">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 text-amber-950 drop-shadow-[0_1px_1px_rgba(255,255,255,0.4)] transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       </div>
@@ -1214,29 +1572,30 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
     </a>`;
     } else if (nav.icon === 'blog') {
       return `
-    <!-- Blog (Ámbar / Oro) -->
-    <a href="#blog" class="flex flex-col items-center gap-1 py-1 px-2 rounded-xl text-slate-700 hover:text-amber-700 hover:bg-amber-50/80 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-amber-400/50" aria-label="Ver artículos de salud">
-      <div class="w-8 h-8 rounded-xl bg-amber-100/80 text-amber-700 border border-amber-200/70 flex items-center justify-center shadow-xs group-hover:bg-amber-500 group-hover:text-white group-hover:border-amber-500 transition-all duration-200">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+    <!-- Blog (3D Ámbar Cálido) -->
+    <a href="#blog" class="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-amber-700 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-amber-400/50 cursor-pointer" aria-label="Ver artículos de salud">
+      <div class="relative w-9 h-9 rounded-2xl bg-gradient-to-b from-amber-400 via-amber-500 to-amber-600 text-white flex items-center justify-center shadow-[0_4px_10px_-1px_rgba(245,158,11,0.5),inset_0_1.5px_1px_rgba(255,255,255,0.7),inset_0_-2px_2px_rgba(0,0,0,0.2)] border-t border-white/40 transition-all duration-200 group-hover:scale-105 active:scale-95">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 text-white drop-shadow-[0_1.5px_1px_rgba(0,0,0,0.25)] transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 4a2 2 0 00-2-2h-3m3 3h-3m3 3h-3M9 17h3m-3-3h3m-3-3h3" />
         </svg>
       </div>
       <span class="text-[10px] font-extrabold tracking-tight">Blog</span>
     </a>`;
     } else if (nav.icon === 'cita') {
+      const isPulse = data.estiloCta === 'estatico_pulso';
       return `
-    <!-- Agendar Cita (Verde Esmeralda / CTA de Alta Conversión) -->
-    <a href="#agendar" class="flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl bg-emerald-500/15 border border-emerald-300 text-emerald-800 shadow-xs hover:bg-emerald-600 hover:text-white transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-emerald-400/60" aria-label="Agendar cita con el médico">
-      <div class="relative w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-200">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+    <!-- Agendar Cita (3D Verde Esmeralda Hero CTA) -->
+    <a href="#agendar" onclick="if(document.getElementById('agendar')){ document.getElementById('agendar').scrollIntoView({behavior: 'smooth'}); return false; } else if(window.openAppointmentModal){ openAppointmentModal('whatsapp'); return false; }" class="flex flex-col items-center gap-1 py-1 px-2.5 rounded-2xl ${isPulse ? 'bg-emerald-600/15 border-2 border-emerald-400 text-emerald-950 shadow-md' : 'bg-emerald-500/15 border border-emerald-300/80 text-emerald-950 shadow-xs hover:bg-emerald-500/25'} transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-emerald-400/60 cursor-pointer" aria-label="Agendar cita con el médico">
+      <div class="relative w-9 h-9 rounded-2xl ${isPulse ? 'bg-gradient-to-b from-emerald-400 via-emerald-600 to-emerald-800 ring-2 ring-emerald-400 shadow-[0_6px_16px_-1px_rgba(16,185,129,0.7),inset_0_2px_1.5px_rgba(255,255,255,0.8),inset_0_-2.5px_2px_rgba(0,0,0,0.3)] animate-pulse' : 'bg-gradient-to-b from-emerald-400 via-emerald-500 to-emerald-700 shadow-[0_5px_12px_-1px_rgba(16,185,129,0.55),inset_0_2px_1.5px_rgba(255,255,255,0.75),inset_0_-2.5px_2px_rgba(0,0,0,0.25)]'} text-white border-t border-white/50 flex items-center justify-center transition-all duration-200 group-hover:scale-110 active:scale-95">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 text-white drop-shadow-[0_1.5px_1px_rgba(0,0,0,0.3)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
-        <span class="absolute -top-0.5 -right-0.5 flex h-2 w-2">
-          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-          <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-300"></span>
+        <span class="absolute -top-1 -right-1 flex h-3 w-3">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-80"></span>
+          <span class="relative inline-flex rounded-full h-3 w-3 bg-gradient-to-br from-emerald-200 to-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9),inset_0_1px_1px_white] border border-white"></span>
         </span>
       </div>
-      <span class="text-[10px] font-black tracking-tight">Cita</span>
+      <span class="text-[10px] font-black tracking-tight text-emerald-900 group-hover:text-emerald-700">${isPulse ? 'Agendar' : 'Cita'}</span>
     </a>`;
     }
     return "";
@@ -1261,15 +1620,31 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
   ).join("\n        ");
 
   // Render de asociaciones
-  const asociacionesHtml = data.asociaciones.map(asoc => 
+  const asociacionesHtml = (data.asociaciones || []).map(asoc => 
     `<li class="flex items-start gap-2.5 text-sm text-gray-600">
       <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-blue-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
       <span>${asoc}</span>
     </li>`
   ).join("\n          ");
 
-  // Render de los servicios principales en la página de inicio (6 en desktop, 4 en mobile/tablet con H2 para SEO y soporte de imagen destacada)
-  const serviciosPrincipales = (data.servicios || []).slice(0, 6);
+  // Render de certificados
+  const certificadosHtml = (data.certificados || []).map(cert => 
+    `<li class="flex items-start gap-2.5 text-sm text-slate-700">
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+      <span>${cert}</span>
+    </li>`
+  ).join("\n          ");
+
+  // Render de reconocimientos
+  const reconocimientosHtml = (data.reconocimientos || []).map(rec => 
+    `<li class="flex items-start gap-2.5 text-sm text-amber-900">
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-amber-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
+      <span>${rec}</span>
+    </li>`
+  ).join("\n          ");
+
+  // Render de los servicios principales en la página de inicio (con H2 para SEO y soporte de imagen destacada)
+  const serviciosPrincipales = (data.servicios || []);
   const serviciosHtml = serviciosPrincipales.map((srv, idx) => {
     const hasImage = srv.mostrarImagen !== false && Boolean(srv.imagenUrl);
     const isDestacado = Boolean(srv.destacado);
@@ -1280,19 +1655,25 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
           : `<span class="bg-white/90 text-slate-800 border border-slate-200/90 text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-2xs uppercase tracking-wide">${badgeText}</span>`)
       : '';
 
-    const visibilityClass = idx >= 4 ? "hidden lg:flex" : "flex";
+    const visibilityClass = idx >= 6 ? "extra-service-card hidden p-6 sm:p-7 rounded-3xl bg-white shadow-sm border border-slate-200/80 hover:border-clinical-300 hover:shadow-lg transition-all duration-300 group flex-col justify-between overflow-hidden" : "p-6 sm:p-7 rounded-3xl bg-white shadow-sm border border-slate-200/80 hover:border-clinical-300 hover:shadow-lg transition-all duration-300 group flex-col justify-between overflow-hidden flex";
 
-    return `<article class="${visibilityClass} p-6 sm:p-7 rounded-3xl bg-white shadow-sm border border-slate-200/80 hover:border-clinical-300 hover:shadow-lg transition-all duration-300 group flex-col justify-between overflow-hidden">
-      <div class="space-y-4">
+    return `<article class="${visibilityClass}">
+      <div class="space-y-3.5">
         ${hasImage ? `
-          <div class="relative w-full aspect-[5/4] rounded-2xl overflow-hidden bg-slate-100 border border-slate-100 shadow-2xs group-hover:scale-[1.015] transition-transform duration-300">
+          <div class="relative w-full aspect-[5/4] rounded-2xl overflow-hidden bg-slate-100 border border-slate-100 shadow-2xs group-hover:scale-[1.015] transition-transform duration-300 cursor-pointer" onclick="openSingleServiceModal(${idx})">
             <img src="${srv.imagenUrl}" alt="${srv.titulo}" class="w-full h-full object-cover" loading="lazy" decoding="async" />
             <div class="absolute top-3 right-3 flex flex-col items-end gap-1 z-10">
               ${badgeHtml}
             </div>
+            ${srv.galeriaFotos && srv.galeriaFotos.length > 0 ? `
+              <span class="absolute bottom-2 left-2 text-[10px] font-extrabold text-white bg-slate-900/85 backdrop-blur-xs px-2.5 py-0.5 rounded-full shadow-md flex items-center gap-1 border border-white/20">
+                <svg class="w-3 h-3 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                <span>+${srv.galeriaFotos.length} fotos</span>
+              </span>
+            ` : ''}
           </div>
         ` : `
-          <div class="flex items-center justify-between">
+          <div class="flex items-center justify-between cursor-pointer" onclick="openSingleServiceModal(${idx})">
             <div class="w-14 h-14 rounded-2xl bg-clinical-50 text-clinical-600 border border-clinical-100 flex items-center justify-center group-hover:bg-clinical-600 group-hover:text-white transition-colors duration-300 shadow-2xs shrink-0">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 ${getMedicalIconSvg(srv.icono)}
@@ -1304,12 +1685,12 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
           </div>
         `}
 
-        <div>
-          <!-- H2 por defecto para SEO según requerimiento -->
+        <!-- TÍTULO Y DESCRIPCIÓN DEL SERVICIO -->
+        <div class="cursor-pointer space-y-2" onclick="openSingleServiceModal(${idx})">
           <h2 class="text-xl sm:text-2xl font-extrabold text-slate-950 leading-snug group-hover:text-clinical-600 transition-colors">
             ${srv.titulo}
           </h2>
-          <p class="text-slate-600 text-xs sm:text-sm leading-relaxed mt-2.5">${srv.descripcion}</p>
+          <p class="text-slate-600 text-xs sm:text-sm leading-relaxed line-clamp-3 font-normal">${srv.descripcion}</p>
         </div>
 
         <!-- Badges de precio, duración, recuperación y modalidad (Ficha Técnica) -->
@@ -1338,21 +1719,27 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
               🏥 ${srv.modalidad}
             </span>
           ` : ''}
+          ${data.aseguradoras && data.aseguradoras.length > 0 && srv.aplicaReembolso !== false ? `
+            <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-700 bg-slate-100 border border-slate-200/90 px-2.5 py-1 rounded-lg" title="Factura SRI para reembolso o convenio de seguros médicos">
+              <svg class="w-3 h-3 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+              <span>Cobertura Seguros / Reembolso</span>
+            </span>
+          ` : ''}
         </div>
       </div>
 
-      <div class="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-clinical-600 font-bold">
-        <a href="#agendar" class="hover:underline flex items-center gap-1">
-          <span>Agendar consulta</span>
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 transform group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7" /></svg>
-        </a>
-        <span class="text-slate-400 font-medium text-[11px]">Atención Especializada</span>
+      <div class="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between text-xs font-bold gap-2">
+        <button type="button" onclick="openSingleServiceModal(${idx})" class="w-full px-4 py-2.5 rounded-xl bg-clinical-600 hover:bg-clinical-700 active:bg-clinical-800 text-white font-extrabold text-xs tracking-wide flex items-center justify-center gap-2 shadow-xs transition-all duration-200 cursor-pointer border border-clinical-600">
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+          <span>Ver más</span>
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </button>
       </div>
     </article>`;
   }).join("\n        ");
 
   // Render de TODOS los servicios para el Modal "Mis Servicios" (con H2 e imagen/icono estilizado)
-  const todosServiciosModalHtml = (data.servicios || []).map((srv) => {
+  const todosServiciosModalHtml = (data.servicios || []).map((srv, srvIdx) => {
     const hasImage = srv.mostrarImagen !== false && Boolean(srv.imagenUrl);
     const isDestacado = Boolean(srv.destacado);
     const badgeText = srv.badgeEtiqueta || (isDestacado ? "DESTACADO" : "");
@@ -1371,26 +1758,32 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
             <div class="absolute top-2.5 right-2.5 flex flex-col items-end gap-1 z-10">
               ${badgeHtml}
             </div>
+            ${srv.galeriaFotos && srv.galeriaFotos.length > 0 ? `
+              <span class="absolute bottom-2 left-2 text-[10px] font-extrabold text-white bg-slate-900/85 backdrop-blur-xs px-2.5 py-0.5 rounded-full shadow-md flex items-center gap-1 border border-white/20">
+                <svg class="w-3 h-3 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                <span>+${srv.galeriaFotos.length} fotos</span>
+              </span>
+            ` : ''}
           </div>
         ` : `
-          <div class="relative w-full h-36 sm:h-40 rounded-xl bg-gradient-to-br from-clinical-50/90 via-slate-50 to-blue-50/70 border border-clinical-100/80 flex items-center justify-center overflow-hidden group-hover:border-clinical-300 transition-all duration-300">
-            <div class="w-16 h-16 rounded-2xl bg-white shadow-sm border border-clinical-100 text-clinical-600 flex items-center justify-center group-hover:scale-110 group-hover:bg-clinical-600 group-hover:text-white transition-all duration-300">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div class="flex items-center justify-between">
+            <div class="w-12 h-12 rounded-xl bg-clinical-50 text-clinical-600 border border-clinical-100 flex items-center justify-center group-hover:scale-105 transition-all duration-300 shadow-2xs shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 ${getMedicalIconSvg(srv.icono)}
               </svg>
             </div>
-            <div class="absolute top-2.5 right-2.5 flex flex-col items-end gap-1 z-10">
+            <div class="flex flex-col items-end gap-1">
               ${badgeHtml}
             </div>
           </div>
         `}
 
+        <!-- TÍTULO Y DESCRIPCIÓN DEL SERVICIO -->
         <div class="space-y-1.5 min-w-0">
-          <!-- H2 para SEO -->
           <h2 class="text-base sm:text-lg font-extrabold text-slate-950 leading-snug group-hover:text-clinical-600 transition-colors">
             ${srv.titulo}
           </h2>
-          <p class="text-xs sm:text-sm text-slate-600 leading-relaxed line-clamp-3">${srv.descripcion}</p>
+          <p class="text-xs sm:text-sm text-slate-600 leading-relaxed line-clamp-3 font-normal">${srv.descripcion}</p>
         </div>
 
         <!-- Badges informativos (Ficha Técnica) -->
@@ -1402,13 +1795,21 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
         </div>
       </div>
 
-      <div class="pt-3 border-t border-slate-100">
+      <div class="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center gap-2">
+        <button
+          type="button"
+          onclick="closeServicesModal(); openSingleServiceModal(${srvIdx});"
+          class="w-full sm:w-1/2 flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 text-xs font-extrabold py-2.5 px-3 rounded-xl transition-all duration-200 cursor-pointer"
+        >
+          <svg class="w-3.5 h-3.5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+          <span>Ver detalles</span>
+        </button>
         <a
           href="#agendar"
-          onclick="closeServicesModal()"
-          class="w-full flex items-center justify-center gap-2 bg-clinical-600 hover:bg-clinical-700 active:bg-clinical-800 text-white text-xs font-extrabold py-2.5 px-3 rounded-xl text-center transition-all duration-200 shadow-2xs group-hover:shadow-md"
+          onclick="closeServicesModal(); selectServiceForBookingByIdx(${srvIdx}); return false;"
+          class="w-full sm:w-1/2 flex items-center justify-center gap-1.5 bg-clinical-600 hover:bg-clinical-700 active:bg-clinical-800 text-white text-xs font-extrabold py-2.5 px-3 rounded-xl text-center transition-all duration-200 shadow-2xs group-hover:shadow-md cursor-pointer"
         >
-          <span>Agendar este procedimiento</span>
+          <span>Agendar</span>
           <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
         </a>
       </div>
@@ -1420,7 +1821,7 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
     `<div class="p-6 rounded-3xl bg-white shadow-lg border border-gray-100 flex flex-col justify-between">
       <div class="mb-4">
         <h3 class="text-lg font-bold text-gray-900 mb-2">${caso.titulo}</h3>
-        <p class="text-gray-600 text-xs leading-relaxed line-clamp-2">${caso.descripcion}</p>
+        <p class="text-slate-600 text-sm sm:text-base leading-relaxed line-clamp-3">${caso.descripcion}</p>
       </div>
       
       <!-- Slider Comparador Antes/Después Interactivo con Lazy Loading -->
@@ -1460,18 +1861,17 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
   ).join("\n        ");
 
   // Render de FAQs
+  const totalFaqsCount = (data.faqs || []).length;
   const faqsHtml = (data.faqs || []).map((faq, index) => {
     const preguntaClean = faq.pregunta.replace(/\{\{CIUDAD\}\}/g, data.ciudad || "Ecuador");
     const respuestaClean = faq.respuesta.replace(/\{\{CIUDAD\}\}/g, data.ciudad || "Ecuador");
-    return `<div class="bg-white rounded-2xl border border-slate-200/80 shadow-2xs hover:border-clinical-200 transition-all overflow-hidden mb-3">
+    const isExtra = index >= 3;
+    return `<div class="bg-white rounded-2xl border border-slate-200/80 shadow-2xs hover:border-clinical-200 transition-all overflow-hidden mb-3 ${isExtra ? 'hidden faq-extra-item' : ''}">
       <button class="flex items-center justify-between w-full text-left font-extrabold text-sm sm:text-base text-slate-900 hover:text-clinical-700 p-4 sm:p-5 focus:outline-none cursor-pointer gap-3 transition-colors"
               aria-expanded="false" 
               aria-controls="faq-answer-${index}"
               onclick="toggleFaq(${index})">
-        <span class="flex items-center gap-2.5">
-          <span class="w-6 h-6 rounded-full bg-clinical-50 text-clinical-700 text-xs font-bold flex items-center justify-center shrink-0 border border-clinical-100">${index + 1}</span>
-          <span>${preguntaClean}</span>
-        </span>
+        <span class="leading-snug pr-2">${preguntaClean}</span>
         <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-slate-400 shrink-0 transform transition-transform duration-300" id="faq-icon-${index}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
         </svg>
@@ -1482,9 +1882,126 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
     </div>`;
   }).join("\n        ");
 
+  // Render de Asistente Virtual Inteligente (IA Local en HTML Estático)
+  const assistantDoctorName = data.nombreMedico || data.nombreClinicaGBP || "el especialista";
+
+  const faqsListForGen = (data.faqs && data.faqs.length > 0) ? data.faqs : [];
+  const assistantNameGen = data.asistenteNombre || "Valeria - Asistente Virtual";
+  const assistantGreetingGen = data.asistenteMensajeBienvenida || "¡Hola! Soy tu asistente virtual. ¿En qué te puedo ayudar hoy?";
+
+  const assistantFaqItemsHtml = faqsListForGen.map((faq, idx) => {
+    const isFirst = idx === 0;
+    
+    const waBaseUrl = data.whatsappUrl || (data.telefonoGBP ? `https://wa.me/${data.telefonoGBP.replace(/\D/g, '')}` : 'https://wa.me/593999999999');
+    
+    let actionBtnHtml = '';
+    if (faq.enlaceUrl || faq.enlaceTexto) {
+      const btnText = faq.enlaceTexto || "Ver más detalles";
+      const btnTextLower = btnText.toLowerCase();
+
+      let iconSvg = `<svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>`;
+      if (faq.enlaceTipo === "whatsapp" || (!faq.enlaceUrl && btnTextLower.includes("whatsapp"))) {
+        iconSvg = `<svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>`;
+      } else if (faq.enlaceUrl?.includes("servicios") || faq.enlaceUrl?.includes("services") || faq.enlaceTipo === "servicio") {
+        iconSvg = `<svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>`;
+      } else if (faq.enlaceUrl?.includes("map") || faq.enlaceUrl?.includes("ubicacion") || faq.enlaceUrl?.includes("maps")) {
+        iconSvg = `<svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>`;
+      } else if (faq.enlaceUrl?.includes("booking") || faq.enlaceUrl?.includes("agenda") || faq.enlaceUrl?.includes("cita")) {
+        iconSvg = `<svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>`;
+      } else if (faq.enlaceUrl?.startsWith("http")) {
+        iconSvg = `<svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>`;
+      }
+
+      if (faq.enlaceTipo === "whatsapp" || (!faq.enlaceUrl && btnTextLower.includes("whatsapp"))) {
+        const waLink = waBaseUrl.includes("?") 
+          ? `${waBaseUrl}&text=${encodeURIComponent(`Hola Dr(a). ${data.nombreMedico || ''}, tengo una consulta sobre: "${faq.pregunta}".`)}`
+          : `${waBaseUrl}?text=${encodeURIComponent(`Hola Dr(a). ${data.nombreMedico || ''}, tengo una consulta sobre: "${faq.pregunta}".`)}`;
+        actionBtnHtml = `<div class="pt-0.5"><a href="${waLink}" target="_blank" rel="noopener noreferrer" class="px-4 py-2 sm:px-4.5 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black inline-flex items-center gap-2 shadow-xs hover:shadow transition-all cursor-pointer">${iconSvg}<span>${btnText}</span></a></div>`;
+      } else if (faq.enlaceUrl?.startsWith("#")) {
+        actionBtnHtml = `<div class="pt-0.5"><a href="${faq.enlaceUrl}" class="px-4 py-2 sm:px-4.5 sm:py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-black inline-flex items-center gap-2 shadow-xs hover:shadow transition-all cursor-pointer">${iconSvg}<span>${btnText}</span></a></div>`;
+      } else {
+        actionBtnHtml = `<div class="pt-0.5"><a href="${faq.enlaceUrl || '#'}" target="_blank" rel="noopener noreferrer" class="px-4 py-2 sm:px-4.5 sm:py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-black inline-flex items-center gap-2 shadow-xs hover:shadow transition-all cursor-pointer">${iconSvg}<span>${btnText}</span></a></div>`;
+      }
+    }
+
+    return `
+      <div class="faq-accordion-item rounded-2xl border ${isFirst ? 'bg-slate-50/90 border-blue-300 shadow-xs ring-1 ring-blue-400/20' : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'} transition-all duration-200 overflow-hidden" data-faq-id="${faq.id || idx}">
+        <button type="button" onclick="toggleFaqAccordion('${faq.id || idx}')" class="w-full p-4 sm:p-4.5 text-left flex items-center justify-between gap-3 sm:gap-4 cursor-pointer select-none transition-colors group" aria-expanded="${isFirst ? 'true' : 'false'}">
+          <div class="flex-1 min-w-0">
+            <h4 class="text-sm sm:text-[15.5px] font-bold tracking-tight leading-snug ${isFirst ? 'text-blue-900' : 'text-slate-800 group-hover:text-slate-950'} transition-colors">
+              ${faq.pregunta}
+            </h4>
+          </div>
+          <div class="shrink-0 flex items-center pl-2">
+            <span class="faq-chevron w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center border ${isFirst ? 'rotate-180 bg-blue-50 text-blue-600 border-blue-200 shadow-2xs' : 'bg-slate-50 text-slate-400 border-slate-200/80 group-hover:bg-slate-100 group-hover:text-slate-700 group-hover:border-slate-300'} transition-all duration-200">
+              <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7"/></svg>
+            </span>
+          </div>
+        </button>
+
+        <div id="faq-content-${faq.id || idx}" class="${isFirst ? 'block' : 'hidden'} px-4 sm:px-5 pb-5 pt-1 space-y-3 border-t border-slate-200/70">
+          <div class="bg-white p-4 sm:p-5 rounded-xl border border-slate-200/80 shadow-2xs">
+            <p class="text-xs sm:text-sm md:text-[14.5px] text-slate-700 font-normal leading-relaxed whitespace-pre-line">${faq.respuesta}</p>
+          </div>
+          ${actionBtnHtml}
+        </div>
+      </div>
+    `;
+  }).join("\n");
+
+  const waFooterLink = (data.whatsappUrl || (data.telefonoGBP ? `https://wa.me/${data.telefonoGBP.replace(/\D/g, '')}` : 'https://wa.me/593999999999'));
+  const waFooterUrl = waFooterLink.includes("?")
+    ? `${waFooterLink}&text=${encodeURIComponent(`Hola Dr(a). ${data.nombreMedico || ''}, tengo una consulta médica que no encontré en las preguntas frecuentes.`)}`
+    : `${waFooterLink}?text=${encodeURIComponent(`Hola Dr(a). ${data.nombreMedico || ''}, tengo una consulta médica que no encontré en las preguntas frecuentes.`)}`;
+
+  const medicalAssistantHtml = `
+    <!-- ASISTENTE VIRTUAL & PREGUNTAS FRECUENTES EN ACORDEÓN (CON BORDE NEÓN ANIMADO) -->
+    <div class="my-6 assistant-neon-card-wrapper" style="position: relative; overflow: hidden; contain: paint; transform: translateZ(0); -webkit-transform: translateZ(0); border-radius: 24px; -webkit-border-radius: 24px; clip-path: inset(0 round 24px); -webkit-clip-path: inset(0 round 24px); background-color: #ffffff; padding: 3px; isolation: isolate;">
+      <!-- Recorrido animado de borde neón (Azul, Amarillo, Rojo) estilo Google AI Studio -->
+      <div class="assistant-neon-spinner" style="position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: conic-gradient(from 0deg, #3b82f6 0deg, #f59e0b 120deg, #ef4444 240deg, #3b82f6 360deg); animation: assistantNeonSpin 5s linear infinite; -webkit-animation: assistantNeonSpin 5s linear infinite; pointer-events: none; z-index: 1;"></div>
+
+      <div id="asistente-medico-ia-widget" class="relative z-10 rounded-[21px] bg-white p-5 sm:p-6 md:p-7 text-left transition-all" style="position: relative; z-index: 10; background-color: #ffffff; border-radius: 21px; -webkit-border-radius: 21px; width: 100%;">
+        <!-- Detalle visual sutil de fondo -->
+        <div class="absolute top-0 right-0 w-72 h-72 bg-gradient-to-bl from-blue-50/60 via-indigo-50/30 to-transparent rounded-full blur-3xl pointer-events-none -mr-16 -mt-16 opacity-80"></div>
+
+        <div class="relative z-10 space-y-5">
+          <!-- Foto de la Sección en Formato 1000x550px -->
+          <div class="relative w-full aspect-[1000/550] rounded-2xl overflow-hidden shadow-sm border border-slate-200/90 bg-slate-900 group">
+            <img 
+              src="${data.asistenteFotoUrl || 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?q=80&w=1000&auto=format&fit=crop'}" 
+              alt="Preguntas frecuentes" 
+              class="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-105"
+              loading="lazy"
+              referrerpolicy="no-referrer"
+            />
+          </div>
+
+          <!-- Listado de Preguntas Frecuentes en Acordeón -->
+          <div class="space-y-3 pt-1" id="faq-accordion-container">
+            ${assistantFaqItemsHtml}
+          </div>
+
+          <!-- Pie con Garantía Clínica y Contacto Directo -->
+          <div class="flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2.5 pt-3 border-t border-slate-100 font-medium">
+            <span class="flex items-center gap-1.5 text-slate-600">
+              <svg class="w-4 h-4 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <span>Respuestas oficiales de la consulta de ${assistantDoctorName}.</span>
+            </span>
+            ${(data.whatsappUrl || data.telefonoGBP) ? `
+              <a href="${waFooterUrl}" target="_blank" rel="noopener noreferrer" class="text-xs font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-3 py-1 rounded-lg border border-emerald-200 transition-colors flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                <span>¿Otra pregunta? Escríbenos</span>
+              </a>
+            ` : ''}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
   // Render de Testimonios/Reseñas
   const googleWidgetHtml = (data.habilitarGoogleReviewsWidget ?? true) ? `
-    <div id="google-reviews-widget" class="w-full mb-8 p-5 sm:p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-5 transition-all">
+    <div id="google-reviews-widget" class="w-full mb-8 p-5 sm:p-6 rounded-2xl bg-white border border-indigo-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-5 transition-all neon-card-soft">
       <div class="flex items-center gap-3.5 sm:gap-4">
         <div class="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-200/80 shadow-2xs flex items-center justify-center shrink-0">
           <svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
@@ -1510,7 +2027,7 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
         </div>
       </div>
       ${data.googleMapsReviewsUrl ? `
-        <a href="${data.googleMapsReviewsUrl}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center gap-2.5 px-5 py-3 rounded-2xl bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-200 text-xs sm:text-sm font-bold shadow-2xs hover:border-slate-300 transition-all shrink-0 self-start md:self-auto">
+        <a href="${data.googleMapsReviewsUrl}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center gap-2.5 px-5 py-3 rounded-2xl bg-slate-50 hover:bg-slate-100 text-slate-800 border border-blue-400/60 text-xs sm:text-sm font-bold shadow-2xs transition-all shrink-0 self-start md:self-auto neon-pulse-btn">
           <span>Ver ficha en Google Maps</span>
           <svg class="w-4 h-4 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
         </a>
@@ -1569,10 +2086,10 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
           <p class="text-gray-600 text-xs leading-relaxed line-clamp-3">${post.extracto}</p>
         </div>
         
-        <div class="pt-5 mt-5 border-t border-slate-100">
-          <button onclick="openBlogModal(${idx})" class="text-clinical-600 hover:text-clinical-700 text-xs font-bold uppercase tracking-wider inline-flex items-center gap-1 cursor-pointer">
-            Leer artículo completo
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7" /></svg>
+        <div class="pt-4 mt-4 border-t border-slate-100">
+          <button onclick="openBlogModal(${idx})" class="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-clinical-600 hover:bg-clinical-700 active:bg-clinical-800 text-white font-extrabold text-xs tracking-wide inline-flex items-center justify-center gap-2 shadow-sm shadow-clinical-600/25 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 cursor-pointer border border-clinical-600">
+            <span>Leer artículo completo</span>
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-white shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7-7 7M3 12h18" /></svg>
           </button>
         </div>
       </div>
@@ -1616,7 +2133,7 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
           ${guia.titulo}
         </h3>
 
-        ${guia.descripcion ? `<p class="text-xs text-slate-600 leading-relaxed font-normal">${guia.descripcion}</p>` : ''}
+        ${guia.descripcion ? `<p class="text-sm text-slate-600 leading-relaxed font-normal">${guia.descripcion}</p>` : ''}
       </div>
 
       <div class="pt-3 border-t border-slate-100 flex flex-col sm:flex-row flex-wrap items-center gap-2.5">
@@ -1665,12 +2182,6 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
           url: "https://images.unsplash.com/photo-1516549655169-df83a0774514?q=80&w=800&auto=format&fit=crop",
           titulo: "Área de Evaluación Diagnóstica",
           descripcion: "Tecnología médica avanzada e instrumental clínico de máxima precisión."
-        },
-        {
-          id: "foto-cons-4",
-          url: "https://images.unsplash.com/photo-1586773860418-d37222d8fce3?q=80&w=800&auto=format&fit=crop",
-          titulo: "Sala de Procedimientos Menores",
-          descripcion: "Cumplimiento de los más rigurosos estándares de esterilización y bioseguridad."
         }
       ];
 
@@ -1698,6 +2209,18 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
 
   const activeFavicon = getActiveFaviconUrl(data);
   const activeOgImage = getActiveOgImageUrl(data);
+  const cleanGoogleVerification = extractGoogleVerificationCode(data.googleSiteVerification);
+  const gaSnippet = generateGoogleAnalyticsScript(data.googleAnalyticsId);
+
+  const cleanHorarioSemana = (data.horarios?.semana || "")
+    .replace(/^(lunes\s+a\s+viernes|lunes\s+a\s+s[aá]bado|lunes|semana):\s*/i, "")
+    .trim() || "10:00 AM - 07:00 PM";
+  const cleanHorarioSabado = (data.horarios?.sabado || "")
+    .replace(/^(s[aá]bados?):\s*/i, "")
+    .trim() || "Cerrado / Previa Cita Exclusiva";
+  const cleanHorarioDomingo = (data.horarios?.domingo || "")
+    .replace(/^(domingos?):\s*/i, "")
+    .trim() || "Cerrado";
 
   return `<!DOCTYPE html>
 <html lang="es" class="scroll-smooth">
@@ -1705,7 +2228,7 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${data.metaTitulo || `${data.nombreMedico} | ${data.especialidad} en ${data.ciudad}, Ecuador`}</title>
-  <meta name="description" content="${data.metaDescripcion || `Consulta médica con ${data.nombreMedico}, especialista en ${data.especialidad} en ${data.ciudad}, Ecuador (${data.estadoRegion}). Registro MSP y SENESCYT. Facturación SRI y seguros médicos.`}">
+  <meta name="description" content="${data.metaDescripcion || `Consulta médica con ${data.nombreMedico}, especialista en ${data.especialidad} en ${data.ciudad}, Ecuador (${data.estadoRegion}). Registro MSP y SENESCYT. Facturación SRI y seguros médicos.`}">${cleanGoogleVerification ? `\n  \n  <!-- Verificación de Propiedad Google Search Console -->\n  <meta name="google-site-verification" content="${cleanGoogleVerification}">` : ''}${gaSnippet ? `\n  \n  ${gaSnippet}` : ''}
   
   <!-- Favicon Personalizado / Ícono PWA -->
   ${activeFavicon ? `<link rel="icon" href="${activeFavicon.startsWith('data:') ? activeFavicon : `${activeFavicon}${activeFavicon.includes('?') ? '&' : '?'}v=${uniqueVersion}`}">
@@ -1808,8 +2331,9 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   
-  <!-- LCP (Largest Contentful Paint) Optimization: Preload de imagen Hero Prioritaria -->
-  <link rel="preload" as="image" href="${data.fotoUrl}" fetchpriority="high">
+  <!-- LCP (Largest Contentful Paint) Optimization: Preload de Logotipo Oficial e Imagen Hero Prioritaria -->
+  ${data.logoUrl ? `<link rel="preload" as="image" href="${data.logoUrl}" fetchpriority="high">` : ''}
+  ${data.fotoUrl ? `<link rel="preload" as="image" href="${data.fotoUrl}" fetchpriority="high">` : ''}
   
   <!-- Tipografía Google Fonts según Estilo Seleccionado (${selectedStylePreset.name}) -->
   <link href="${getDynamicGoogleFontsUrl(selectedStylePreset, data.fuenteTitulos, data.fuenteParrafos)}" rel="stylesheet">
@@ -1864,6 +2388,133 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
         height: ${Math.round((data.logoTamanoDesktop || 60) * 1.25)}px !important;
         max-height: ${Math.round((data.logoTamanoDesktop || 60) * 1.25)}px !important;
       }
+    }
+
+    /* Clases para borde neón suave estático en tarjeta Google Profile (sin latido) */
+    .neon-card-soft {
+      border-color: rgba(99, 102, 241, 0.45);
+      box-shadow: 0 0 0 1.5px rgba(99, 102, 241, 0.25), 0 0 16px 2px rgba(99, 102, 241, 0.15), 0 4px 16px -2px rgba(0, 0, 0, 0.04);
+      transition: box-shadow 0.3s ease, border-color 0.3s ease;
+    }
+
+    .neon-card-soft:hover {
+      border-color: rgba(59, 130, 246, 0.65);
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.45), 0 0 20px 4px rgba(99, 102, 241, 0.25), 0 6px 20px -2px rgba(0, 0, 0, 0.06);
+    }
+
+    @keyframes neon-pulse-soft-btn {
+      0%, 100% {
+        box-shadow: 0 0 0 1.5px rgba(59, 130, 246, 0.45), 0 0 10px 2px rgba(59, 130, 246, 0.25);
+        border-color: rgba(59, 130, 246, 0.55);
+        transform: scale(1);
+      }
+      50% {
+        box-shadow: 0 0 0 2.5px rgba(37, 99, 235, 0.85), 0 0 16px 4px rgba(99, 102, 241, 0.45);
+        border-color: rgba(37, 99, 235, 0.9);
+        transform: scale(1.025);
+      }
+    }
+
+    .neon-pulse-btn {
+      animation: neon-pulse-soft-btn 3.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      transition: transform 0.25s ease, box-shadow 0.25s ease, background-color 0.25s ease;
+    }
+
+    .neon-pulse-btn:hover {
+      animation-play-state: paused;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.95), 0 0 20px 5px rgba(99, 102, 241, 0.5);
+      border-color: rgba(37, 99, 235, 1);
+    }
+
+    /* Keyframe y clases para el borde neón animado redondeado del Asistente Virtual */
+    @keyframes assistantNeonSpin {
+      0% {
+        transform: rotate(0deg);
+        -webkit-transform: rotate(0deg);
+      }
+      100% {
+        transform: rotate(360deg);
+        -webkit-transform: rotate(360deg);
+      }
+    }
+
+    @-webkit-keyframes assistantNeonSpin {
+      0% {
+        -webkit-transform: rotate(0deg);
+      }
+      100% {
+        -webkit-transform: rotate(360deg);
+      }
+    }
+
+    .assistant-neon-card-wrapper {
+      position: relative !important;
+      border-radius: 24px !important;
+      padding: 3px !important;
+      overflow: hidden !important;
+      background-color: #ffffff !important;
+      clip-path: inset(0 round 24px) !important;
+      -webkit-clip-path: inset(0 round 24px) !important;
+      isolation: isolate !important;
+      contain: paint !important;
+      transform: translateZ(0) !important;
+      -webkit-transform: translateZ(0) !important;
+      will-change: transform !important;
+      box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.12), 0 4px 6px -2px rgba(0, 0, 0, 0.04) !important;
+    }
+
+    .assistant-neon-spinner {
+      position: absolute !important;
+      top: -50% !important;
+      left: -50% !important;
+      width: 200% !important;
+      height: 200% !important;
+      background: conic-gradient(from 0deg, #3b82f6 0deg, #f59e0b 120deg, #ef4444 240deg, #3b82f6 360deg) !important;
+      animation: assistantNeonSpin 5s linear infinite !important;
+      -webkit-animation: assistantNeonSpin 5s linear infinite !important;
+      pointer-events: none !important;
+      z-index: 1 !important;
+      transform-origin: center center !important;
+      -webkit-transform-origin: center center !important;
+    }
+
+    #asistente-medico-ia-widget {
+      position: relative !important;
+      z-index: 10 !important;
+      background-color: #ffffff !important;
+      border-radius: 21px !important;
+      width: 100% !important;
+    }
+
+    /* Borde neón sutil para el botón de consultar en vista Mobile */
+    .assistant-neon-btn-wrapper {
+      position: relative !important;
+      border-radius: 12px !important;
+      padding: 1.5px !important;
+      overflow: hidden !important;
+      clip-path: inset(0 round 12px) !important;
+      -webkit-clip-path: inset(0 round 12px) !important;
+      background-color: #0f172a !important;
+      isolation: isolate !important;
+      contain: paint !important;
+      transform: translateZ(0) !important;
+      -webkit-transform: translateZ(0) !important;
+    }
+
+    .assistant-neon-btn-spinner {
+      position: absolute !important;
+      top: -50% !important;
+      left: -50% !important;
+      width: 200% !important;
+      height: 200% !important;
+      background: conic-gradient(from 0deg, #60a5fa 0deg, #fcd34d 120deg, #f87171 240deg, #60a5fa 360deg) !important;
+      opacity: 0.85 !important;
+      animation: assistantNeonSpin 6s linear infinite !important;
+      -webkit-animation: assistantNeonSpin 6s linear infinite !important;
+      pointer-events: none !important;
+      z-index: 1 !important;
+      transform-origin: center center !important;
+      -webkit-transform-origin: center center !important;
     }
 
     /* Keyframe Animations Elegantes para el Hero */
@@ -1958,17 +2609,18 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
 
   <!-- PWA Support -->
   <link rel="manifest" href="/manifest.json?v=${uniqueVersion}">
-  <meta name="theme-color" content="${selectedPalette["600"]}">
+  <meta name="theme-color" content="${data.pwaThemeColor || selectedPalette["600"] || "#1e6fd9"}">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="${data.especialidad}">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="${data.pwaStatusBarStyle || "default"}">
+  <meta name="apple-mobile-web-app-title" content="${data.pwaShortName || data.pwaAppTitle || data.nombreMedico || data.especialidad}">
 
   <!-- Schema Markup Multicapa (Physician + FAQPage) -->
   <script type="application/ld+json">
 ${jsonLd}
   </script>
 </head>
-<body class="bg-[#fafbfc] text-[#2c333a] min-h-screen relative pb-16 md:pb-0">
+<body class="bg-[#fafbfc] text-[#2c333a] min-h-screen relative pb-20 md:pb-0">
 
   <!-- ACCESIBILIDAD: Saltar al contenido principal -->
   <a href="#inicio" class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 bg-clinical-600 text-white px-4 py-2 rounded-lg font-bold z-50">
@@ -2011,52 +2663,15 @@ ${jsonLd}
           </span>
           <span>Citas Disponibles</span>
         </div>
-        <a href="${data.whatsappUrl}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-[11px] shadow-xs transition-all">
-          <span>WhatsApp Directo</span>
-        </a>
-      </div>
-    </div>
-  </div>
-  ` : (data.estiloMenuDesktop === "split_centrado") ? `
-  <!-- BARRA SUPERIOR INFORMATIVA (TOP BAR - VERSIÓN 5 DOBLE BARRA LIGHT) -->
-  <div class="bg-slate-100/95 border-b border-slate-200/90 text-slate-700 text-xs py-1.5 px-4 hidden md:block">
-    <div class="w-[90%] max-w-[90%] mx-auto flex items-center justify-between">
-      <div class="flex items-center gap-3 text-[11px] font-medium">
-        <a href="tel:${(data.telefonoGBP || '').replace(/\s+/g, '')}" title="Hacer clic para llamar directamente" class="flex items-center gap-2 px-2.5 py-0.5 rounded-md bg-white border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/50 transition-all group shadow-2xs">
-          <span class="p-1 rounded-md bg-emerald-100 text-emerald-700 group-hover:bg-emerald-600 group-hover:text-white transition-all shrink-0">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/><path d="M14.05 2a9 9 0 0 1 8 7.94"/><path d="M14.05 6a5 5 0 0 1 4 3.9"/></svg>
-          </span>
-          <span class="flex flex-col text-left leading-none">
-            <span class="text-[9px] text-emerald-800 uppercase font-black tracking-wider">Llamar Ahora</span>
-            <strong class="text-slate-900 font-mono font-bold tracking-tight text-[11px] mt-0.5">${data.telefonoGBP}</strong>
-          </span>
-        </a>
-        <a href="#instalaciones" class="flex items-center gap-2 px-2.5 py-0.5 rounded-md bg-white border border-slate-200 hover:border-blue-400 transition-all group shadow-2xs">
-          <span class="p-0.5 rounded-md bg-blue-100 text-blue-700 group-hover:scale-105 transition-transform shrink-0">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-          </span>
-          <span class="text-slate-700 font-medium">${data.ciudad}, ${data.estadoRegion}</span>
-        </a>
-        <span class="flex items-center gap-2 px-2.5 py-0.5 rounded-md bg-white border border-slate-200">
-          <span class="p-0.5 rounded-md bg-amber-100 text-amber-700 shrink-0">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-          </span>
-          <span class="text-slate-700 font-medium">${data.horarios?.semana || "Atención previa cita"}</span>
-        </span>
-      </div>
-      <div class="flex items-center gap-3">
-        <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-extrabold uppercase tracking-wider shadow-2xs">
-          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span>Atención Médica Hoy</span>
-        </div>
-        <a href="${data.whatsappUrl}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[11px] shadow-2xs transition-all">
-          <span>Agendar Cita</span>
+        <a href="#faq" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white font-extrabold text-[11px] shadow-2xs transition-all border border-indigo-400/30">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 shrink-0 text-indigo-100" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
+          <span>Asistente</span>
         </a>
       </div>
     </div>
   </div>
   ` : ''}
-  <header class="${data.estiloMenuDesktop === "institucional" ? "sticky top-3 z-40 w-[92%] max-w-[92%] mx-auto bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-slate-200/90 my-2 px-4 md:px-6 h-16 md:h-20 flex items-center transition-all duration-300 hover:shadow-2xl max-md:-translate-y-full max-md:opacity-0 max-md:pointer-events-none max-md:fixed max-md:inset-x-0" : "sticky top-0 bg-white/95 backdrop-blur-md border-b border-gray-100 z-40 transition-all duration-300 shadow-xs h-16 md:h-20 max-md:-translate-y-full max-md:opacity-0 max-md:pointer-events-none max-md:fixed max-md:inset-x-0"}" id="main-header">
+  <header class="sticky top-0 bg-white/95 backdrop-blur-md border-b border-gray-100 z-40 transition-all duration-300 shadow-xs h-16 md:h-20 max-md:-translate-y-full max-md:opacity-0 max-md:pointer-events-none max-md:fixed max-md:inset-x-0" id="main-header">
     <div class="w-[90%] max-w-[90%] mx-auto px-2 sm:px-4 h-full flex items-center justify-between">
       <div class="flex items-center shrink-0 h-full py-2 overflow-hidden">
         ${data.logoUrl ? `
@@ -2064,6 +2679,9 @@ ${jsonLd}
             src="${data.logoUrl}" 
             alt="Logo ${data.nombreMedico}" 
             class="logo-navbar-img object-contain object-left bg-transparent shrink-0"
+            loading="eager"
+            fetchpriority="high"
+            decoding="async"
           />
         ` : `
           <div class="flex flex-col">
@@ -2078,15 +2696,37 @@ ${jsonLd}
       
       <!-- Navegación Escritorio según versión seleccionada -->
       ${(() => {
+        const get3DNavEmoji = (iconName: string) => {
+          switch (iconName) {
+            case "home": return "🏠";
+            case "doctor": return "🩺";
+            case "servicios": return "🧸";
+            case "video": return "🎬";
+            case "casos": return "✨";
+            case "clinica": return "🏥";
+            case "opiniones": return "⭐";
+            case "faq": return "💡";
+            case "blog": return "📚";
+            case "guias": return "📋";
+            case "cita": return "📅";
+            default: return "🎈";
+          }
+        };
+
         const style = data.estiloMenuDesktop || "capsula";
         if (style === "minimalista") {
           return `<nav class="hidden md:flex items-center gap-6 ml-auto mr-6" id="desktop-nav">
             ${activeNavs.map((n, i) => `<a href="${n.href}" class="nav-item py-1 text-[14px] ${i === 0 ? 'font-black text-slate-950 border-b-2 border-clinical-600 active-nav' : 'font-extrabold text-slate-600 hover:text-slate-950 hover:border-slate-300 border-b-2 border-transparent'} transition-all" data-section="${n.id}">${n.label}</a>`).join('\n            ')}
           </nav>`;
         }
-        if (style === "ejecutivo" || style === "split_centrado") {
+        if (style === "ejecutivo") {
           return `<nav class="hidden md:flex items-center gap-1.5 ml-auto mr-4" id="desktop-nav">
             ${activeNavs.map((n, i) => `<a href="${n.href}" class="nav-item px-3.5 py-1.5 text-[13px] ${i === 0 ? 'font-black rounded-xl bg-clinical-50 text-clinical-700 border border-clinical-200 active-nav' : 'font-extrabold text-slate-700 hover:border-slate-200 hover:bg-slate-100/80 rounded-xl border border-transparent'} transition-all" data-section="${n.id}">${n.label}</a>`).join('\n            ')}
+          </nav>`;
+        }
+        if (style === "split_centrado") {
+          return `<nav class="hidden md:flex items-center gap-1 bg-white/90 backdrop-blur-md p-1.5 rounded-2xl border border-slate-200/90 shadow-sm mx-auto" id="desktop-nav">
+            ${activeNavs.map((n, i) => `<a href="${n.href}" class="nav-item px-3.5 py-2 text-[14px] rounded-xl transition-all flex items-center gap-1.5 group ${i === 0 ? 'bg-clinical-600 text-white font-extrabold shadow-xs active-nav scale-[1.02]' : 'text-slate-700 hover:text-slate-950 hover:bg-slate-100/80 font-bold'}" data-section="${n.id}"><span class="text-base leading-none transition-transform group-hover:scale-120 select-none">${get3DNavEmoji(n.icon)}</span><span>${n.label}</span></a>`).join('\n            ')}
           </nav>`;
         }
         if (style === "modern_dock") {
@@ -2094,34 +2734,29 @@ ${jsonLd}
             ${activeNavs.map((n, i) => `<a href="${n.href}" class="nav-item px-3.5 py-1.5 text-[13px] ${i === 0 ? 'font-black rounded-xl text-white bg-clinical-600 shadow-xs active-nav' : 'font-extrabold text-slate-700 hover:text-slate-950 hover:bg-slate-100/90 rounded-xl'} transition-all" data-section="${n.id}">${n.label}</a>`).join('\n            ')}
           </nav>`;
         }
-        if (style === "institucional") {
-          return `<div class="hidden md:flex items-center gap-3 ml-auto mr-2" id="desktop-nav">
-            <a href="tel:${(data.telefonoGBP || '').replace(/\s+/g, '')}" title="Hacer clic para llamar directamente" class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 transition-all shadow-2xs group shrink-0">
-              <span class="p-1 rounded-lg bg-emerald-600 text-white group-hover:bg-emerald-700 transition-colors shrink-0 shadow-2xs">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/><path d="M14.05 2a9 9 0 0 1 8 7.94"/><path d="M14.05 6a5 5 0 0 1 4 3.9"/></svg>
-              </span>
-              <span class="flex flex-col text-left leading-none">
-                <span class="text-[9px] text-emerald-800 uppercase font-black tracking-wider">Llamar Directo</span>
-                <strong class="text-[12px] font-mono font-extrabold text-slate-900 mt-0.5">${data.telefonoGBP}</strong>
-              </span>
-            </a>
-
-            <div class="h-6 w-px bg-slate-200"></div>
-
-            <nav class="flex items-center gap-1 bg-slate-100/90 border border-slate-200/90 p-1 rounded-xl shadow-2xs">
-              ${activeNavs.map((n, i) => `<a href="${n.href}" class="nav-item px-3 py-1.5 text-[13px] ${i === 0 ? 'font-black rounded-lg text-white bg-clinical-600 shadow-xs active-nav' : 'font-extrabold text-slate-700 hover:text-slate-950 hover:bg-white/80 rounded-lg'} transition-all" data-section="${n.id}">${n.label}</a>`).join('\n              ')}
-            </nav>
-          </div>`;
-        }
         // capsula (default)
         return `<nav class="hidden md:flex items-center gap-1.5 bg-slate-100/90 border border-slate-200/80 p-1.5 rounded-full text-[14px] font-bold text-slate-700 shadow-2xs" id="desktop-nav">
           ${activeNavs.map((n, i) => `<a href="${n.href}" class="nav-item px-4 py-1.5 rounded-full transition-all ${i === 0 ? 'text-white bg-clinical-600 shadow-xs font-extrabold active-nav' : 'hover:text-slate-950 hover:bg-white/90 text-slate-700 font-bold'} " data-section="${n.id}">${n.label}</a>`).join('\n          ')}
         </nav>`;
       })()}
 
-      <div class="flex items-center gap-2">
-        <a href="#agendar" aria-label="Agendar Cita" title="Agendar Cita" class="w-10 h-10 sm:w-11 sm:h-11 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-full flex items-center justify-center shadow-md hover:shadow-lg transition-all duration-300 text-center shrink-0 hover:scale-105">
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+      <div class="flex items-center gap-2 shrink-0">
+        ${data.estiloMenuDesktop === "split_centrado" ? `
+          <a href="#agendar" class="hidden md:inline-flex items-center gap-1.5 px-4 py-2 bg-clinical-600 hover:bg-clinical-700 text-white text-xs font-black rounded-xl shadow-sm hover:shadow transition-all shrink-0 hover:scale-105">
+            <span class="text-sm">📅</span>
+            <span>Agendar Cita</span>
+          </a>
+        ` : ''}
+        <a href="#faq" aria-label="Asistente Virtual IA" title="Ir al Asistente Virtual IA" class="px-3.5 py-1.5 sm:px-4 sm:py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 active:from-blue-700 active:to-violet-700 text-white rounded-full flex items-center gap-1.5 shadow-md hover:shadow-indigo-500/25 transition-all duration-300 shrink-0 hover:scale-105 cursor-pointer border border-indigo-300/40 text-xs font-black tracking-tight">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0 text-indigo-100" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 8V4H8"/>
+            <rect width="16" height="12" x="4" y="8" rx="2"/>
+            <path d="M2 14h2"/>
+            <path d="M20 14h2"/>
+            <path d="M15 13v2"/>
+            <path d="M9 13v2"/>
+          </svg>
+          <span>Asistente</span>
         </a>
 
         <!-- Botón sutil de Hamburguesa para Mobile -->
@@ -2139,9 +2774,9 @@ ${jsonLd}
       </div>
     </div>
 
-    <!-- Panel Desplegable Móvil -->
-    <div id="mobile-nav-panel" class="hidden md:hidden overflow-hidden max-w-full w-full border-t border-slate-100 bg-white/95 backdrop-blur-xl px-3 py-3 shadow-lg">
-      <nav class="flex flex-wrap items-center justify-center gap-2 bg-slate-50/90 p-2.5 rounded-2xl border border-slate-200/70 max-w-full overflow-hidden">
+    <!-- Panel Desplegable Móvil (Lista Vertical Elegante) -->
+    <div id="mobile-nav-panel" class="hidden md:hidden overflow-hidden max-w-full w-full border-t border-slate-100 bg-white/95 backdrop-blur-xl px-4 py-3.5 shadow-lg">
+      <nav class="flex flex-col gap-2 bg-slate-50/90 p-2.5 rounded-2xl border border-slate-200/80 w-full overflow-hidden">
         ${activeNavs.map(item => {
           let svgIcon = '';
           if (item.icon === 'home') {
@@ -2159,7 +2794,7 @@ ${jsonLd}
           } else if (item.icon === 'faq') {
             svgIcon = `<svg class="w-4 h-4 text-slate-600 shrink-0 min-w-[16px] min-h-[16px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
           } else if (item.icon === 'opiniones') {
-            svgIcon = `<svg class="w-4 h-4 text-amber-500 shrink-0 min-w-[16px] min-h-[16px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>`;
+            svgIcon = `<svg class="w-4 h-4 text-amber-500 fill-amber-400 shrink-0 min-w-[16px] min-h-[16px]" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>`;
           } else if (item.icon === 'blog') {
             svgIcon = `<svg class="w-4 h-4 text-slate-600 shrink-0 min-w-[16px] min-h-[16px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" /></svg>`;
           } else if (item.icon === 'guias') {
@@ -2168,9 +2803,16 @@ ${jsonLd}
             svgIcon = `<svg class="w-4 h-4 text-emerald-600 shrink-0 min-w-[16px] min-h-[16px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>`;
           }
           const isCita = item.id === 'agendar';
-          return `<a href="${item.href}" onclick="closeMobileMenu()" class="flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs sm:text-sm ${isCita ? 'font-extrabold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 transition-all border border-emerald-200/80' : 'font-bold text-slate-800 bg-white border border-slate-200/60 hover:bg-slate-100 hover:text-slate-950'} transition-all shrink-0">
-            ${svgIcon}
-            <span class="whitespace-nowrap font-bold">${item.label}</span>
+          const isOpiniones = item.id === 'resenas';
+          const isAsistente = item.id === 'faq';
+          return `<a href="${item.href}" onclick="closeMobileMenu()" class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs sm:text-sm ${isCita ? 'font-black text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300/80 shadow-2xs' : 'font-bold text-slate-800 bg-white border border-slate-200/80 hover:bg-slate-100 hover:text-slate-950 shadow-2xs'} transition-all group">
+            <div class="flex items-center gap-3">
+              <div class="w-7 h-7 rounded-lg ${isCita ? 'bg-emerald-100 text-emerald-700' : isOpiniones ? 'bg-amber-100 text-amber-500' : isAsistente ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 group-hover:bg-slate-200'} flex items-center justify-center shrink-0 transition-colors">
+                ${svgIcon}
+              </div>
+              <span class="font-bold tracking-tight">${item.label}</span>
+            </div>
+            <svg class="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-transform group-hover:translate-x-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
           </a>`;
         }).join('\n        ')}
       </nav>
@@ -2210,7 +2852,7 @@ ${jsonLd}
 
       return `
     <div class="${isCentrado ? "max-w-4xl" : "max-w-5xl"} mx-auto px-4 sm:px-6 lg:px-8 relative z-10 my-auto -mt-3.5 sm:mt-0 w-full">
-      <div class="grid grid-cols-1 lg:grid-cols-12 items-center gap-4 sm:gap-6 lg:gap-12 text-center ${isCentrado ? "lg:text-center" : "lg:text-left"}">
+      <div class="grid grid-cols-1 lg:grid-cols-12 items-center gap-1 sm:gap-6 lg:gap-12 text-center ${isCentrado ? "lg:text-center" : "lg:text-left"}">
         
         <!-- 1. LOGOTIPO (Únicamente en Mobile y Tablet, Oculto en Desktop) -->
         <div class="col-span-1 lg:hidden w-full flex justify-center -mt-2 sm:-mt-2 pt-0 pb-0 hero-animate-logo">
@@ -2220,6 +2862,8 @@ ${jsonLd}
               alt="Logotipo ${data.nombreMedico}" 
               class="logo-hero-img object-contain bg-transparent filter drop-shadow-md transition-transform duration-300 hover:scale-105" 
               loading="eager"
+              fetchpriority="high"
+              decoding="async"
             />
           ` : `
             <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full ${data.tipoOverlayHero === "claro" ? "bg-slate-900 text-white border border-slate-700 shadow-sm" : "bg-white/10 backdrop-blur-md border border-white/20 text-white/90"} text-[11px] font-extrabold uppercase tracking-widest shadow-md -mt-1">
@@ -2262,7 +2906,7 @@ ${jsonLd}
                   }
                 }
               </style>
-              <div class="relative -mt-0.5 mb-1 sm:my-0.5 group mx-auto lg:mx-0 max-w-full hero-animate-image">
+              <div class="relative -mt-4 sm:-mt-2 mb-1 sm:my-0.5 group mx-auto lg:mx-0 max-w-full hero-animate-image">
                 <div id="hero-parallax-wrapper" class="w-full h-full transition-transform duration-100 ease-out will-change-transform">
                   ${
                     !isSinBorde
@@ -2307,8 +2951,8 @@ ${jsonLd}
           
           <!-- BADGE: MÉDICO CERTIFICADO O VERIFICADO -->
           <div class="flex items-center justify-center ${isCentrado ? "" : "lg:justify-start"} pt-0.5 hero-animate-badge">
-            <div class="inline-flex items-center gap-1.5 px-3.5 py-1 sm:px-4 sm:py-1.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-[11px] sm:text-xs font-extrabold uppercase tracking-wider shadow-sm border border-blue-400/40 shrink-0 transform transition-all duration-200 hover:scale-105 cursor-default">
-              <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-100 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <div class="inline-flex items-center gap-1.5 px-3 py-1 sm:px-3 sm:py-1 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider shadow-sm border border-blue-400/40 shrink-0 transform transition-all duration-200 hover:scale-105 cursor-default">
+              <svg class="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-100 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
               </svg>
               <span>${isCentrado ? "Verificado" : (isClinica ? "Centro Acreditado" : "Médico Certificado")}</span>
@@ -2316,11 +2960,11 @@ ${jsonLd}
           </div>
 
           <!-- NOMBRE Y ESPECIALIDAD -->
-          <div class="space-y-0.5 w-full px-2 ${isCentrado ? "" : "lg:px-0"}">
-            <h2 class="text-2xl sm:text-3xl md:text-3xl lg:text-4xl font-bold leading-tight tracking-tight drop-shadow-md break-words max-w-full font-display hero-animate-title ${data.tipoOverlayHero === "claro" ? "text-slate-900" : "text-white"}">
+          <div class="space-y-1 w-full px-2 ${isCentrado ? "" : "lg:px-0"}">
+            <h2 class="text-[1.45rem] sm:text-3xl md:text-4xl lg:text-5xl font-bold leading-tight tracking-tight drop-shadow-md break-words max-w-full font-display hero-animate-title ${data.tipoOverlayHero === "claro" ? "text-slate-900" : "text-white"}">
               ${data.nombreMedico}
             </h2>
-            <h1 class="text-sm sm:text-base md:text-lg ${data.tipoOverlayHero === "claro" ? "text-blue-700 font-extrabold" : "text-cyan-300 font-semibold"} uppercase tracking-wide sm:tracking-wider leading-snug drop-shadow-xs break-words max-w-full hero-animate-specialty">
+            <h1 class="text-[0.935rem] sm:text-base md:text-xl lg:text-2xl ${data.tipoOverlayHero === "claro" ? "text-blue-700 font-extrabold" : "text-cyan-300 font-semibold"} uppercase tracking-wide sm:tracking-wider leading-snug drop-shadow-xs break-words max-w-full hero-animate-specialty">
               <span id="hero-specialty-typewriter" data-full-text="${data.especialidad}">${data.especialidad}</span>
               <span class="sr-only"> en ${data.ciudad || "Ecuador"}</span>
             </h1>
@@ -2363,7 +3007,7 @@ ${jsonLd}
             </a>
 
             <!-- 5. Compartir -->
-            <button onclick="openProfileModal()" class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all border border-white/20 cursor-pointer" aria-label="Compartir perfil" title="Compartir Perfil Médico">
+            <button onclick="openShareModal()" class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all border border-white/20 cursor-pointer" aria-label="Compartir perfil en redes sociales" title="Compartir Perfil en Redes Sociales">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 fill-none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
             </button>
           </div>
@@ -2371,10 +3015,7 @@ ${jsonLd}
           <!-- BADGE DE HORARIO EN VIVO -->
           <div class="pt-1.5 w-full flex justify-center ${isCentrado ? "" : "lg:justify-start"} hero-animate-status">
             <a href="#contacto" title="Click para ver horario completo de atención" id="hero-live-status-pill" class="inline-flex items-center gap-1.5 sm:gap-2 md:gap-2.5 px-3 py-1.5 sm:px-4 sm:py-2 md:px-4.5 md:py-2 rounded-full backdrop-blur-md border shadow-md text-xs md:text-sm font-semibold transition-all cursor-pointer group/badge max-w-full overflow-hidden ${data.tipoOverlayHero === "claro" ? "bg-white/90 hover:bg-white text-slate-900 border-slate-300/80" : "bg-slate-900/85 hover:bg-slate-800 active:bg-slate-950 text-white border-white/20"}">
-              <span class="relative inline-flex h-2.5 w-2.5 md:h-3 md:w-3 shrink-0">
-                <span id="hero-status-ping" class="animate-ping absolute inline-flex h-full w-full rounded-full ${initialLiveStatus.dotColor === 'emerald' ? 'bg-emerald-400' : initialLiveStatus.dotColor === 'amber' ? 'bg-amber-400' : 'bg-slate-400'} opacity-75"></span>
-                <span id="hero-status-dot" class="inline-flex rounded-full h-2.5 w-2.5 md:h-3 md:w-3 ${initialLiveStatus.dotColor === 'emerald' ? 'bg-emerald-500' : initialLiveStatus.dotColor === 'amber' ? 'bg-amber-500' : 'bg-slate-500'}"></span>
-              </span>
+              <span id="hero-status-dot" class="w-2.5 h-2.5 md:w-3 md:h-3 rounded-full shrink-0 ${initialLiveStatus.dotColor === 'emerald' ? 'bg-emerald-500 animate-pulse' : initialLiveStatus.dotColor === 'amber' ? 'bg-amber-500 animate-pulse' : 'bg-rose-500 animate-pulse'}"></span>
               <span id="hero-status-mobile" class="md:hidden transition-colors font-bold text-xs whitespace-nowrap truncate ${data.tipoOverlayHero === "claro" ? "group-hover/badge:text-blue-700 text-slate-900" : "group-hover/badge:text-cyan-300 text-white"}">
                 ${initialLiveStatus.badgeText}
               </span>
@@ -2399,203 +3040,201 @@ ${jsonLd}
   </section>
   ` : ''}
 
-  <!-- SECCIÓN NOSOTROS (Resumen Curricular & Filosofía - Renderizado Optimizado) -->
-  ${hasNosotros ? `
-  <section id="nosotros" class="py-16 md:py-24 bg-white cv-auto">
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 text-center sm:text-left">
-      
-      <div class="space-y-4 max-w-3xl mx-auto text-center">
-        <span class="text-xs font-extrabold text-clinical-600 uppercase tracking-widest bg-clinical-50 px-3.5 py-1 rounded-full inline-block">${isClinica ? "Sobre Nosotros / Centro Médico" : "Sobre el Especialista"}</span>
-        <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 leading-tight">
-          ${isClinica ? "Trayectoria e Instalaciones" : "Trayectoria y formación"}
-        </h2>
-        <p class="text-gray-600 leading-relaxed text-base sm:text-lg">
-          ${data.biografiaCurta}
-        </p>
-        <p class="text-gray-600 leading-relaxed text-sm sm:text-base">
-          Creemos firmemente en el trato personalizado: cada paciente tiene necesidades individuales y merece ser escuchado. Nuestras intervenciones se diseñan con base en las técnicas médicas más avanzadas y con un riguroso compromiso con la ética médica.
-        </p>
-      </div>
-
-      <!-- Stats Rápidos (Cards Premium con Badges de Alto Impacto - Mobile Compact Top Icon) -->
-      <div class="grid grid-cols-2 gap-3 sm:gap-4 py-3 max-w-3xl mx-auto">
-        <!-- CARD 1: EXPERIENCIA MÉDICA -->
-        <div class="relative overflow-hidden p-3.5 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-50 via-white to-clinical-50/40 border border-slate-200/90 shadow-xs hover:shadow-md transition-all border-l-4 border-l-clinical-600 flex flex-col items-start gap-2 sm:gap-3 text-left">
-          <div class="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-br from-clinical-600 to-clinical-700 text-white shadow-xs shadow-clinical-600/20 flex items-center justify-center shrink-0 ring-2 sm:ring-4 ring-clinical-100/80">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 sm:w-5.5 sm:h-5.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5z" />
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 01-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
-            </svg>
-          </div>
-          <div class="flex-1 w-full min-w-0">
-            <div class="flex items-center gap-1.5 flex-wrap">
-              <span class="text-xl sm:text-3xl font-black text-clinical-600 tracking-tight">+${data.anosExperiencia}</span>
-              <span class="text-[9px] sm:text-[10px] font-extrabold px-1.5 sm:px-2 py-0.5 rounded-md bg-clinical-100 text-clinical-800 uppercase tracking-wider">
-                Años Exp.
-              </span>
-            </div>
-            <p class="text-[11px] sm:text-xs font-bold text-slate-800 tracking-wide mt-1 leading-snug">${isClinica ? "Trayectoria Institucional Acreditada" : "Trayectoria Médica Acreditada"}</p>
-            <p class="text-[10px] sm:text-[11px] text-slate-500 font-medium truncate mt-0.5 hidden sm:block">Experiencia clínica y actualización continua</p>
-          </div>
-        </div>
-
-        <!-- CARD 2: PUNTUACIÓN DE PACIENTES -->
-        <div class="relative overflow-hidden p-3.5 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-50 via-white to-amber-50/40 border border-slate-200/90 shadow-xs hover:shadow-md transition-all border-l-4 border-l-amber-500 flex flex-col items-start gap-2 sm:gap-3 text-left">
-          <div class="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-xs shadow-amber-500/20 flex items-center justify-center shrink-0 ring-2 sm:ring-4 ring-amber-100/80">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 sm:w-5.5 sm:h-5.5 text-white fill-white" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-            </svg>
-          </div>
-          <div class="flex-1 w-full min-w-0">
-            <div class="flex items-center gap-1.5 flex-wrap">
-              <span class="text-xl sm:text-3xl font-black text-slate-900 tracking-tight">4.9<span class="text-xs sm:text-lg text-slate-400 font-bold">/5</span></span>
-              <span class="text-[9px] sm:text-[10px] font-extrabold px-1.5 sm:px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 uppercase tracking-wider">
-                Reseñas
-              </span>
-            </div>
-            <p class="text-[11px] sm:text-xs font-bold text-slate-800 tracking-wide mt-1 leading-snug">Puntuación Pacientes</p>
-            <div class="flex items-center gap-1 mt-0.5">
-              <div class="flex text-amber-400 text-[10px] sm:text-xs">★★★★★</div>
-              <span class="text-[9px] sm:text-[11px] text-slate-500 font-semibold">(Excelente)</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Botón de acceso al Perfil Médico con Animación Bounce -->
-      <div class="pt-2 flex justify-center">
-        <button
-          type="button"
-          onclick="openProfileModal()"
-          class="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-2xl bg-clinical-600 hover:bg-clinical-700 active:bg-clinical-800 text-white text-sm font-extrabold shadow-xl shadow-clinical-600/30 transition-all duration-300 cursor-pointer hover:scale-[1.04] active:scale-[0.98] animate-bounce hover:animate-none"
-          style="animation-duration: 2.5s;"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-white shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-          <span class="tracking-wide uppercase font-black">MI PERFIL COMPLETO</span>
-        </button>
-      </div>
-
+  <!-- FRANJA DE SALUDO PERSONALIZADO BAJO EL HERO (SIN FONDO) -->
+  ${(data.habilitarPopupBienvenida ?? true) ? `
+  <div id="franja-saludo-container" class="w-full py-4 sm:py-5 px-4 sm:px-8 text-center bg-transparent border-b border-slate-100">
+    <style>
+      @keyframes heartbeat4s {
+        0%, 82%, 100% { transform: scale(1); }
+        87% { transform: scale(1.18); }
+        92% { transform: scale(1.02); }
+        96% { transform: scale(1.12); }
+      }
+      .heartbeat-4s {
+        animation: heartbeat4s 4s ease-in-out infinite;
+        will-change: transform;
+      }
+    </style>
+    <div class="max-w-2xl mx-auto flex items-center justify-center gap-2 sm:gap-3">
+      <span class="text-2xl sm:text-3xl filter drop-shadow-[0_4px_8px_rgba(0,0,0,0.18)] hover:scale-125 transition-transform duration-300 select-none heartbeat-4s inline-block cursor-default" role="img" aria-label="Icono Saludo 3D">${data.popupBienvenidaIcono || "😊"}</span>
+      <p id="franja-saludo-texto" class="text-sm sm:text-base md:text-lg font-bold sm:font-semibold text-slate-800 tracking-tight leading-snug" data-template="${(data.franjaSaludoHeroTexto || '¡Hola {nombre}, te muestro un poco de mi!').replace(/"/g, '&quot;')}">
+        ${(data.franjaSaludoHeroTexto || "¡Hola {nombre}, te muestro un poco de mi!").replace("{nombre}", "")}
+      </p>
     </div>
-  </section>
+  </div>
   ` : ''}
 
-  <!-- SECCIÓN GALERÍA DE INSTALACIONES & CONSULTORIO (CARRUSEL ELEGANTE) -->
-  ${hasInstalaciones ? `
-  <section id="instalaciones" class="py-16 md:py-24 bg-slate-50/80 border-y border-slate-200/80 cv-auto">
-    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 md:space-y-10">
+  <!-- SECCIÓN NOSOTROS & GALERÍA DE INSTALACIONES FUSIONADA -->
+  ${(hasNosotros || hasInstalaciones) ? `
+  <section id="nosotros" class="py-16 md:py-24 bg-white cv-auto">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10 text-center sm:text-left">
       
-      <!-- Cabecera de la Sección con Título, Subtítulo y Controles -->
-      <div class="flex flex-col md:flex-row md:items-end justify-between pb-3 border-b border-slate-200/70 gap-4">
-        <div class="max-w-2xl">
-          <span class="text-xs font-bold text-clinical-600 uppercase tracking-widest bg-clinical-50 border border-clinical-200/60 px-3 py-1 rounded-full mb-3 inline-block">
-            Instalaciones & Tecnología
-          </span>
-          <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight mt-1">
-            Espacios Diseñados para tu Bienestar
+      ${hasNosotros ? `
+      <div class="max-w-4xl mx-auto space-y-8">
+        <div class="space-y-4 max-w-3xl mx-auto text-center">
+          <span class="text-xs font-extrabold text-clinical-600 uppercase tracking-widest bg-clinical-50 px-3.5 py-1 rounded-full inline-block">${isClinica ? "Sobre Nosotros / Centro Médico" : "Sobre el Especialista"}</span>
+          <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 leading-tight">
+            ${isClinica ? "Trayectoria e Instalaciones" : "Trayectoria y formación"}
           </h2>
-          <p class="text-gray-600 max-w-2xl mt-2 text-sm md:text-base leading-relaxed">
-            Conoce nuestro consultorio, salas de atención e instrumental médico preparado bajo los más estrictos protocolos de bioseguridad, privacidad y confort.
+          <p class="text-gray-600 leading-relaxed text-base sm:text-lg">
+            ${data.biografiaCurta}
           </p>
         </div>
 
-        <!-- Controles Superiores: Badge Contador + Flechas -->
-        <div class="flex items-center gap-3 shrink-0 self-start md:self-end">
-          <span class="text-xs font-black text-slate-700 bg-white border border-slate-200 px-3.5 py-1.5 rounded-full shadow-2xs">
-            <span id="carousel-current-slide">1</span> <span class="text-slate-400 font-normal">/</span> <span>${fotosConsultorioList.length}</span>
-          </span>
-          <div class="flex items-center gap-2">
-            <button
-              type="button"
-              onclick="clinicCarouselPrev()"
-              class="w-10 h-10 rounded-xl bg-white hover:bg-slate-100 active:bg-slate-200 border border-slate-200 text-slate-700 flex items-center justify-center shadow-2xs hover:shadow-xs transition-all cursor-pointer"
-              aria-label="Foto anterior del consultorio"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
-            </button>
-            <button
-              type="button"
-              onclick="clinicCarouselNext()"
-              class="w-10 h-10 rounded-xl bg-clinical-600 hover:bg-clinical-700 active:bg-clinical-800 text-white flex items-center justify-center shadow-2xs hover:shadow-xs transition-all cursor-pointer"
-              aria-label="Foto siguiente del consultorio"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
-            </button>
+        <!-- Stats Rápidos (Cards Premium con Badges de Alto Impacto - Mobile Compact Top Icon) -->
+        <div class="grid grid-cols-2 gap-3 sm:gap-4 py-3 max-w-3xl mx-auto">
+          <!-- CARD 1: EXPERIENCIA MÉDICA -->
+          <div class="relative overflow-hidden p-3.5 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-50 via-white to-clinical-50/40 border border-slate-200/90 shadow-xs hover:shadow-md transition-all border-l-4 border-l-clinical-600 flex flex-col items-start gap-2 sm:gap-3 text-left">
+            <div class="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-br from-clinical-600 to-clinical-700 text-white shadow-xs shadow-clinical-600/20 flex items-center justify-center shrink-0 ring-2 sm:ring-4 ring-clinical-100/80">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 sm:w-5.5 sm:h-5.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 01-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+              </svg>
+            </div>
+            <div class="flex-1 w-full min-w-0">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="text-xl sm:text-3xl font-black text-clinical-600 tracking-tight">+${data.anosExperiencia}</span>
+                <span class="text-[9px] sm:text-[10px] font-extrabold px-1.5 sm:px-2 py-0.5 rounded-md bg-clinical-100 text-clinical-800 uppercase tracking-wider">
+                  Años Exp.
+                </span>
+              </div>
+              <p class="text-[11px] sm:text-xs font-bold text-slate-800 tracking-wide mt-1 leading-snug">${isClinica ? "Trayectoria Institucional Acreditada" : "Trayectoria Médica Acreditada"}</p>
+              <p class="text-[10px] sm:text-[11px] text-slate-500 font-medium truncate mt-0.5">Experiencia clínica y actualización continua</p>
+            </div>
+          </div>
+
+          <!-- CARD 2: PUNTUACIÓN DE PACIENTES -->
+          <div class="relative overflow-hidden p-3.5 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-50 via-white to-amber-50/40 border border-slate-200/90 shadow-xs hover:shadow-md transition-all border-l-4 border-l-amber-500 flex flex-col items-start gap-2 sm:gap-3 text-left">
+            <div class="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-xs shadow-amber-500/20 flex items-center justify-center shrink-0 ring-2 sm:ring-4 ring-amber-100/80">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 sm:w-5.5 sm:h-5.5 text-white fill-white" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+              </svg>
+            </div>
+            <div class="flex-1 w-full min-w-0">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="text-xl sm:text-3xl font-black text-slate-900 tracking-tight">4.9<span class="text-xs sm:text-lg text-slate-400 font-bold">/5</span></span>
+                <span class="text-[9px] sm:text-[10px] font-extrabold px-1.5 sm:px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 uppercase tracking-wider">
+                  Reseñas
+                </span>
+              </div>
+              <p class="text-[11px] sm:text-xs font-bold text-slate-800 tracking-wide mt-1 leading-snug">Puntuación Pacientes</p>
+              <div class="flex items-center gap-1 mt-0.5">
+                <div class="flex text-amber-400 text-[10px] sm:text-xs">★★★★★</div>
+                <span class="text-[9px] sm:text-[11px] text-slate-500 font-semibold">(Excelente)</span>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- Contenedor Principal del Carrusel con Formato 5:4 y Máscara de Desbordamiento -->
-      <div class="relative max-w-3xl mx-auto w-full aspect-[5/4] rounded-3xl overflow-hidden shadow-xl border border-slate-200 bg-slate-950 group" id="clinic-carousel-container">
+        <!-- Botón de acceso al Perfil Médico con Animación Bounce -->
+        <div class="pt-2 flex justify-center">
+          <button
+            type="button"
+            onclick="openProfileModal()"
+            class="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-2xl bg-clinical-600 hover:bg-clinical-700 active:bg-clinical-800 text-white text-sm font-extrabold shadow-xl shadow-clinical-600/30 transition-all duration-300 cursor-pointer hover:scale-[1.04] active:scale-[0.98] animate-bounce hover:animate-none"
+            style="animation-duration: 2.5s;"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-white shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+            <span class="tracking-wide uppercase font-black">${isClinica ? "CONOCE NUESTRO CENTRO" : "MI PERFIL COMPLETO"}</span>
+          </button>
+        </div>
+      </div>
+      ` : ''}
+
+      <!-- GALERÍA DE INSTALACIONES & CONSULTORIO FUSIONADA ABAJO DE LA INFORMACIÓN -->
+      ${hasInstalaciones ? `
+      <div id="instalaciones" class="${hasNosotros ? 'pt-10 mt-6 border-t border-slate-200/80' : ''} space-y-8 md:space-y-10">
         
-        <!-- Pista Horizontal de Fotos (Track) - Imagen Limpia -->
-        <div id="clinic-carousel-track" class="flex w-full h-full transition-transform duration-500 ease-out will-change-transform" style="transform: translateX(0%);">
-          ${fotosConsultorioList.map((foto, idx) => `
-            <div 
-              class="w-full h-full shrink-0 relative aspect-[5/4] bg-slate-950 overflow-hidden" 
-              data-slide-index="${idx}"
-              data-titulo="${(foto.titulo || `Área de Atención Médica ${idx + 1}`).replace(/"/g, '&quot;')}"
-              data-descripcion="${(foto.descripcion || '').replace(/"/g, '&quot;')}"
-            >
-              <img 
-                src="${foto.url}" 
-                alt="${foto.titulo || `Instalación médica ${idx + 1}`}" 
-                class="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-[1.015]"
-                loading="${idx === 0 ? 'eager' : 'lazy'}"
-                decoding="async"
-                referrerPolicy="no-referrer"
-              />
-            </div>
-          `).join('')}
+        <!-- Cabecera de la Sección con Título y Subtítulo -->
+        <div class="pb-3 border-b border-slate-200/70">
+          <div class="max-w-2xl">
+            <span class="text-xs font-bold text-clinical-600 uppercase tracking-widest bg-clinical-50 border border-clinical-200/60 px-3 py-1 rounded-full mb-3 inline-block">
+              ${data.subtituloInstalaciones || "Instalaciones & Tecnología"}
+            </span>
+            <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight mt-1">
+              ${data.tituloInstalaciones || (isClinica ? "Espacios e Instalaciones Médicas" : "Espacios Diseñados para tu Bienestar")}
+            </h2>
+            <p class="text-gray-600 max-w-2xl mt-2 text-sm md:text-base leading-relaxed">
+              ${data.descripcionInstalaciones || "Conoce nuestro consultorio, salas de atención e instrumental médico preparado bajo los más estrictos protocolos de bioseguridad, privacidad y confort."}
+            </p>
+          </div>
         </div>
 
-        <!-- Botones Flotantes Superpuestos para Navegación Rápida -->
-        <button
-          type="button"
-          onclick="clinicCarouselPrev()"
-          class="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-slate-950/60 hover:bg-slate-950/90 text-white backdrop-blur-md border border-white/20 flex items-center justify-center opacity-90 sm:opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-110 shadow-lg cursor-pointer"
-          aria-label="Foto anterior"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
-        </button>
+        <!-- Contenedor Principal del Carrusel con Formato 5:4 y Máscara de Desbordamiento -->
+        <div class="relative max-w-3xl mx-auto w-full aspect-[5/4] rounded-3xl overflow-hidden shadow-xl border border-slate-200 bg-slate-950 group" id="clinic-carousel-container">
+          
+          <!-- Pista Horizontal de Fotos (Track) - Imagen Limpia -->
+          <div id="clinic-carousel-track" class="flex w-full h-full transition-transform duration-500 ease-out will-change-transform" style="transform: translateX(0%);">
+            ${fotosConsultorioList.map((foto, idx) => `
+              <div 
+                class="w-full h-full shrink-0 relative aspect-[5/4] bg-slate-950 overflow-hidden" 
+                data-slide-index="${idx}"
+                data-titulo="${(foto.titulo || `Área de Atención Médica ${idx + 1}`).replace(/"/g, '&quot;')}"
+                data-descripcion="${(foto.descripcion || '').replace(/"/g, '&quot;')}"
+              >
+                <img 
+                  src="${foto.url}" 
+                  alt="${foto.titulo || `Instalación médica ${idx + 1}`}" 
+                  class="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-[1.015]"
+                  loading="${idx === 0 ? 'eager' : 'lazy'}"
+                  decoding="async"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+            `).join('')}
+          </div>
 
-        <button
-          type="button"
-          onclick="clinicCarouselNext()"
-          class="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-slate-950/60 hover:bg-slate-950/90 text-white backdrop-blur-md border border-white/20 flex items-center justify-center opacity-90 sm:opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-110 shadow-lg cursor-pointer"
-          aria-label="Foto siguiente"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
-        </button>
+          <!-- Botones Flotantes Superpuestos para Navegación Rápida -->
+          <button
+            type="button"
+            onclick="clinicCarouselPrev()"
+            class="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-slate-950/60 hover:bg-slate-950/90 text-white backdrop-blur-md border border-white/20 flex items-center justify-center opacity-90 sm:opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-110 shadow-lg cursor-pointer"
+            aria-label="Foto anterior"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
+          </button>
 
-        <!-- Indicadores / Dots de Paginación en la Esquina Inferior Derecha -->
-        <div class="absolute bottom-4 right-4 sm:right-6 flex items-center gap-1.5 z-20 bg-slate-950/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10" id="clinic-carousel-dots">
-          ${fotosConsultorioList.map((_, idx) => `
-            <button
-              type="button"
-              onclick="clinicCarouselGoTo(${idx})"
-              class="carousel-dot h-2 rounded-full transition-all duration-300 ${idx === 0 ? 'w-6 bg-white' : 'w-2 bg-white/40 hover:bg-white/70'}"
-              aria-label="Ir a la foto ${idx + 1}"
-              data-dot-index="${idx}"
-            ></button>
-          `).join('')}
+          <button
+            type="button"
+            onclick="clinicCarouselNext()"
+            class="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-slate-950/60 hover:bg-slate-950/90 text-white backdrop-blur-md border border-white/20 flex items-center justify-center opacity-90 sm:opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-110 shadow-lg cursor-pointer"
+            aria-label="Foto siguiente"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
+          </button>
+
+          <!-- Indicadores / Dots de Paginación en la Esquina Inferior Derecha -->
+          <div class="absolute bottom-3 sm:bottom-4 right-3 sm:right-6 flex items-center gap-1 sm:gap-1.5 z-20 bg-slate-950/60 backdrop-blur-md px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full border border-white/10 max-w-[85%] overflow-x-auto no-scrollbar" id="clinic-carousel-dots">
+            ${fotosConsultorioList.map((_, idx) => `
+              <button
+                type="button"
+                onclick="clinicCarouselGoTo(${idx})"
+                class="carousel-dot h-1.5 sm:h-2 rounded-full transition-all duration-300 shrink-0 ${idx === 0 ? 'w-5 sm:w-6 bg-white' : 'w-1.5 sm:w-2 bg-white/40 hover:bg-white/70'}"
+                aria-label="Ir a la foto ${idx + 1}"
+                data-dot-index="${idx}"
+              ></button>
+            `).join('')}
+          </div>
+
+        </div>
+
+        <!-- Título y Descripción FUERA de la Imagen -->
+        <div class="max-w-3xl mx-auto mt-4 p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200/90 shadow-2xs text-left space-y-1.5" id="clinic-carousel-caption">
+          <div class="flex items-center justify-between gap-3">
+            <h3 class="text-lg sm:text-xl md:text-2xl font-black text-slate-950 leading-snug tracking-tight" id="clinic-caption-title">
+              ${fotosConsultorioList[0]?.titulo || 'Área de Atención Médica 1'}
+            </h3>
+            <span class="text-xs sm:text-sm font-extrabold text-slate-700 bg-white border border-slate-200 px-3 py-1 rounded-full shrink-0 shadow-2xs" id="clinic-caption-badge">
+              1 de ${fotosConsultorioList.length}
+            </span>
+          </div>
+          <p class="text-sm sm:text-base md:text-lg text-slate-700 leading-relaxed font-medium pt-0.5" id="clinic-caption-desc">
+            ${fotosConsultorioList[0]?.descripcion || ''}
+          </p>
         </div>
 
       </div>
-
-      <!-- Título y Descripción FUERA de la Imagen -->
-      <div class="max-w-3xl mx-auto pt-3 px-2 text-left" id="clinic-carousel-caption">
-        <div class="flex items-center justify-between gap-3 mb-1">
-          <h3 class="text-base sm:text-lg md:text-xl font-extrabold text-slate-900" id="clinic-caption-title">
-            ${fotosConsultorioList[0]?.titulo || 'Área de Atención Médica 1'}
-          </h3>
-          <span class="text-xs font-bold text-slate-500 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-full shrink-0" id="clinic-caption-badge">
-            1 de ${fotosConsultorioList.length}
-          </span>
-        </div>
-        <p class="text-xs sm:text-sm text-slate-600 leading-relaxed" id="clinic-caption-desc">
-          ${fotosConsultorioList[0]?.descripcion || ''}
-        </p>
-      </div>
+      ` : ''}
 
     </div>
   </section>
@@ -2607,7 +3246,6 @@ ${jsonLd}
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center mb-12">
       <span class="text-xs font-extrabold text-clinical-600 uppercase tracking-widest bg-clinical-50 border border-clinical-200/60 px-3.5 py-1 rounded-full mb-3 inline-block">Tratamientos & Procedimientos</span>
       <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900">Procedimientos y Tratamientos Especializados</h2>
-      <p class="text-clinical-700 font-medium max-w-2xl mx-auto mt-3 text-sm md:text-base">Servicios integrales diseñados bajo estándares internacionales para garantizar la seguridad, máxima precisión y resultados funcionales excelentes.</p>
     </div>
 
     <!-- Grid de los 5 servicios principales destacados -->
@@ -2615,23 +3253,26 @@ ${jsonLd}
       ${serviciosHtml}
     </div>
 
-    <!-- Botón de apertura de Catálogo Completo "Mis Servicios" -->
+    <!-- Botón "Más servicios" para desplegar la grilla directamente -->
+    ${data.servicios && data.servicios.length > 6 ? `
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 text-center flex flex-col items-center justify-center">
       <button
         type="button"
-        onclick="openServicesModal()"
+        id="btn-toggle-more-services"
+        onclick="toggleMoreServicesGrid()"
         class="w-[90%] max-w-lg inline-flex items-center justify-center gap-2 sm:gap-3 px-4 sm:px-8 py-3.5 sm:py-4 rounded-2xl bg-clinical-600 hover:bg-clinical-700 active:bg-clinical-800 text-white font-extrabold text-xs sm:text-base tracking-wider uppercase shadow-lg shadow-clinical-600/25 hover:shadow-2xl hover:shadow-clinical-600/40 hover:scale-[1.03] active:scale-[0.97] transition-all duration-300 cursor-pointer group animate-heartbeat hover:animate-none"
       >
         <svg xmlns="http://www.w3.org/2000/svg" class="w-4 sm:w-5 h-4 sm:h-5 text-white/90 group-hover:rotate-12 transition-transform duration-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
         </svg>
-        <span class="whitespace-nowrap">Mis servicios</span>
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-white/80 group-hover:translate-x-1 transition-transform duration-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+        <span id="txt-toggle-more-services" class="whitespace-nowrap">Más servicios</span>
+        <svg id="icon-toggle-more-services" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-white/90 transition-transform duration-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
         </svg>
       </button>
-      <p class="text-xs text-slate-500 mt-2 font-medium">Explora todos los tratamientos con información clínica detallada</p>
+      <p id="subtxt-toggle-more-services" class="text-sm text-slate-700 mt-2 font-bold">Muestra ${data.servicios.length - 6} procedimiento(s) adicional(es)</p>
     </div>
+    ` : ''}
   </section>
   ` : ''}
 
@@ -2751,23 +3392,6 @@ ${jsonLd}
   </section>
   ` : ''}
 
-  <!-- SECCIÓN PREGUNTAS FRECUENTES (FAQ - Renderizado Optimizado) -->
-  ${hasFaq ? `
-  <section id="faq" class="py-16 md:py-24 bg-white cv-auto">
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="text-center mb-12">
-        <span class="text-xs font-bold text-clinical-600 uppercase tracking-widest bg-clinical-50 border border-clinical-200/60 px-3.5 py-1 rounded-full mb-3 inline-block">FAQ Pacientes</span>
-        <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-2">Preguntas Frecuentes de la Consulta</h2>
-        <p class="text-clinical-700 font-medium mt-3 text-sm">Respuestas claras de un especialista para disipar tus dudas previas a la cita médica.</p>
-      </div>
-
-      <div class="divide-y divide-gray-100 border-t border-b border-gray-100">
-        ${faqsHtml}
-      </div>
-    </div>
-  </section>
-  ` : ''}
-
   <!-- SECCIÓN TESTIMONIOS (Reseñas - Renderizado Optimizado) -->
   ${hasResenas ? `
   <section id="resenas" class="py-16 md:py-24 bg-gradient-to-b from-white via-slate-50/40 to-slate-50 border-t border-slate-100 cv-auto" aria-label="Reseñas y opiniones de pacientes">
@@ -2833,142 +3457,351 @@ ${jsonLd}
 
   <!-- SECCIÓN AGENDAR / CONTACTO Y LOCALIZACIÓN (Renderizado Optimizado) -->
   ${hasHorariosUbicacion ? `
-  <section id="agendar" class="py-16 md:py-24 bg-white cv-auto">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16">
+  <section id="agendar" class="py-12 sm:py-16 md:py-20 bg-white border-t border-slate-200/70 text-left cv-auto relative">
+    <div id="contacto" class="absolute -top-20 left-0 w-px h-px opacity-0 pointer-events-none" aria-hidden="true"></div>
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 sm:space-y-8">
       
-      <!-- Columna Dirección, NAP y Horarios -->
-      <div class="lg:col-span-5 flex flex-col justify-between">
-        <div>
-          <span class="text-xs font-bold text-clinical-600 uppercase tracking-widest bg-clinical-50 px-3 py-1 rounded-full mb-4 inline-block">Ubicación y Horarios</span>
-          <h2 class="text-3xl font-extrabold text-gray-900 mb-6 font-display">Visita Nuestro Consultorio</h2>
-          
-          <div class="space-y-6 text-sm mb-8">
+      <!-- Encabezado -->
+      <div class="space-y-2 text-left max-w-2xl">
+        <span class="text-xs font-extrabold text-clinical-600 uppercase tracking-widest bg-clinical-50 border border-clinical-200/60 px-3 py-1 rounded-lg inline-block">Contáctenos</span>
+        <h2 class="text-xl sm:text-2xl lg:text-3xl font-extrabold text-slate-950 tracking-tight font-display">Agenda tu Valoración</h2>
+        <p class="text-sm sm:text-base text-clinical-700 font-medium leading-relaxed">Atención médica personalizada y cita directa en ${data.ciudad || "Ecuador"}.</p>
+      </div>
+
+      <!-- Grid sincronizado: 1 columna en mobile con bloques redondeados, 2 columnas en desktop y tablet -->
+      <div class="grid grid-cols-1 md:grid-cols-12 lg:grid-cols-12 gap-6 lg:gap-10 items-start md:items-stretch">
+        
+        <!-- Columna Izquierda: Información de Contacto (NAP), Horarios, Tarifas -->
+        <div class="md:col-span-6 lg:col-span-6 xl:col-span-6 space-y-4 sm:space-y-5 flex flex-col justify-start">
+          <!-- Tarjetas de Información de Contacto (NAP) con separación amplia y legible para mobile -->
+          <div class="grid grid-cols-1 gap-3.5 sm:gap-4">
             <!-- Dirección (NAP) -->
-            <div class="flex gap-4">
-              <div class="p-3 rounded-xl bg-slate-50 text-clinical-600 h-11 w-11 flex items-center justify-center shrink-0">
+            <div class="p-5 sm:p-6 rounded-2xl bg-white sm:bg-slate-50/80 border border-slate-200/80 flex flex-col items-start gap-2.5 shadow-2xs text-left" style="padding: 1.25rem !important;">
+              <div class="w-10 h-10 rounded-xl bg-blue-100/80 text-blue-600 flex items-center justify-center shrink-0 border border-blue-200/60">
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
               </div>
-              <div>
-                <p class="font-bold text-gray-900">Ubicación de Consulta</p>
-                <address class="text-gray-600 not-italic mt-1 leading-relaxed">
-                  ${data.nombreClinicaGBP}<br>
-                  ${data.direccionFisica},<br>
-                  CP ${data.codigoPostal}, ${data.ciudad}, ${data.estadoRegion}
+              <div class="w-full text-left">
+                <p class="text-sm sm:text-base font-extrabold text-slate-950 text-left">Ubicación de Consulta</p>
+                <address class="text-slate-600 not-italic mt-1 leading-relaxed text-xs sm:text-sm text-left">
+                  <strong class="text-slate-900 block text-sm sm:text-base mb-0.5 text-left">${data.nombreClinicaGBP}</strong>
+                  <span class="text-left block">${data.direccionFisica}, CP ${data.codigoPostal}, ${data.ciudad}</span>
                 </address>
               </div>
             </div>
 
             <!-- Teléfono (NAP) -->
-            <div class="flex gap-4">
-              <div class="p-3 rounded-xl bg-slate-50 text-clinical-600 h-11 w-11 flex items-center justify-center shrink-0">
+            <div class="p-5 sm:p-6 rounded-2xl bg-white sm:bg-slate-50/80 border border-slate-200/80 flex flex-col items-start gap-2.5 shadow-2xs text-left" style="padding: 1.25rem !important;">
+              <div class="w-10 h-10 rounded-xl bg-emerald-100/80 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-200/60">
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.94.725l.548 2.2a1 1 0 01-.321.988l-1.305.98a10.582 10.582 0 004.872 4.872l.98-1.305a1 1 0 01.988-.321l2.2.548a1 1 0 01.725.94V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
               </div>
-              <div>
-                <p class="font-bold text-gray-900">Teléfono Directo Consultorio</p>
-                <p class="text-gray-600 mt-1">${data.telefonoGBP}</p>
+              <div class="w-full text-left">
+                <p class="text-sm sm:text-base font-extrabold text-slate-950 text-left">Teléfono Directo</p>
+                <a href="tel:${data.telefonoGBP}" class="text-sm sm:text-base font-bold text-emerald-700 hover:text-emerald-800 hover:underline block mt-1 text-left">
+                  ${data.telefonoGBP}
+                </a>
               </div>
             </div>
 
-            <!-- Horarios Clínicos y Estado en Tiempo Real -->
-            <div class="flex gap-4">
-              <div class="p-3 rounded-xl bg-slate-50 text-clinical-600 h-11 w-11 flex items-center justify-center shrink-0">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              </div>
-              <div class="flex-1">
-                <div class="flex items-center justify-between gap-2 flex-wrap mb-1.5">
-                  <p class="font-bold text-gray-900">Horarios de Atención</p>
-                  <span id="loc-status-pill" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${initialLiveStatus.dotColor === 'emerald' ? 'bg-emerald-100 text-emerald-800' : initialLiveStatus.dotColor === 'amber' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'}">
-                    <span id="loc-status-dot" class="w-2 h-2 rounded-full ${initialLiveStatus.dotColor === 'emerald' ? 'bg-emerald-500 animate-pulse' : initialLiveStatus.dotColor === 'amber' ? 'bg-amber-500' : 'bg-slate-400'}"></span>
-                    <span id="loc-status-text">${initialLiveStatus.badgeText}</span>
-                  </span>
+            <!-- Horarios Clínicos y Estado en Tiempo Real (Tarjeta destacada sutilmente con el color primario de la landing) -->
+            <div class="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-clinical-50/50 via-white to-slate-50/80 border-2 border-clinical-200/90 shadow-xs flex flex-col items-start gap-3.5 text-left" style="padding: 1.25rem !important;">
+              <!-- Fila superior: Icono arriba a la izquierda y badge de disponibilidad a la derecha -->
+              <div class="w-full flex items-center justify-between gap-2">
+                <div class="w-10 h-10 rounded-xl bg-clinical-100 text-clinical-700 flex items-center justify-center shrink-0 border border-clinical-200/80 shadow-2xs">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 </div>
-                <ul class="text-gray-600 text-xs sm:text-sm space-y-1">
-                  <li id="sch-semana" class="flex items-center justify-between py-0.5 border-b border-slate-100/80">
-                    <span class="font-medium text-slate-600">Lunes a Viernes:</span>
-                    <span class="font-bold text-slate-800">${data.horarios.semana.replace(/^Lunes a Viernes:\s*/i, '')}</span>
-                  </li>
-                  <li id="sch-sabado" class="flex items-center justify-between py-0.5 border-b border-slate-100/80">
-                    <span class="font-medium text-slate-600">Sábados:</span>
-                    <span class="font-bold text-slate-800">${data.horarios.sabado.replace(/^Sábado:\s*/i, '')}</span>
-                  </li>
-                  <li id="sch-domingo" class="flex items-center justify-between py-0.5">
-                    <span class="font-medium text-slate-600">Domingos:</span>
-                    <span class="font-bold text-slate-800">${data.horarios.domingo.replace(/^Domingo:\s*/i, '')}</span>
-                  </li>
-                </ul>
+                <span id="loc-status-pill" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black shadow-2xs ${initialLiveStatus.dotColor === 'emerald' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : initialLiveStatus.dotColor === 'amber' ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-rose-50 text-rose-700 border border-rose-200'}">
+                  <span id="loc-status-dot" class="w-2 h-2 rounded-full ${initialLiveStatus.dotColor === 'emerald' ? 'bg-emerald-500 animate-pulse' : initialLiveStatus.dotColor === 'amber' ? 'bg-amber-500 animate-pulse' : 'bg-rose-500 animate-pulse'}"></span>
+                  <span id="loc-status-text">${initialLiveStatus.badgeText}</span>
+                </span>
+              </div>
+
+              <div class="w-full text-left">
+                <p class="text-sm sm:text-base font-black text-slate-950 text-left mb-2.5">Horarios de Atención</p>
+                <div class="space-y-1.5 w-full">
+                  <div id="sch-semana" class="flex items-center justify-between gap-3 text-xs sm:text-sm px-3 py-2 rounded-xl transition-all w-full box-border" style="display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: space-between !important; width: 100% !important; box-sizing: border-box !important; padding: 0.5rem 0.75rem !important; border-radius: 0.75rem !important;">
+                    <span class="font-semibold text-slate-600 text-left shrink-0 whitespace-nowrap" style="text-align: left !important; flex-shrink: 0 !important; white-space: nowrap !important;">Lunes a Viernes:</span>
+                    <span class="font-bold text-slate-950 text-right ml-auto" style="text-align: right !important; margin-left: auto !important;">${cleanHorarioSemana}</span>
+                  </div>
+                  <div class="h-px bg-slate-200/80 w-full"></div>
+                  <div id="sch-sabado" class="flex items-center justify-between gap-3 text-xs sm:text-sm px-3 py-2 rounded-xl transition-all w-full box-border" style="display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: space-between !important; width: 100% !important; box-sizing: border-box !important; padding: 0.5rem 0.75rem !important; border-radius: 0.75rem !important;">
+                    <span class="font-semibold text-slate-600 text-left shrink-0 whitespace-nowrap" style="text-align: left !important; flex-shrink: 0 !important; white-space: nowrap !important;">Sábados:</span>
+                    <span class="font-bold text-slate-950 text-right ml-auto" style="text-align: right !important; margin-left: auto !important;">${cleanHorarioSabado}</span>
+                  </div>
+                  <div class="h-px bg-slate-200/80 w-full"></div>
+                  <div id="sch-domingo" class="flex items-center justify-between gap-3 text-xs sm:text-sm px-3 py-2 rounded-xl transition-all w-full box-border" style="display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: space-between !important; width: 100% !important; box-sizing: border-box !important; padding: 0.5rem 0.75rem !important; border-radius: 0.75rem !important;">
+                    <span class="font-semibold text-slate-600 text-left shrink-0 whitespace-nowrap" style="text-align: left !important; flex-shrink: 0 !important; white-space: nowrap !important;">Domingos:</span>
+                    <span class="font-bold text-slate-950 text-right ml-auto" style="text-align: right !important; margin-left: auto !important;">${cleanHorarioDomingo}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- Tarifa de Consulta y Métodos de Pago -->
+          <!-- Tarifa de Consulta y Modalidad de Atención (Presencial vs. Teleconsulta) -->
           ${hasTarifas ? `
-          <div class="p-5 rounded-2xl bg-gradient-to-br from-emerald-50/90 via-white to-slate-50 border border-emerald-100 shadow-xs space-y-3">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2.5">
-                <div class="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+          <div class="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-emerald-50/80 via-white to-slate-50 border border-emerald-200/80 shadow-2xs space-y-4 mb-6">
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
                   <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 </div>
                 <div>
-                  <span class="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block">Valor de la Consulta</span>
-                  <span class="text-xl font-black text-slate-900">${data.precioConsulta || "$50 USD"}</span>
+                  <span class="text-xs font-black uppercase text-slate-500 tracking-wider block">Modalidades & Tarifas</span>
+                  <h3 class="text-base sm:text-lg font-black text-slate-900">Tarifas Transparentes</h3>
                 </div>
               </div>
-              <span class="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-emerald-100/80 text-emerald-800 border border-emerald-200">
-                Tarifa Transparente
-              </span>
+
+              ${data.habilitarTeleconsulta ? `
+                <div class="inline-flex p-1 bg-slate-100/90 rounded-xl border border-slate-200 text-xs font-bold">
+                  <button
+                    type="button"
+                    id="btn-tarifa-presencial"
+                    onclick="switchTarifaTab('presencial')"
+                    class="px-3 py-1.5 rounded-lg transition-all cursor-pointer bg-white text-emerald-800 shadow-xs font-extrabold"
+                  >
+                    🏥 Presencial
+                  </button>
+                  <button
+                    type="button"
+                    id="btn-tarifa-teleconsulta"
+                    onclick="switchTarifaTab('teleconsulta')"
+                    class="px-3 py-1.5 rounded-lg transition-all cursor-pointer text-slate-600 hover:text-slate-900 flex items-center gap-1"
+                  >
+                    <span>💻 Teleconsulta</span>
+                    <span class="text-[10px] bg-emerald-500 text-white px-1.5 py-0.5 rounded-full uppercase">Online</span>
+                  </button>
+                </div>
+              ` : ''}
             </div>
 
-            <div class="border-t border-slate-100/90 pt-2.5">
-              <span class="text-[10px] font-extrabold text-slate-500 uppercase tracking-wide block mb-1.5">
-                Métodos de pago aceptados:
-              </span>
-              <div class="flex flex-wrap gap-1.5">
-                ${(data.metodosPago || ["Efectivo", "Transferencia bancaria", "Tarjetas de crédito"]).map(mp => `
-                  <span class="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 shadow-2xs">
-                    ${mp.toLowerCase().includes("efectivo") ? `<svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>` : ''}
-                    ${mp.toLowerCase().includes("transferencia") ? `<svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>` : ''}
-                    ${mp.toLowerCase().includes("tarjeta") ? `<svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3 3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>` : ''}
-                    <span>${mp}</span>
-                  </span>
-                `).join('')}
+            <!-- Vista Tarifaria Presencial -->
+            <div id="tarifa-content-presencial" class="space-y-3.5">
+              <div class="flex items-center justify-between p-4 rounded-xl bg-white border border-slate-200/90 shadow-2xs">
+                <div>
+                  <span class="text-xs font-black uppercase text-slate-500 tracking-wider block">Consulta Médica Presencial</span>
+                  <span class="text-2xl sm:text-3xl font-black text-slate-900">${data.precioConsulta || "$50 USD"}</span>
+                </div>
+                <span class="text-xs font-extrabold px-3 py-1 rounded-full bg-emerald-100/90 text-emerald-800 border border-emerald-200">
+                  En Consultorio
+                </span>
+              </div>
+
+              <div class="border-t border-slate-200/80 pt-3">
+                <span class="text-xs font-extrabold text-slate-600 uppercase tracking-wide block mb-2">
+                  Métodos de pago aceptados:
+                </span>
+                <div class="flex flex-wrap gap-2">
+                  ${(data.metodosPago || ["Efectivo", "Transferencia bancaria", "Tarjetas de crédito"]).map(mp => `
+                    <span class="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 shadow-2xs">
+                      ${mp.toLowerCase().includes("efectivo") ? `<svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>` : ''}
+                      ${mp.toLowerCase().includes("transferencia") ? `<svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>` : ''}
+                      ${mp.toLowerCase().includes("tarjeta") ? `<svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3 3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>` : ''}
+                      <span>${mp}</span>
+                    </span>
+                  `).join('')}
+                </div>
               </div>
             </div>
+
+            <!-- Vista Tarifaria Teleconsulta (si aplica) -->
+            ${data.habilitarTeleconsulta ? `
+              <div id="tarifa-content-teleconsulta" class="space-y-3.5 hidden">
+                <div class="flex items-center justify-between p-4 rounded-xl bg-white border border-emerald-200 shadow-2xs">
+                  <div>
+                    <span class="text-xs font-black uppercase text-emerald-700 tracking-wider block">Teleconsulta Médica Online (Videollamada)</span>
+                    <span class="text-2xl sm:text-3xl font-black text-slate-900">${data.precioTeleconsulta || "$40 USD"}</span>
+                  </div>
+                  <span class="text-xs font-extrabold px-3 py-1 rounded-full bg-blue-100 text-blue-800 border border-blue-200 flex items-center gap-1">
+                    <span>🎥 Videoconsulta</span>
+                  </span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                  <div class="p-3 rounded-xl bg-white border border-slate-200/80">
+                    <span class="font-extrabold text-slate-700 block mb-1">📱 Plataformas de Conexión:</span>
+                    <p class="text-slate-600 font-medium">${data.plataformasTeleconsulta || "Zoom, Google Meet o WhatsApp Video"}</p>
+                  </div>
+                  <div class="p-3 rounded-xl bg-white border border-slate-200/80">
+                    <span class="font-extrabold text-slate-700 block mb-1">🌐 Cobertura Pacientes:</span>
+                    <p class="text-slate-600 font-medium">${data.coberturaTeleconsulta || "Nacional e Internacional"}</p>
+                  </div>
+                </div>
+
+                ${data.requisitosTeleconsulta ? `
+                  <div class="p-3 rounded-xl bg-amber-50/80 border border-amber-200/80 text-xs text-amber-950">
+                    <span class="font-extrabold block">📋 Requisitos para la Videoconsulta:</span>
+                    <p class="mt-0.5 text-amber-900 leading-relaxed">${data.requisitosTeleconsulta}</p>
+                  </div>
+                ` : ''}
+
+                <div class="border-t border-slate-200/80 pt-3">
+                  <span class="text-xs font-extrabold text-slate-600 uppercase tracking-wide block mb-2">
+                    Pagos digitales para Teleconsulta:
+                  </span>
+                  <div class="flex flex-wrap gap-2">
+                    ${["Transferencia Bancaria", "Tarjeta de Crédito/Débito", "Link de Pago Seguro"].map(mp => `
+                      <span class="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 shadow-2xs">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                        <span>${mp}</span>
+                      </span>
+                    `).join('')}
+                  </div>
+                </div>
+              </div>
+            ` : ''}
           </div>
           ` : ''}
 
-          <!-- Mini Formulario de Agendamiento de Cita -->
-          <div class="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3.5">
-            <div class="flex items-center gap-2.5">
-              <div class="w-8 h-8 rounded-xl bg-clinical-100 text-clinical-700 flex items-center justify-center shrink-0">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+        </div>
+
+        <!-- Columna Derecha: Mapa Interactivo con tarjeta redondeada y altura adaptable -->
+        <div class="md:col-span-6 lg:col-span-6 xl:col-span-6 flex flex-col md:h-full">
+          <div class="rounded-2xl sm:rounded-3xl overflow-hidden border border-slate-200/90 shadow-sm bg-slate-50 relative flex flex-col md:h-full md:flex-1">
+            <div class="p-3.5 sm:p-4 bg-white border-b border-slate-200 flex items-center justify-between gap-2 shrink-0">
+              <div class="flex items-center gap-2 min-w-0">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                <span class="text-xs sm:text-sm font-bold text-slate-800 truncate">
+                  ${data.nombreClinicaGBP || "Consultorio Médico"}
+                </span>
               </div>
-              <div>
-                <h4 class="text-sm font-extrabold text-slate-900">Selecciona el día de tu cita médica</h4>
-                <p class="text-[11px] text-slate-500">Elige la fecha y horario estimado para coordinar tu consulta directamente.</p>
+              <a
+                href="https://www.google.com/maps/dir/?api=1&destination=${data.latitud},${data.longitud}"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100 shrink-0 transition-colors"
+              >
+                <span>Cómo llegar</span>
+                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+              </a>
+            </div>
+            <div class="w-full h-60 sm:h-64 md:h-full md:flex-1 md:min-h-[300px]">
+              <iframe 
+                title="Ubicación de Consulta de ${data.nombreMedico}"
+                class="w-full h-full min-h-[220px] md:min-h-[300px] border-0 grayscale hover:grayscale-0 transition-all duration-500" 
+                src="https://maps.google.com/maps?q=${data.latitud},${data.longitud}&hl=es&z=15&amp;output=embed"
+                allowfullscreen="" 
+                loading="lazy">
+              </iframe>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Tarjeta de Agendamiento Interactivo ("Selecciona el día de tu cita médica") ocupando TODO EL ANCHO -->
+      <div class="w-full space-y-4 sm:space-y-5 pt-2">
+        <div class="p-5 sm:p-7 md:p-8 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-5 sm:space-y-6 text-left">
+          <!-- Header con icono arriba a la izquierda, título abajo y alineación estricta a la izquierda -->
+          <div class="w-full flex flex-col items-start gap-3 text-left">
+            <div class="w-full flex items-center justify-between gap-2 flex-wrap">
+              <div class="w-11 h-11 rounded-xl bg-clinical-100 text-clinical-700 flex items-center justify-center shrink-0 shadow-2xs">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
               </div>
+
+              ${data.habilitarTeleconsulta ? `
+                <!-- Selector de Modalidad en Desktop y Tablet (Fila superior a la derecha) -->
+                <div class="hidden sm:inline-flex items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs font-bold">
+                  <button
+                    type="button"
+                    id="form-modality-presencial"
+                    onclick="switchBookingModality('presencial')"
+                    class="px-3 py-1.5 rounded-lg transition-all cursor-pointer text-xs bg-white text-emerald-800 shadow-xs font-extrabold"
+                  >
+                    🏥 Presencial
+                  </button>
+                  <button
+                    type="button"
+                    id="form-modality-teleconsulta"
+                    onclick="switchBookingModality('teleconsulta')"
+                    class="px-3 py-1.5 rounded-lg transition-all cursor-pointer text-xs text-slate-600 hover:text-slate-900 flex items-center gap-1"
+                  >
+                    <span>💻 Teleconsulta</span>
+                  </button>
+                </div>
+              ` : ''}
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <div class="w-full text-left">
+              <h4 class="text-base sm:text-lg font-extrabold text-slate-900 text-left">Selecciona el día de tu cita médica</h4>
+              <p class="text-xs sm:text-sm text-slate-500 mt-0.5 text-left">Elige la modalidad, fecha, horario y motivo de tu atención.</p>
+
+              ${data.habilitarTeleconsulta ? `
+                <!-- Selector de Modalidad en Mobile (debajo del texto explicativo) -->
+                <div class="inline-flex sm:hidden mt-3 items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs font-bold">
+                  <button
+                    type="button"
+                    id="form-modality-presencial-mob"
+                    onclick="switchBookingModality('presencial')"
+                    class="px-3 py-1.5 rounded-lg transition-all cursor-pointer text-xs bg-white text-emerald-800 shadow-xs font-extrabold"
+                  >
+                    🏥 Presencial
+                  </button>
+                  <button
+                    type="button"
+                    id="form-modality-teleconsulta-mob"
+                    onclick="switchBookingModality('teleconsulta')"
+                    class="px-3 py-1.5 rounded-lg transition-all cursor-pointer text-xs text-slate-600 hover:text-slate-900 flex items-center gap-1"
+                  >
+                    <span>💻 Teleconsulta</span>
+                  </button>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+
+          <div class="space-y-4">
+            <!-- 1. Motivo / Tratamiento en una sola columna o línea completa -->
+            <div class="w-full flex flex-col gap-1.5 text-left">
+              <label for="agenda-service" class="text-xs sm:text-sm font-bold text-slate-700 flex items-center justify-between">
+                <span class="flex items-center gap-1.5">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+                  <span>Motivo / Tratamiento</span>
+                </span>
+                <button
+                  type="button"
+                  id="agenda-service-clear"
+                  onclick="clearBookingService()"
+                  class="text-xs text-clinical-600 font-bold hover:underline cursor-pointer hidden"
+                >
+                  Limpiar
+                </button>
+              </label>
+              <select
+                id="agenda-service"
+                onchange="handleServiceSelectionChange(this.value)"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none bg-slate-50/70 font-semibold text-slate-800 min-h-[44px] cursor-pointer"
+              >
+                <option value="">-- Consulta Médica de Especialidad (${data.especialidad || "General"}) --</option>
+                ${(data.servicios || []).map((srv) => `
+                  <option value="${srv.titulo}">${srv.titulo}${srv.precio ? ` (${srv.precio})` : ''}</option>
+                `).join('')}
+              </select>
+            </div>
+
+            <!-- 2. Fecha, Horario y Nombre del paciente en Grid adaptable -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <!-- Selector de Fecha -->
-              <div class="flex flex-col gap-1">
-                <label for="agenda-date" class="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+              <div class="flex flex-col gap-1.5 text-left">
+                <label for="agenda-date" class="text-xs sm:text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                   <span>Fecha preferida</span>
                 </label>
                 <input
                   id="agenda-date"
                   type="date"
-                  class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none bg-slate-50/60 font-semibold text-slate-800"
+                  class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none bg-slate-50/70 font-semibold text-slate-800 min-h-[44px]"
                 />
               </div>
 
               <!-- Selector de Horario -->
-              <div class="flex flex-col gap-1">
-                <label for="agenda-time" class="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+              <div class="flex flex-col gap-1.5 text-left">
+                <label for="agenda-time" class="text-xs sm:text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   <span>Horario preferido</span>
                 </label>
                 <select
                   id="agenda-time"
-                  class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none bg-slate-50/60 font-semibold text-slate-800 cursor-pointer"
+                  class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none bg-slate-50/70 font-semibold text-slate-800 min-h-[44px] cursor-pointer"
                 >
                   <option value="09:00 AM">09:00 AM (Mañana)</option>
                   <option value="10:30 AM" selected>10:30 AM (Mañana)</option>
@@ -2978,40 +3811,42 @@ ${jsonLd}
                   <option value="06:00 PM">06:00 PM (Tarde/Noche)</option>
                 </select>
               </div>
+
+              <!-- Nombre opcional del paciente -->
+              <div class="flex flex-col gap-1.5 text-left sm:col-span-2 lg:col-span-1">
+                <label for="agenda-name" class="text-xs sm:text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                  <span>Nombre del paciente (opcional)</span>
+                </label>
+                <input
+                  id="agenda-name"
+                  type="text"
+                  placeholder="ej. María Gómez"
+                  class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none bg-slate-50/70 font-medium text-slate-800 min-h-[44px]"
+                />
+              </div>
             </div>
 
-            <!-- Nombre opcional del paciente -->
-            <div class="flex flex-col gap-1">
-              <label for="agenda-name" class="text-[11px] font-bold text-slate-700 flex items-center gap-1">
-                <span>Nombre del paciente (opcional)</span>
-              </label>
-              <input
-                id="agenda-name"
-                type="text"
-                placeholder="ej. María Gómez"
-                class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none bg-slate-50/60 font-medium text-slate-800"
-              />
-            </div>
-
-            <!-- Detalles de la consulta opcional -->
-            <div class="flex flex-col gap-1">
-              <label for="agenda-details" class="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+            <!-- 3. Detalles de la consulta (En una sola columna o línea completa) -->
+            <div class="w-full flex flex-col gap-1.5 text-left">
+              <label for="agenda-details" class="text-xs sm:text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                 <span>Detalles de la consulta (opcional)</span>
               </label>
               <textarea
                 id="agenda-details"
                 placeholder="ej. Dolor de espalda, chequeo anual, renovación de receta..."
                 rows="2"
-                class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none bg-slate-50/60 font-medium text-slate-800 resize-none"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none bg-slate-50/70 font-medium text-slate-800 resize-none"
               ></textarea>
             </div>
           </div>
         </div>
 
-        <!-- Contenedor Botones de Agenda / CTA Adaptable -->
-        <div class="pt-6 border-t border-gray-100 flex flex-col items-center gap-3.5 w-full">
+        <!-- Contenedor Botones de Agenda / CTA Adaptable a todo el ancho -->
+        <div class="w-full">
           ${data.estiloCta === 'estatico_pulso' ? `
-            <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs text-xs font-black mb-1">
+            <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs text-xs font-black mb-2.5 w-full justify-center text-center">
               <span class="relative flex h-2.5 w-2.5">
                 <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
@@ -3019,27 +3854,34 @@ ${jsonLd}
               <span>¡Agenda tu Consulta con Respuesta Prioritaria!</span>
             </div>
           ` : ''}
-          <button id="agenda-whatsapp-btn" onclick="openAppointmentModal('whatsapp')" type="button" class="w-[80%] max-w-md px-6 py-4 rounded-2xl font-extrabold text-sm sm:text-base text-center flex items-center justify-center gap-2.5 shadow-md hover:shadow-lg hover:scale-[1.01] active:scale-[0.99] transition-all duration-300 cursor-pointer bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white border border-emerald-500/30 ${data.estiloCta === 'estatico_pulso' ? 'ring-4 ring-emerald-400/40 shadow-xl animate-pulse hover:animate-none' : ''}">
+          <button id="agenda-whatsapp-btn" onclick="openAppointmentModal('whatsapp')" type="button" class="w-full px-6 py-4 rounded-2xl font-extrabold text-sm sm:text-base text-center flex items-center justify-center gap-2.5 shadow-md hover:shadow-lg hover:scale-[1.01] active:scale-[0.99] transition-all duration-300 cursor-pointer bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white border border-emerald-500/30 min-h-[48px] ${data.estiloCta === 'estatico_pulso' ? 'ring-4 ring-emerald-400/40 shadow-xl animate-pulse hover:animate-none' : ''}">
             <svg class="w-5 h-5 shrink-0 text-emerald-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
             <span>Confirmar cita</span>
           </button>
         </div>
       </div>
 
-      <!-- Columna Mapa Embebido Simulado de Alta Calidad o Iframe de Google Maps -->
-      <div class="lg:col-span-7 h-[400px] lg:h-auto rounded-3xl overflow-hidden border border-gray-100 shadow-lg relative bg-slate-100">
-        <!-- Mapa interactivo usando iframe de Google Maps con lazy loading nativo -->
-        <iframe 
-          title="Ubicación de Consulta de ${data.nombreMedico}"
-          width="600"
-          height="450"
-          class="w-full h-full border-0 grayscale hover:grayscale-0 transition-all duration-500" 
-          src="https://maps.google.com/maps?q=${data.latitud},${data.longitud}&hl=es&z=15&amp;output=embed"
-          allowfullscreen="" 
-          loading="lazy">
-        </iframe>
+      </div>
+    </div>
+  </section>
+  ` : ''}
+
+  <!-- ASISTENTE (AL FINAL DE LA PÁGINA) -->
+  ${hasFaq ? `
+  <section id="faq" class="p-6 sm:p-8 bg-slate-50/70 space-y-6 text-left border-t border-slate-200/80 cv-auto">
+    <div class="max-w-3xl mx-auto">
+      <div class="text-center pb-1">
+        <span class="text-[11px] font-extrabold text-clinical-600 uppercase tracking-widest bg-clinical-50 px-3.5 py-1 rounded-full border border-clinical-200/60 inline-block">
+          Asistente
+        </span>
+        <h2 class="text-xl sm:text-2xl font-extrabold text-slate-950 mt-2.5 tracking-tight">¿Preguntas frecuentes?</h2>
+        <p class="text-xs sm:text-sm text-clinical-700 font-medium mt-1 max-w-lg mx-auto">Resuelve tus preguntas e inquietudes de forma inmediata y confidencial sobre la atención médica.</p>
       </div>
 
+      <!-- Asistente -->
+      <div class="max-w-2xl mx-auto mt-6">
+        ${medicalAssistantHtml}
+      </div>
     </div>
   </section>
   ` : ''}
@@ -3054,6 +3896,35 @@ ${jsonLd}
       </div>
       <div class="flex flex-wrap items-center justify-center gap-3 md:gap-4 max-w-4xl mx-auto">
         ${aseguradorasHtml}
+      </div>
+
+      <!-- Aviso Explicativo Reembolso SRI Ecuador -->
+      <div class="max-w-2xl mx-auto p-4 rounded-2xl bg-blue-50/70 border border-blue-100 text-left flex items-start gap-3 text-xs text-blue-950 font-medium leading-relaxed mt-6">
+        <svg class="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+        <div>
+          <strong class="text-sm font-bold block mb-1">¿Cómo funciona el Reembolso Médico en Ecuador?</strong>
+          <p class="text-xs text-blue-900">
+            En cada consulta o tratamiento se emite la <strong>Factura Electrónica oficial autorizada por el SRI</strong> e incluye la entrega del <strong>Formulario de Reclamo Médico firmado (con código diagnóstico CIE-10)</strong> y su desglose para trámite ágil de reembolso o convenio directo con sus aseguradoras activas.
+          </p>
+        </div>
+      </div>
+
+      <!-- Microdatos SEO Indexables e Invisibles (Especialidad/Servicios + Aseguradoras + Ciudad Ecuador) -->
+      <div class="sr-only" aria-hidden="true" itemscope itemtype="https://schema.org/MedicalOrganization">
+        <meta itemprop="name" content="${data.especialidad} ${data.ciudad} - Convenios de Seguros Médicos">
+        <meta itemprop="description" content="Atención médica especializada de ${data.especialidad} y tratamientos en ${data.ciudad}, Ecuador. Factura SRI válida para reembolso o cobertura directa con ${(data.aseguradoras || []).join(', ')}.">
+        ${(data.aseguradoras || []).map(aseg => `
+          <div itemprop="healthPlanNetwork" itemscope itemtype="https://schema.org/HealthInsurancePlan">
+            <meta itemprop="name" content="${data.especialidad} en ${data.ciudad} con ${aseg}">
+            <meta itemprop="healthPlanNetworkId" content="${aseg}">
+          </div>
+        `).join('')}
+        ${(data.servicios || []).map(srv => (data.aseguradoras || []).map(aseg => `
+          <div itemprop="hasOfferCatalog" itemscope itemtype="https://schema.org/Offer">
+            <meta itemprop="name" content="${srv.titulo} con seguro ${aseg} en ${data.ciudad}">
+            <meta itemprop="description" content="Procedimiento de ${srv.titulo} por el especialista ${data.nombreMedico} en ${data.ciudad}, Ecuador con factura SRI válida para reembolso en ${aseg}.">
+          </div>
+        `).join('')).join('')}
       </div>
     </div>
   </section>
@@ -3146,36 +4017,14 @@ ${jsonLd}
   </section>
 
   <!-- FOOTER -->
-  <footer class="bg-gray-900 text-gray-400 py-12 border-t border-gray-800">
+  <footer class="bg-slate-950 text-slate-400 py-8 border-t border-slate-800/80">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8 border-b border-gray-800 pb-8">
-        
-        <div>
-          <span class="text-white font-bold text-sm block mb-3 uppercase tracking-wider">Enlaces Legales</span>
-          <ul class="text-sm space-y-2">
-            <li><a href="#" class="hover:text-white transition-colors">Aviso de Privacidad Médica</a></li>
-            <li><a href="#" class="hover:text-white transition-colors">Términos y Condiciones de Uso</a></li>
-            <li><a href="#" class="hover:text-white transition-colors">Consentimiento Informado</a></li>
-          </ul>
-        </div>
-
-        <div>
-          <span class="text-white font-bold text-sm block mb-3 uppercase tracking-wider">Contacto NAP</span>
-          <address class="text-sm not-italic space-y-1">
-            <p class="text-white font-semibold">${data.nombreClinicaGBP}</p>
-            <p>${data.direccionFisica}, ${data.ciudad}</p>
-            <p>Tel: ${data.telefonoGBP}</p>
-          </address>
-        </div>
-
-      </div>
-
       <!-- Registro Sanitario / Cédula Profesional (Preservado en código para SEO/Schema): ${data.cedulaProfesional} -->
       <meta itemprop="identifier" content="${data.cedulaProfesional}">
       ${footerAuthorityBadgesHtml}
-      <div class="flex flex-col sm:flex-row items-center justify-between text-xs text-gray-500 gap-2 mt-4">
+      <div class="flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-2 mt-2">
         <p>&copy; ${new Date().getFullYear()} Todos los derechos reservados.</p>
-        <p class="mt-2 sm:mt-0 text-gray-400 font-medium">
+        <p class="mt-2 sm:mt-0 text-slate-400 font-medium">
           Desarrollado por <a href="https://medico.ec/" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-300 hover:underline transition-colors font-semibold">médico Ec</a> y <a href="https://mantaconect.com/" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-300 hover:underline transition-colors font-semibold">MC</a>
         </p>
       </div>
@@ -3185,25 +4034,25 @@ ${jsonLd}
   <!-- NAVEGACIÓN MÓVIL INFERIOR: BARRA FIJA DUAL O MENÚ ERGONÓMICO -->
   ${data.estiloCta === 'barra_fija_dual' ? `
   <!-- BARRA INFERIOR MÓVIL FIJA DUAL (WHATSAPP + RESEÑAS) -->
-  <div id="mobile-dual-cta-bar" class="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-xl border-t border-slate-200/90 py-2.5 px-3 flex items-center gap-2.5 md:hidden z-40 shadow-[0_-8px_25px_rgba(0,0,0,0.12)] pb-[calc(0.6rem+env(safe-area-inset-bottom))]">
-    <a href="${data.whatsappUrl}" target="_blank" rel="noopener noreferrer" class="flex-1 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white py-3 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 text-center uppercase tracking-wide" aria-label="Agendar cita por WhatsApp">
-      <svg class="w-4 h-4 fill-white shrink-0" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.717-1.454L0 24zm6.59-2.635c1.6.95 3.51 1.45 5.48 1.45 5.86 0 10.63-4.77 10.63-10.63 0-2.84-1.1-5.51-3.11-7.51a10.522 10.522 0 00-7.52-3.12c-5.87 0-10.64 4.77-10.64 10.64 0 2.05.54 4.05 1.56 5.81L1.92 22.2l4.727-1.242c1.7.93 3.59 1.41 5.4 1.41z" /></svg>
-      <span class="truncate font-black">AGENDAR CITA</span>
+  <div id="mobile-dual-cta-bar" class="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-xl border-t border-slate-200/90 py-2.5 px-3 flex items-center gap-2.5 md:hidden z-50 shadow-[0_-8px_25px_rgba(0,0,0,0.12)] pb-[calc(0.6rem+env(safe-area-inset-bottom))]">
+    <a href="${data.whatsappUrl}" target="_blank" rel="noopener noreferrer" class="flex-1 bg-gradient-to-b from-emerald-500 via-emerald-600 to-emerald-700 hover:from-emerald-400 hover:to-emerald-600 text-white py-3 px-3.5 rounded-2xl font-black text-xs flex items-center justify-center gap-2 shadow-[0_5px_15px_-2px_rgba(16,185,129,0.5),inset_0_1.5px_1px_rgba(255,255,255,0.5),inset_0_-2.5px_2px_rgba(0,0,0,0.25)] border-t border-white/40 transition-all active:scale-95 text-center uppercase tracking-wide cursor-pointer" aria-label="Agendar cita por WhatsApp">
+      <svg class="w-4 h-4 fill-white shrink-0 drop-shadow-[0_1px_1px_rgba(0,0,0,0.3)]" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.717-1.454L0 24zm6.59-2.635c1.6.95 3.51 1.45 5.48 1.45 5.86 0 10.63-4.77 10.63-10.63 0-2.84-1.1-5.51-3.11-7.51a10.522 10.522 0 00-7.52-3.12c-5.87 0-10.64 4.77-10.64 10.64 0 2.05.54 4.05 1.56 5.81L1.92 22.2l4.727-1.242c1.7.93 3.59 1.41 5.4 1.41z" /></svg>
+      <span class="truncate font-black drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)]">AGENDAR CITA</span>
     </a>
-    <a href="#resenas" class="flex-1 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-800 border border-slate-200/90 py-3 px-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition-all active:scale-95 text-center" aria-label="Ver reseñas de Google de los pacientes">
-      <svg class="w-4 h-4 fill-amber-400 text-amber-500 shrink-0" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-      <span class="truncate font-bold">Reseñas</span>
+    <a href="#resenas" onclick="if(document.getElementById('resenas')){ document.getElementById('resenas').scrollIntoView({behavior: 'smooth'}); return false; }" class="flex-1 bg-gradient-to-b from-white via-slate-50 to-slate-100 hover:from-white hover:to-slate-100 text-slate-800 border border-slate-200/90 py-3 px-3.5 rounded-2xl font-black text-xs flex items-center justify-center gap-1.5 shadow-[0_4px_10px_-2px_rgba(0,0,0,0.08),inset_0_1.5px_1px_rgba(255,255,255,0.9),inset_0_-2px_2px_rgba(0,0,0,0.06)] border-t border-white transition-all active:scale-95 text-center cursor-pointer" aria-label="Ver reseñas de Google de los pacientes">
+      <svg class="w-4 h-4 fill-amber-400 text-amber-500 shrink-0 drop-shadow-[0_1px_1px_rgba(0,0,0,0.15)]" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+      <span class="truncate font-black">Reseñas</span>
     </a>
   </div>
   ` : `
   <!-- MENÚ INFERIOR MÓVIL (Barra de Navegación Ergonómica con Iconos de Alto Contraste y Estados de Color Distintivos) -->
-  <nav aria-label="Navegación Móvil Principal" class="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-xl border-t border-slate-200/90 py-2 px-3 flex justify-around items-center md:hidden z-40 shadow-[0_-6px_20px_rgba(0,0,0,0.08)] pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
+  <nav aria-label="Navegación Móvil Principal" class="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-xl border-t border-slate-200/90 py-2 px-3 flex justify-around items-center md:hidden z-50 shadow-[0_-6px_20px_rgba(0,0,0,0.08)] pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
     ${mobileNavHtml}
   </nav>
   `}
 
   <!-- MODAL DE CONFIRMACIÓN DE CITA MÉDICA (Resumen Completo antes de redirección) -->
-  <div id="appointment-modal" class="fixed inset-0 bg-slate-950/65 backdrop-blur-xs z-50 hidden flex items-center justify-center p-3 sm:p-4 overflow-y-auto" onclick="closeAppointmentModal(event)">
+  <div id="appointment-modal" class="fixed inset-0 bg-slate-950/65 backdrop-blur-xs z-50 hidden items-center justify-center p-3 sm:p-4 overflow-y-auto" onclick="closeAppointmentModal(event)">
     <div class="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden my-auto text-left" onclick="event.stopPropagation()">
       <!-- Cabecera del Modal -->
       <div class="bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 p-5 sm:p-6 text-white relative">
@@ -3233,7 +4082,7 @@ ${jsonLd}
 
       <!-- Contenido del Resumen -->
       <div class="p-5 sm:p-6 space-y-4 max-h-[65vh] overflow-y-auto">
-        <!-- Tarjeta del Doctor -->
+        <!-- Tarjeta del Doctor & Modalidad -->
         <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center gap-3.5">
           <img 
             src="${data.fotoUrl}" 
@@ -3244,12 +4093,27 @@ ${jsonLd}
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-1.5 flex-wrap">
               <h4 class="text-xs sm:text-sm font-black text-slate-900 truncate">${data.nombreMedico}</h4>
-              <span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
-                Verificado
+              <span id="modal-app-modalidad-badge" class="text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 bg-emerald-100 text-emerald-800 border border-emerald-200">
+                🏥 Consulta Presencial
               </span>
             </div>
             <p class="text-[11px] font-extrabold text-clinical-600 truncate">${data.especialidad}</p>
-            <p class="text-[10px] text-slate-500 truncate">Cédula Profesional: ${data.cedulaProfesional}</p>
+            <p class="text-[10px] text-slate-500 truncate font-medium">
+              ${data.mostrarRegistroPublico
+                ? `Registro MSP / SENESCYT: ${data.cedulaProfesional}`
+                : `✓ Acreditación Médica MSP & SENESCYT Verificada`}
+            </p>
+          </div>
+        </div>
+
+        <!-- Servicio o Tratamiento Solicitado -->
+        <div id="modal-app-service-container" class="p-3 rounded-xl bg-blue-50/80 border border-blue-200/80 flex items-center justify-between gap-2 hidden">
+          <div class="flex items-center gap-2 min-w-0">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+            <div class="min-w-0">
+              <span class="text-[10px] font-bold text-blue-800 uppercase tracking-wide block">Tratamiento / Procedimiento:</span>
+              <p id="modal-app-service-title" class="text-xs font-black text-slate-900 truncate"></p>
+            </div>
           </div>
         </div>
 
@@ -3301,22 +4165,22 @@ ${jsonLd}
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              <span class="text-xs font-bold text-slate-700">Valor de la Consulta:</span>
+              <span id="modal-app-price-label" class="text-xs font-bold text-slate-700">Tarifa Consulta Presencial:</span>
             </div>
-            <span class="text-sm font-black text-slate-950">
+            <span id="modal-app-price-value" class="text-sm font-black text-slate-950">
               ${data.precioConsulta || '$50 USD'}
             </span>
           </div>
           <div class="pt-2 border-t border-amber-200/50 flex items-center justify-between gap-2 flex-wrap text-[10px] text-slate-600">
             <span class="font-semibold text-slate-500">Pagos aceptados:</span>
-            <span class="font-bold text-slate-800">
+            <span id="modal-app-payments-text" class="font-bold text-slate-800">
               ${(data.metodosPago || ["Efectivo", "Transferencia", "Tarjetas"]).join(" • ")}
             </span>
           </div>
         </div>
 
         <!-- Dirección Física / Consultorio -->
-        <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1.5 text-xs text-slate-700">
+        <div id="modal-app-location-presencial" class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1.5 text-xs text-slate-700">
           <div class="flex items-center gap-1.5 font-bold text-slate-900">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
             <span>${data.nombreClinicaGBP}</span>
@@ -3331,6 +4195,17 @@ ${jsonLd}
             <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
             <span>${data.telefonoGBP}</span>
           </div>
+        </div>
+
+        <!-- Plataforma Online (Teleconsulta) -->
+        <div id="modal-app-location-teleconsulta" class="p-3.5 rounded-2xl bg-blue-50/60 border border-blue-200/80 space-y-1.5 text-xs text-slate-700 hidden">
+          <div class="flex items-center gap-1.5 font-bold text-blue-900">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <span>Atención 100% Online por Videollamada</span>
+          </div>
+          <p class="text-[11px] text-slate-600 leading-relaxed">
+            Plataforma: ${data.plataformasTeleconsulta || "Zoom, Google Meet o WhatsApp Video"}. El enlace de conexión se enviará al confirmar tu cita.
+          </p>
         </div>
       </div>
 
@@ -3360,8 +4235,227 @@ ${jsonLd}
     </div>
   </div>
 
+  <!-- MODAL DE COMPARTIR PERFIL & REDES SOCIALES -->
+  <div id="share-modal" class="fixed inset-0 bg-slate-950/65 backdrop-blur-xs z-50 hidden items-center justify-center p-3 sm:p-4 overflow-y-auto" onclick="closeShareModal(event)">
+    <div class="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden my-auto text-left" onclick="event.stopPropagation()">
+      <!-- Cabecera del Modal -->
+      <div class="bg-gradient-to-r from-purple-600 to-indigo-700 p-5 sm:p-6 text-white relative flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-xs">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+          </div>
+          <div>
+            <span class="text-[10px] font-extrabold uppercase tracking-widest text-purple-200 block">Compartir Enlace</span>
+            <h3 class="text-base sm:text-lg font-black leading-tight text-white">Compartir Perfil Médico</h3>
+          </div>
+        </div>
+        <button
+          type="button"
+          onclick="closeShareModal()"
+          class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 active:bg-white/30 text-white flex items-center justify-center transition-colors cursor-pointer"
+          aria-label="Cerrar modal de compartir"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+      </div>
+
+      <!-- Contenido del Modal -->
+      <div class="p-5 sm:p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+        <!-- Tarjeta del Médico -->
+        <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center gap-3.5">
+          <img 
+            src="${data.fotoUrl}" 
+            alt="${data.nombreMedico}" 
+            class="w-12 h-12 rounded-xl object-cover border border-slate-200 shadow-2xs shrink-0"
+            referrerPolicy="no-referrer"
+          />
+          <div class="flex-1 min-w-0">
+            <h4 class="text-xs sm:text-sm font-black text-slate-900 truncate">${data.nombreMedico}</h4>
+            <p class="text-[11px] font-extrabold text-clinical-600 truncate">${data.especialidad}</p>
+            <p class="text-[10px] text-slate-500 truncate font-medium flex items-center gap-1">
+              <svg class="w-3 h-3 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              <span>${data.ciudad || "Ecuador"}</span>
+            </p>
+          </div>
+        </div>
+
+        <!-- Redes Sociales para Compartir -->
+        <div class="space-y-2.5">
+          <label class="text-xs font-black uppercase tracking-wider text-slate-500 block">
+            Selecciona una red social o app:
+          </label>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+            <!-- WhatsApp -->
+            <a
+              id="share-link-whatsapp"
+              href="#"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="flex items-center gap-2.5 p-3 rounded-2xl bg-[#25D366]/10 hover:bg-[#25D366]/20 border border-[#25D366]/30 text-[#128C7E] font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-2xs"
+            >
+              <div class="w-7 h-7 rounded-xl bg-[#25D366] text-white flex items-center justify-center shrink-0 shadow-xs">
+                <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/></svg>
+              </div>
+              <span class="truncate">WhatsApp</span>
+            </a>
+
+            <!-- Facebook -->
+            <a
+              id="share-link-facebook"
+              href="#"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="flex items-center gap-2.5 p-3 rounded-2xl bg-[#1877F2]/10 hover:bg-[#1877F2]/20 border border-[#1877F2]/30 text-[#1877F2] font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-2xs"
+            >
+              <div class="w-7 h-7 rounded-xl bg-[#1877F2] text-white flex items-center justify-center shrink-0 shadow-xs">
+                <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+              </div>
+              <span class="truncate">Facebook</span>
+            </a>
+
+            <!-- X / Twitter -->
+            <a
+              id="share-link-twitter"
+              href="#"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="flex items-center gap-2.5 p-3 rounded-2xl bg-slate-900/10 hover:bg-slate-900/20 border border-slate-900/30 text-slate-900 font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-2xs"
+            >
+              <div class="w-7 h-7 rounded-xl bg-slate-900 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <span class="font-black text-xs">𝕏</span>
+              </div>
+              <span class="truncate">X (Twitter)</span>
+            </a>
+
+            <!-- Telegram -->
+            <a
+              id="share-link-telegram"
+              href="#"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="flex items-center gap-2.5 p-3 rounded-2xl bg-[#229ED9]/10 hover:bg-[#229ED9]/20 border border-[#229ED9]/30 text-[#229ED9] font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-2xs"
+            >
+              <div class="w-7 h-7 rounded-xl bg-[#229ED9] text-white flex items-center justify-center shrink-0 shadow-xs">
+                <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/></svg>
+              </div>
+              <span class="truncate">Telegram</span>
+            </a>
+
+            <!-- LinkedIn -->
+            <a
+              id="share-link-linkedin"
+              href="#"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="flex items-center gap-2.5 p-3 rounded-2xl bg-[#0A66C2]/10 hover:bg-[#0A66C2]/20 border border-[#0A66C2]/30 text-[#0A66C2] font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-2xs"
+            >
+              <div class="w-7 h-7 rounded-xl bg-[#0A66C2] text-white flex items-center justify-center shrink-0 shadow-xs">
+                <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.46 8.76c-.97 0-1.75-.79-1.75-1.76s.78-1.75 1.75-1.75 1.75.78 1.75 1.75-.78 1.76-1.75 1.76m1.39 9.74v-8.37H5.07v8.37h2.78z"/></svg>
+              </div>
+              <span class="truncate">LinkedIn</span>
+            </a>
+
+            <!-- Email -->
+            <a
+              id="share-link-email"
+              href="#"
+              class="flex items-center gap-2.5 p-3 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-700 font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-2xs"
+            >
+              <div class="w-7 h-7 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <svg class="w-4 h-4 fill-none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+              </div>
+              <span class="truncate">Email</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Botón compartir nativo móvil -->
+        <div id="native-share-btn-container" class="hidden">
+          <button
+            type="button"
+            onclick="triggerNativeShare()"
+            class="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-purple-50 hover:bg-purple-100 active:bg-purple-200 text-purple-700 font-bold text-xs border border-purple-200 transition-all cursor-pointer shadow-2xs"
+          >
+            <svg class="w-4 h-4 text-purple-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+            <span>Más opciones de compartir (Apps de tu dispositivo)</span>
+          </button>
+        </div>
+
+        <!-- Copiar Enlace Directo -->
+        <div class="space-y-1.5 pt-1">
+          <label class="text-xs font-black uppercase tracking-wider text-slate-500 block">
+            O copia el enlace directo:
+          </label>
+          <div class="flex items-center gap-2">
+            <input
+              type="text"
+              id="share-modal-url-input"
+              readonly
+              class="w-full pl-3 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-700 truncate select-all focus:outline-none focus:ring-2 focus:ring-purple-500"
+            />
+            <button
+              type="button"
+              id="share-modal-copy-btn"
+              onclick="copyShareModalUrl()"
+              class="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 active:bg-black text-white rounded-xl font-black text-xs transition-all cursor-pointer shadow-2xs shrink-0"
+            >
+              <svg id="share-copy-icon" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+              <span id="share-copy-btn-text">Copiar</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Código QR para Escaneo Móvil Directo -->
+        <div class="pt-3 border-t border-slate-200/80 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <svg class="w-4 h-4 text-purple-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="14" width="7" height="7" rx="1" />
+                <rect x="3" y="14" width="7" height="7" rx="1" />
+              </svg>
+              <label class="text-xs font-black uppercase tracking-wider text-slate-700">
+                Código QR para Escanear
+              </label>
+            </div>
+            <span class="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+              Cámara Móvil
+            </span>
+          </div>
+
+          <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col items-center justify-center gap-3 text-center">
+            <div class="p-3 bg-white rounded-2xl border border-slate-200 shadow-xs shrink-0 inline-flex items-center justify-center">
+              <img
+                id="share-modal-qr-img"
+                src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(cleanAppUrl)}"
+                alt="Código QR del Perfil Médico"
+                class="w-44 h-44 object-contain rounded-lg"
+                loading="lazy"
+              />
+            </div>
+            <p class="text-xs font-bold text-slate-900">
+              Escanea con la cámara de tu celular
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer del Modal -->
+      <div class="p-4 sm:p-5 bg-slate-50 border-t border-slate-200/80 flex items-center justify-end">
+        <button
+          type="button"
+          onclick="closeShareModal()"
+          class="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-black rounded-xl transition-all cursor-pointer"
+        >
+          Cerrar
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL DE PERFIL MÉDICO & CERTIFICACIONES -->
-  <div id="profile-modal" class="fixed inset-0 bg-slate-950/65 backdrop-blur-xs z-50 hidden flex items-center justify-center p-3 sm:p-4 overflow-y-auto" onclick="closeProfileModal(event)">
+  <div id="profile-modal" class="fixed inset-0 bg-slate-950/65 backdrop-blur-xs z-50 hidden items-center justify-center p-3 sm:p-4 overflow-y-auto" onclick="closeProfileModal(event)">
     <div class="bg-white rounded-3xl max-w-xl w-full shadow-2xl border border-slate-200 overflow-hidden my-auto text-left" onclick="event.stopPropagation()">
       <!-- Cabecera del Modal -->
       <div class="bg-clinical-600 p-5 sm:p-6 text-white relative flex items-center justify-between">
@@ -3375,7 +4469,9 @@ ${jsonLd}
           <div>
             <span class="text-[10px] font-extrabold uppercase tracking-widest text-blue-100 block">Perfil Profesional</span>
             <h3 class="text-lg font-black leading-tight text-white">${data.nombreMedico}</h3>
-            <p class="text-xs text-blue-100">${data.especialidad} • Cédula: ${data.cedulaProfesional}</p>
+            <p class="text-xs text-blue-100">
+              ${data.especialidad} ${data.mostrarRegistroPublico ? `• Reg. ${data.cedulaProfesional}` : `• ✓ Acreditado SENESCYT / MSP`}
+            </p>
           </div>
         </div>
         <button
@@ -3453,114 +4549,109 @@ ${jsonLd}
         <hr class="border-slate-100">
 
         <!-- Asociaciones y Colegios Médicos -->
+        ${(data.asociaciones && data.asociaciones.length > 0) ? `
         <div>
           <h4 class="text-xs font-black uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5">
             <svg class="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-            Sociedades Científicas y Membresías
+            Sociedades Científicas & Membresías
           </h4>
           <ul class="space-y-2.5 bg-slate-50 p-4 rounded-2xl border border-slate-100">
             ${asociacionesHtml}
           </ul>
         </div>
+        ` : ''}
+
+        <!-- Certificaciones y Diplomados -->
+        ${(data.certificados && data.certificados.length > 0) ? `
+        <div>
+          <h4 class="text-xs font-black uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5">
+            <svg class="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5z" /><path stroke-linecap="round" stroke-linejoin="round" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 01-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" /></svg>
+            Certificaciones & Actualización Médica
+          </h4>
+          <ul class="space-y-2.5 bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100/80">
+            ${certificadosHtml}
+          </ul>
+        </div>
+        ` : ''}
+
+        <!-- Premios y Reconocimientos -->
+        ${(data.reconocimientos && data.reconocimientos.length > 0) ? `
+        <div>
+          <h4 class="text-xs font-black uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5">
+            <svg class="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
+            Distinciones & Reconocimientos
+          </h4>
+          <ul class="space-y-2.5 bg-amber-50/50 p-4 rounded-2xl border border-amber-100/80">
+            ${reconocimientosHtml}
+          </ul>
+        </div>
+        ` : ''}
 
         <!-- Formación y Filosofía -->
+        ${data.filosofia ? `
         <div class="p-4 rounded-2xl bg-blue-50/60 border border-blue-100/80 text-xs text-blue-900 leading-relaxed">
-          <p class="font-bold mb-1 text-clinical-900">Compromiso con el Paciente:</p>
-          <p class="text-slate-600">${data.filosofia}</p>
+          <p class="font-bold mb-1 text-clinical-900 flex items-center gap-1.5 text-xs sm:text-sm">
+            <svg class="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+            Compromiso con el Paciente:
+          </p>
+          <p class="text-slate-700 text-xs sm:text-sm leading-relaxed">${data.filosofia}</p>
         </div>
+        ` : ''}
+
+        <!-- Redes Sociales y Canales Oficiales -->
+        ${(data.whatsappUrl || data.facebookUrl || data.instagramUrl || data.tiktokUrl || data.emailContacto) ? `
+        <div class="space-y-3 pt-3 border-t border-slate-100">
+          <h4 class="text-xs font-black uppercase tracking-wider text-slate-400">Redes Sociales y Canales Oficiales</h4>
+          <div class="flex items-center gap-2.5 flex-wrap">
+            ${data.whatsappUrl ? `
+            <a href="${data.whatsappUrl}" target="_blank" rel="noopener noreferrer" class="w-9 h-9 rounded-xl bg-[#25D366]/10 hover:bg-[#25D366] text-[#25D366] hover:text-white flex items-center justify-center transition-all cursor-pointer border border-[#25D366]/20 active:scale-90" title="WhatsApp Profesional">
+              <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.664-.698c.969.53 1.771.815 2.796.815 3.181 0 5.767-2.586 5.768-5.766 0-3.18-2.587-5.767-5.768-5.767zm3.385 8.169c-.144.405-.837.774-1.17.824-.312.045-.694.077-2.228-.557-1.782-.738-2.909-2.553-2.997-2.671-.088-.118-.72-1.026-.72-1.956 0-.93.486-1.387.659-1.579.173-.191.381-.239.508-.239.127 0 .254.001.365.006.118.006.275-.045.431.33.161.385.55 1.341.599 1.439.048.098.081.213.016.342-.066.129-.098.21-.196.326-.098.116-.207.26-.296.349-.099.098-.202.205-.087.402.115.197.511.843 1.096 1.364.754.672 1.389.88 1.587.978.197.098.313.082.427-.049.115-.131.492-.574.623-.77.131-.197.262-.164.443-.098.181.066 1.147.541 1.344.64.197.098.328.147.377.23.049.082.049.475-.095.88z"/></svg>
+            </a>` : ''}
+            ${data.facebookUrl ? `
+            <a href="${data.facebookUrl}" target="_blank" rel="noopener noreferrer" class="w-9 h-9 rounded-xl bg-blue-600/10 hover:bg-blue-600 text-blue-600 hover:text-white flex items-center justify-center transition-all cursor-pointer border border-blue-500/20 active:scale-90" title="Facebook">
+              <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+            </a>` : ''}
+            ${data.instagramUrl ? `
+            <a href="${data.instagramUrl}" target="_blank" rel="noopener noreferrer" class="w-9 h-9 rounded-xl bg-pink-500/10 hover:bg-pink-600 text-pink-600 hover:text-white flex items-center justify-center transition-all cursor-pointer border border-pink-500/20 active:scale-90" title="Instagram">
+              <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+            </a>` : ''}
+            ${data.tiktokUrl ? `
+            <a href="${data.tiktokUrl}" target="_blank" rel="noopener noreferrer" class="w-9 h-9 rounded-xl bg-slate-900/10 hover:bg-slate-900 text-slate-800 hover:text-white flex items-center justify-center transition-all cursor-pointer border border-slate-200 active:scale-90" title="TikTok">
+              <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.298 0 .59.043.87.126V9.4a6.33 6.33 0 0 0-.87-.06A6.34 6.34 0 0 0 3 15.68a6.34 6.34 0 0 0 10.82 4.48c.18-.18.34-.37.49-.57V10.7a8.28 8.28 0 0 0 5.28 1.93v-3.45a4.84 4.84 0 0 1-3.23-.97c-.01-.01-.02-.02-.04-.03l3.27-1.49z"/></svg>
+            </a>` : ''}
+            ${data.emailContacto ? `
+            <a href="mailto:${data.emailContacto}" class="w-9 h-9 rounded-xl bg-amber-500/10 hover:bg-amber-600 text-amber-600 hover:text-white flex items-center justify-center transition-all cursor-pointer border border-amber-500/20 active:scale-90" title="Enviar Correo">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+            </a>` : ''}
+          </div>
+        </div>
+        ` : ''}
       </div>
 
       <!-- Footer del Modal -->
-      <div class="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-3">
+      <div class="p-4 sm:p-5 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3">
         <a
           href="#agendar"
           onclick="closeProfileModal()"
-          class="flex-1 bg-clinical-600 hover:bg-clinical-700 active:bg-clinical-800 text-white text-xs sm:text-sm font-extrabold py-3 px-4 rounded-xl text-center flex items-center justify-center gap-2 shadow-sm transition-all"
+          class="flex-1 bg-clinical-600 hover:bg-clinical-700 active:bg-clinical-800 text-white text-xs sm:text-sm font-extrabold py-3 px-4 rounded-xl text-center flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-          <span>Agendar Consulta con el Dr.</span>
+          <span>Agendar Cita</span>
         </a>
-        <button
-          type="button"
-          onclick="closeProfileModal()"
-          class="px-4 py-3 rounded-xl border border-slate-200 text-slate-700 hover:bg-white text-xs font-bold transition-colors cursor-pointer"
-        >
-          Cerrar
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL CATÁLOGO COMPLETO DE SERVICIOS (Mis Servicios) -->
-  <div id="services-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4" onclick="closeServicesModal(event)">
-    <div class="bg-white rounded-3xl max-w-5xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200">
-      <!-- Cabecera del Modal -->
-      <div class="p-5 sm:p-6 bg-slate-900 text-white flex items-center justify-between gap-4 shrink-0">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-clinical-600 flex items-center justify-center text-white shrink-0">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-            </svg>
-          </div>
-          <div>
-            <h2 class="text-base sm:text-lg font-black leading-tight text-white">Catálogo de Procedimientos Médicos</h2>
-            <p class="text-xs text-slate-300 font-medium">Explora todos los tratamientos y procedimientos médicos disponibles</p>
-          </div>
-        </div>
-        <button
-          type="button"
-          onclick="closeServicesModal()"
-          class="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white transition-colors cursor-pointer"
-          aria-label="Cerrar modal de servicios"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-        </button>
-      </div>
-
-      <!-- Buscador en tiempo real -->
-      <div class="p-4 bg-slate-50 border-b border-slate-200/80 shrink-0">
-        <div class="relative">
-          <input
-            type="text"
-            id="service-search-input"
-            oninput="filterServicesCatalog()"
-            placeholder="Buscar por nombre de procedimiento, síntoma o tratamiento..."
-            class="w-full pl-10 pr-4 py-2.5 bg-white rounded-xl border border-slate-200 text-xs sm:text-sm font-medium placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-clinical-500 shadow-2xs"
-          />
-          <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-        </div>
-      </div>
-
-      <!-- Lista Scrollable de Todos los Servicios -->
-      <div class="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4">
-        <div id="services-modal-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-          ${todosServiciosModalHtml}
-        </div>
-        <div id="no-services-found" class="hidden text-center py-12 space-y-2">
-          <p class="text-sm font-bold text-slate-700">No se encontraron procedimientos</p>
-          <p class="text-xs text-slate-500">Intenta con otro término o consulta directamente por WhatsApp.</p>
-        </div>
-      </div>
-
-      <!-- Footer del Modal -->
-      <div class="p-4 bg-slate-50 border-t border-slate-200/80 flex items-center justify-between gap-3 shrink-0">
-        <div class="text-[11px] text-slate-500 font-medium hidden sm:block">
-          💡 Procedimientos realizados bajo protocolos médicos certificados
-        </div>
-        <div class="flex items-center gap-2 w-full sm:w-auto">
-          <a
-            href="#agendar"
-            onclick="closeServicesModal()"
-            class="flex-1 sm:flex-none bg-clinical-600 hover:bg-clinical-700 text-white text-xs font-extrabold py-2.5 px-5 rounded-xl text-center transition-colors shadow-2xs"
-          >
-            Agendar Consulta
-          </a>
+        <div class="flex items-center gap-2">
           <button
             type="button"
-            onclick="closeServicesModal()"
-            class="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-white text-xs font-bold transition-colors cursor-pointer"
+            onclick="closeProfileModal(); openShareModal();"
+            class="inline-flex items-center justify-center gap-1.5 px-3.5 py-3 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-extrabold rounded-xl transition-all border border-purple-200/50 shrink-0 cursor-pointer"
+            title="Compartir perfil"
+          >
+            <svg class="w-3.5 h-3.5 text-purple-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+            <span class="hidden sm:inline">Compartir</span>
+          </button>
+          <button
+            type="button"
+            onclick="closeProfileModal()"
+            class="px-4 py-3 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-extrabold transition-colors cursor-pointer shrink-0"
           >
             Cerrar
           </button>
@@ -3569,12 +4660,190 @@ ${jsonLd}
     </div>
   </div>
 
+  <!-- MODAL DE BIENVENIDA MINIMALISTA & SOLICITUD AMABLE DE NOMBRE AL INGRESAR -->
+  ${(data.habilitarPopupBienvenida ?? true) ? `
+  <div id="welcome-popup-modal" class="fixed inset-0 bg-black/70 backdrop-blur-md z-[200] hidden items-center justify-center p-3 sm:p-4 overflow-y-auto" onclick="closeWelcomePopup(event)">
+    <div class="bg-white rounded-3xl max-w-xs sm:max-w-md w-full p-5 sm:p-8 shadow-2xl border border-slate-100 relative text-center my-auto mx-auto transition-all duration-300 transform scale-95 opacity-0" id="welcome-popup-card" onclick="event.stopPropagation()">
+      <!-- Botón Cerrar Minimalista -->
+      <button
+        type="button"
+        onclick="closeWelcomePopup()"
+        class="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
+        aria-label="Cerrar modal"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+      </button>
+
+      <!-- Icono Seleccionado en 3D (Sin logotipo) -->
+      <div class="flex flex-col items-center justify-center mb-2 sm:mb-2.5">
+        <div class="relative inline-flex items-center justify-center">
+          <span class="text-3xl sm:text-4xl select-none filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.15)] transform hover:scale-110 transition-transform duration-300 inline-block cursor-default heartbeat-4s" role="img" aria-label="Icono 3D">
+            ${data.popupBienvenidaIcono || "😊"}
+          </span>
+        </div>
+      </div>
+
+      <!-- Título & Mensaje Descriptivo Más Grande -->
+      <div class="space-y-1.5 sm:space-y-2 mb-5 sm:mb-6 text-center">
+        <h3 class="text-lg sm:text-2xl font-black text-slate-900 tracking-tight leading-snug">
+          ${data.popupBienvenidaTitulo || "¡Bienvenido(a) a mi consulta!"}
+        </h3>
+        <p class="text-xs sm:text-base text-slate-600 font-medium leading-relaxed max-w-sm mx-auto">
+          ${data.popupBienvenidaSubtitulo || "Me encantaría conocerte. ¿Cuál es tu nombre para brindarte una mejor atención?"}
+        </p>
+      </div>
+
+      <!-- Formulario e Input Minimalista con Capitalización Automática -->
+      <form id="welcome-popup-form" onsubmit="submitWelcomePopup(event)" class="space-y-3.5">
+        <div>
+          <input
+            id="welcome-visitor-name-input"
+            type="text"
+            autofocus
+            oninput="this.value = this.value.replace(/(?:^|\\s)\\S/g, function(a){return a.toUpperCase();})"
+            placeholder="${(data.popupBienvenidaPlaceholder || 'Escribe tu nombre...').replace(/"/g, '&quot;')}"
+            class="w-full px-4 py-3 sm:py-3.5 rounded-2xl bg-slate-50/90 hover:bg-slate-50 border border-slate-200/90 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all text-base sm:text-lg font-semibold text-slate-800 outline-none placeholder:text-slate-400 text-center shadow-2xs capitalize"
+          />
+        </div>
+
+        <button
+          type="submit"
+          class="w-full py-3 sm:py-3.5 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-extrabold text-xs sm:text-sm tracking-wide shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2"
+        >
+          <span>${data.popupBienvenidaBoton || "Comenzar recorrido"}</span>
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+        </button>
+
+        <button
+          type="button"
+          onclick="closeWelcomePopup()"
+          class="text-xs sm:text-sm font-semibold text-slate-700 hover:text-slate-950 transition-colors cursor-pointer pt-1 block mx-auto"
+        >
+          Omitir por ahora
+        </button>
+      </form>
+    </div>
+  </div>
+  ` : ''}
+
+  <!-- PÁGINA INDEPENDIENTE: CATÁLOGO COMPLETO DE SERVICIOS (Mis Servicios) -->
+  <div id="services-modal" class="fixed inset-0 bg-slate-50 z-[100] hidden flex-col overflow-y-auto selection:bg-clinical-600 selection:text-white" onclick="closeServicesModal(event)">
+    <!-- Barra de Navegación Superior: SÓLO BOTÓN REGRESAR -->
+    <header class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-2xs shrink-0" onclick="event.stopPropagation()">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-18 flex items-center justify-between gap-3">
+        <!-- Botón de retroceso único -->
+        <button
+          type="button"
+          onclick="closeServicesModal()"
+          class="inline-flex items-center gap-2.5 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-clinical-50 border border-clinical-200 text-clinical-700 hover:bg-clinical-100 active:scale-95 font-black text-xs sm:text-sm transition-all cursor-pointer shadow-2xs group"
+          aria-label="Regresar"
+        >
+          <svg class="w-4 h-4 text-clinical-600 group-hover:-translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+          <span>Regresar</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Contenido Principal -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-6" onclick="event.stopPropagation()">
+      <!-- Cabecera & Buscador -->
+      <div class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div class="space-y-1">
+            <span class="text-[10px] font-black uppercase tracking-widest text-clinical-700 bg-clinical-50 border border-clinical-200/80 px-2.5 py-1 rounded-lg inline-block">
+              Catálogo Oficial de Atención
+            </span>
+            <h1 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight font-display">
+              Procedimientos y Tratamientos Médicos
+            </h1>
+            <p class="text-xs sm:text-sm text-slate-500">
+              Explora los tratamientos especializados disponibles y agenda directamente tu valoración clínica.
+            </p>
+          </div>
+          <div class="w-full sm:w-80 relative shrink-0">
+            <input
+              type="text"
+              id="service-search-input"
+              oninput="filterServicesCatalog()"
+              placeholder="Buscar procedimiento o técnica..."
+              class="w-full pl-10 pr-4 py-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs sm:text-sm font-medium placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-clinical-500 focus:bg-white transition-all shadow-2xs"
+            />
+            <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Grid de Servicios (3 columnas en Desktop) -->
+      <div id="services-modal-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        ${todosServiciosModalHtml}
+      </div>
+      <div id="no-services-found" class="hidden text-center py-16 bg-white rounded-3xl border border-slate-200 shadow-sm space-y-3">
+        <p class="text-sm font-bold text-slate-700">No se encontraron procedimientos coincidentes</p>
+        <p class="text-xs text-slate-500">Intenta con otro término o consulta directamente por WhatsApp.</p>
+      </div>
+    </main>
+  </div>
+
+  <!-- PÁGINA INDEPENDIENTE: DETALLE DE SERVICIO INDIVIDUAL ("Ver más") -->
+  <div id="single-service-detail-modal" class="fixed inset-0 bg-slate-50 z-[100] hidden flex-col overflow-y-auto text-left selection:bg-clinical-600 selection:text-white" onclick="closeSingleServiceModal(event)">
+    <div id="single-service-modal-content" class="flex flex-col min-h-full">
+      <!-- Generado dinámicamente por JS openSingleServiceModal(idx) -->
+    </div>
+  </div>
+
+  <!-- MODAL DE VISOR DE FOTOS CLÍNICAS (HD LIGHTBOX CON ZOOM Y NAVEGACIÓN) -->
+  <div id="gallery-lightbox-modal" class="fixed inset-0 bg-slate-950/95 backdrop-blur-md z-[130] hidden flex-col justify-between p-3 sm:p-6 select-none" onclick="closeGeneratedLightbox(event)">
+    <div class="flex items-center justify-between gap-3 text-white z-20 shrink-0 bg-slate-900/90 backdrop-blur-md px-4 py-3 rounded-2xl border border-white/10 shadow-xl" onclick="event.stopPropagation()">
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="p-2 rounded-xl bg-blue-600/30 text-blue-400 border border-blue-500/30 shrink-0">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        </div>
+        <div class="min-w-0">
+          <h4 id="lightbox-title" class="text-xs sm:text-sm font-bold text-white truncate">Galería Fotográfica</h4>
+          <p id="lightbox-counter" class="text-[11px] text-slate-400">Fotografía clínica</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        <div class="flex items-center bg-slate-800/90 rounded-xl p-1 border border-white/10">
+          <button type="button" onclick="lightboxZoomOut()" class="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 cursor-pointer" title="Alejar (-)">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
+          </button>
+          <span id="lightbox-zoom-val" class="text-[10px] font-mono font-bold px-2 text-slate-300 min-w-[42px] text-center">100%</span>
+          <button type="button" onclick="lightboxZoomIn()" class="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 cursor-pointer" title="Acercar (+)">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          </button>
+        </div>
+        <button type="button" onclick="closeGeneratedLightbox()" class="p-2 rounded-xl bg-red-600/80 hover:bg-red-600 text-white transition-all cursor-pointer border border-red-500/30" title="Cerrar visor (Esc)">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="relative flex-1 flex items-center justify-center p-2 sm:p-4 overflow-hidden" onclick="event.stopPropagation()">
+      <button type="button" id="lightbox-prev-btn" onclick="lightboxPrev()" class="absolute left-2 sm:left-4 z-30 p-3 sm:p-4 rounded-full bg-slate-900/80 hover:bg-blue-600 text-white shadow-2xl border border-white/20 transition-all cursor-pointer hover:scale-110 active:scale-95" title="Foto anterior">
+        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="relative max-w-full max-h-full flex items-center justify-center overflow-hidden">
+        <img id="lightbox-main-img" src="" alt="Fotografía clínica HD" class="max-h-[75vh] max-w-[90vw] sm:max-w-[85vw] object-contain rounded-2xl shadow-2xl transition-transform duration-200 cursor-zoom-in" onclick="toggleLightboxZoom()" />
+      </div>
+      <button type="button" id="lightbox-next-btn" onclick="lightboxNext()" class="absolute right-2 sm:right-4 z-30 p-3 sm:p-4 rounded-full bg-slate-900/80 hover:bg-blue-600 text-white shadow-2xl border border-white/20 transition-all cursor-pointer hover:scale-110 active:scale-95" title="Siguiente foto">
+        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      </button>
+    </div>
+
+    <div id="lightbox-thumbs-container" class="shrink-0 flex items-center justify-center gap-2 py-2 overflow-x-auto max-w-full z-20 px-2" onclick="event.stopPropagation()">
+      <div id="lightbox-thumbs-track" class="flex items-center gap-2 bg-slate-900/80 backdrop-blur-md p-2 rounded-2xl border border-white/10 shadow-xl max-w-full overflow-x-auto"></div>
+    </div>
+  </div>
+
   <!-- MODAL DE ARTÍCULO DE BLOG (Estilo Modal Centrado con Lazy Loading) -->
-  <div id="blog-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+  <div id="blog-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
     <div class="bg-white rounded-3xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
       <!-- Cabecera con Imagen -->
       <div class="relative h-48 sm:h-64 bg-slate-100 shrink-0">
-        <img id="modal-blog-img" src="" alt="" width="800" height="400" class="w-full h-full object-cover" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
+        <img id="modal-blog-img" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E" alt="" width="800" height="400" class="w-full h-full object-cover" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
         <button onclick="closeBlogModal()" class="absolute top-4 right-4 bg-white/95 backdrop-blur-sm p-2 rounded-full text-gray-700 hover:text-gray-950 hover:scale-105 shadow-md transition-all cursor-pointer">
           <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
         </button>
@@ -3594,7 +4863,7 @@ ${jsonLd}
   </div>
 
   <!-- MODAL DE REPRODUCTOR DE VIDEO / REEL SOCIAL INLINE -->
-  <div id="social-video-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex items-center justify-center p-3 sm:p-4" onclick="closeSocialVideoModal(event)">
+  <div id="social-video-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden items-center justify-center p-3 sm:p-4" onclick="closeSocialVideoModal(event)">
     <div class="bg-slate-900 border border-slate-700/80 rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl flex flex-col text-white my-auto" onclick="event.stopPropagation()">
       <!-- Cabecera del reproductor -->
       <div class="p-4 bg-slate-800/90 border-b border-slate-700 flex items-center justify-between gap-3 shrink-0">
@@ -3648,7 +4917,7 @@ ${jsonLd}
   </div>
 
   <!-- MODAL LEAD MAGNET: DESCARGA DE GUÍAS PARA PACIENTES -->
-  <div id="patient-guide-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex items-center justify-center p-4 overflow-y-auto" onclick="closePatientGuideModal(event)">
+  <div id="patient-guide-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden items-center justify-center p-4 overflow-y-auto" onclick="closePatientGuideModal(event)">
     <div class="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-200 text-left my-auto" onclick="event.stopPropagation()">
       <!-- Cabecera del modal -->
       <div class="bg-gradient-to-r from-emerald-800 to-slate-900 p-5 text-white flex items-center justify-between gap-3">
@@ -3832,6 +5101,7 @@ ${jsonLd}
 
       container.innerHTML = embedHtml;
       modal.classList.remove('hidden');
+      modal.classList.add('flex');
       document.body.style.overflow = 'hidden';
     }
 
@@ -3842,6 +5112,7 @@ ${jsonLd}
       const modal = document.getElementById('social-video-modal');
       const container = document.getElementById('social-video-frame-container');
       if (modal) {
+        modal.classList.remove('flex');
         modal.classList.add('hidden');
         document.body.style.overflow = '';
       }
@@ -3850,11 +5121,118 @@ ${jsonLd}
       }
     }
 
+    // Modal de Compartir Perfil y Redes Sociales
+    function openShareModal() {
+      const modal = document.getElementById('share-modal');
+      if (!modal) return;
+
+      const currentUrl = window.location.href;
+      const shareTitle = "${data.nombreMedico.replace(/"/g, '\\"')} - ${data.especialidad.replace(/"/g, '\\"')}";
+      const shareText = "Consulta médica y perfil profesional de ${data.nombreMedico.replace(/"/g, '\\"')}, especialista en ${data.especialidad.replace(/"/g, '\\"')} en ${data.ciudad.replace(/"/g, '\\"')}:";
+
+      const urlInput = document.getElementById('share-modal-url-input');
+      if (urlInput) {
+        urlInput.value = currentUrl;
+      }
+
+      const waBtn = document.getElementById('share-link-whatsapp');
+      if (waBtn) waBtn.href = "https://api.whatsapp.com/send?text=" + encodeURIComponent(shareText + " " + currentUrl);
+
+      const fbBtn = document.getElementById('share-link-facebook');
+      if (fbBtn) fbBtn.href = "https://www.facebook.com/sharer/sharer.php?u=" + encodeURIComponent(currentUrl);
+
+      const twBtn = document.getElementById('share-link-twitter');
+      if (twBtn) twBtn.href = "https://twitter.com/intent/tweet?text=" + encodeURIComponent(shareTitle + " - " + "${data.ciudad.replace(/"/g, '\\"')}") + "&url=" + encodeURIComponent(currentUrl);
+
+      const tgBtn = document.getElementById('share-link-telegram');
+      if (tgBtn) tgBtn.href = "https://t.me/share/url?url=" + encodeURIComponent(currentUrl) + "&text=" + encodeURIComponent(shareTitle + " en " + "${data.ciudad.replace(/"/g, '\\"')}");
+
+      const liBtn = document.getElementById('share-link-linkedin');
+      if (liBtn) liBtn.href = "https://www.linkedin.com/sharing/share-offsite/?url=" + encodeURIComponent(currentUrl);
+
+      const emBtn = document.getElementById('share-link-email');
+      if (emBtn) emBtn.href = "mailto:?subject=" + encodeURIComponent(shareTitle) + "&body=" + encodeURIComponent(shareText + "\\n\\n" + currentUrl);
+
+      const qrImg = document.getElementById('share-modal-qr-img');
+      if (qrImg) {
+        qrImg.src = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" + encodeURIComponent(currentUrl);
+      }
+
+      const nativeContainer = document.getElementById('native-share-btn-container');
+      if (nativeContainer && navigator && typeof navigator.share === 'function') {
+        nativeContainer.classList.remove('hidden');
+      }
+
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeShareModal(e) {
+      if (e && e.target !== e.currentTarget && e.target.id !== 'share-modal') {
+        return;
+      }
+      const modal = document.getElementById('share-modal');
+      if (modal) {
+        modal.classList.remove('flex');
+        modal.classList.add('hidden');
+        document.body.style.overflow = '';
+      }
+    }
+
+    function triggerNativeShare() {
+      if (navigator && typeof navigator.share === 'function') {
+        navigator.share({
+          title: "${data.nombreMedico.replace(/"/g, '\\"')} - ${data.especialidad.replace(/"/g, '\\"')}",
+          text: "Consulta médica y perfil profesional de ${data.nombreMedico.replace(/"/g, '\\"')} en ${data.ciudad.replace(/"/g, '\\"')}",
+          url: window.location.href
+        }).catch(() => {});
+      }
+    }
+
+    function copyShareModalUrl() {
+      const currentUrl = window.location.href;
+      const copyBtn = document.getElementById('share-modal-copy-btn');
+      const copyText = document.getElementById('share-copy-btn-text');
+
+      const performCopy = () => {
+        if (copyBtn && copyText) {
+          copyBtn.classList.remove('bg-slate-900', 'hover:bg-slate-800');
+          copyBtn.classList.add('bg-emerald-600', 'text-white');
+          copyText.textContent = '¡Copiado!';
+          setTimeout(() => {
+            copyBtn.classList.remove('bg-emerald-600');
+            copyBtn.classList.add('bg-slate-900', 'hover:bg-slate-800');
+            copyText.textContent = 'Copiar';
+          }, 2500);
+        }
+      };
+
+      if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(currentUrl).then(performCopy).catch(() => {
+          const input = document.getElementById('share-modal-url-input');
+          if (input) {
+            input.select();
+            document.execCommand('copy');
+            performCopy();
+          }
+        });
+      } else {
+        const input = document.getElementById('share-modal-url-input');
+        if (input) {
+          input.select();
+          document.execCommand('copy');
+          performCopy();
+        }
+      }
+    }
+
     // Modal de Perfil Médico y Certificaciones
     function openProfileModal() {
       const modal = document.getElementById('profile-modal');
       if (modal) {
         modal.classList.remove('hidden');
+        modal.classList.add('flex');
         document.body.style.overflow = 'hidden';
       }
     }
@@ -3865,16 +5243,490 @@ ${jsonLd}
       }
       const modal = document.getElementById('profile-modal');
       if (modal) {
+        modal.classList.remove('flex');
         modal.classList.add('hidden');
         document.body.style.overflow = '';
       }
     }
+
+    // Datos globales de servicios para el modal de detalle
+    window.servicesData = ${JSON.stringify((data.servicios || []).map(s => ({
+      titulo: s.titulo || '',
+      descripcion: s.descripcion || '',
+      imagenUrl: s.imagenUrl || '',
+      mostrarImagen: s.mostrarImagen !== false,
+      precio: s.precio || '',
+      duracion: s.duracion || '',
+      recuperacion: s.recuperacion || '',
+      modalidad: s.modalidad || '',
+      badgeEtiqueta: s.badgeEtiqueta || '',
+      destacado: Boolean(s.destacado),
+      galeriaFotos: s.galeriaFotos || [],
+      reelUrl: s.reelUrl || s.videoUrl || '',
+      codigoEmbed: s.codigoEmbed || '',
+      codigosEmbed: s.codigosEmbed || []
+    })))};
+
+    // Alternar visibilidad de "Más servicios" en la grilla principal
+    function toggleMoreServicesGrid() {
+      const extraCards = document.querySelectorAll('.extra-service-card');
+      const txt = document.getElementById('txt-toggle-more-services');
+      const icon = document.getElementById('icon-toggle-more-services');
+      const subtxt = document.getElementById('subtxt-toggle-more-services');
+      
+      let isExpanded = false;
+      extraCards.forEach(card => {
+        if (card.classList.contains('hidden')) {
+          card.classList.remove('hidden');
+          card.classList.add('flex');
+          isExpanded = true;
+        } else {
+          card.classList.add('hidden');
+          card.classList.remove('flex');
+        }
+      });
+
+      if (txt) txt.textContent = isExpanded ? "Menos servicios" : "Más servicios";
+      if (icon) {
+        if (isExpanded) {
+          icon.classList.add('rotate-180');
+        } else {
+          icon.classList.remove('rotate-180');
+        }
+      }
+      if (subtxt) {
+        subtxt.textContent = isExpanded 
+          ? "Mostrando la totalidad de tratamientos y procedimientos disponibles" 
+          : "Explora los procedimientos adicionales";
+      }
+    }
+
+    // Modal / Vista de Detalle de Servicio Individual ("Ver más")
+    function openSingleServiceModal(idx) {
+      if (!window.servicesData) return;
+      const numIdx = typeof idx === 'number' ? idx : parseInt(idx, 10);
+      const srv = window.servicesData[numIdx] !== undefined ? window.servicesData[numIdx] : window.servicesData[idx];
+      if (!srv) return;
+      const container = document.getElementById('single-service-modal-content');
+      const modal = document.getElementById('single-service-detail-modal');
+      if (!container || !modal) return;
+
+      const hasImg = srv.mostrarImagen !== false && Boolean(srv.imagenUrl);
+      const badgeText = srv.badgeEtiqueta || (srv.destacado ? "DESTACADO" : "");
+      
+      const rawEmbeds = (Array.isArray(srv.codigosEmbed) && srv.codigosEmbed.length > 0)
+        ? srv.codigosEmbed
+        : [srv.codigoEmbed || srv.reelUrl || srv.videoUrl];
+      const embedItems = rawEmbeds.filter(Boolean);
+
+      let reelHtml = '';
+      if (embedItems.length > 0) {
+        let itemsHtml = '';
+        for (let i = 0; i < embedItems.length; i++) {
+          const item = embedItems[i];
+          if (typeof item === 'string' && item.includes('<iframe')) {
+            itemsHtml += '<div class="w-full rounded-2xl overflow-hidden border border-slate-200 bg-black flex items-center justify-center min-h-[300px] shadow-sm">' + item + '</div>';
+          } else {
+            const safeUrl = String(item || '');
+            itemsHtml += '<div class="p-4 rounded-2xl border border-slate-200 bg-slate-900 text-white flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">' +
+              '<div class="text-left"><p class="text-xs font-bold text-slate-100">Video / Reel Demostrativo #' + (i + 1) + '</p><p class="text-[11px] text-slate-400 truncate max-w-xs">' + safeUrl + '</p></div>' +
+              '<a href="' + safeUrl + '" target="_blank" rel="noopener noreferrer" class="px-4 py-2 rounded-xl bg-pink-600 hover:bg-pink-700 text-white font-extrabold text-xs shrink-0 shadow-xs">Ver Reel Original</a>' +
+            '</div>';
+          }
+        }
+        reelHtml = '<div class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm space-y-4 text-left">' +
+          '<div class="flex items-center gap-2.5 border-b border-slate-100 pb-3">' +
+            '<div class="p-2 rounded-xl bg-clinical-50 text-clinical-600 border border-clinical-200 shrink-0"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg></div>' +
+            '<div><h3 class="text-sm sm:text-base font-black text-clinical-600 uppercase tracking-wider font-display">Demostración en Video & Reels</h3></div>' +
+          '</div>' +
+          '<div class="space-y-3">' + itemsHtml + '</div>' +
+        '</div>';
+      }
+
+      let galleryHtml = '';
+      const fotos = Array.isArray(srv.galeriaFotos) ? srv.galeriaFotos.filter(Boolean) : [];
+      if (fotos.length > 0) {
+        let fotosCards = '';
+        for (let fIdx = 0; fIdx < fotos.length; fIdx++) {
+          const img = fotos[fIdx];
+          const photoIndexInAll = fIdx + 1;
+          fotosCards += '<div class="relative group aspect-4/3 rounded-2xl overflow-hidden border border-slate-200 bg-slate-900 flex items-center justify-center cursor-pointer hover:shadow-md transition-all" onclick="openGeneratedLightboxByService(' + numIdx + ', ' + photoIndexInAll + ')">' +
+            '<img src="' + img + '" alt="Foto ' + (fIdx + 1) + '" class="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300" loading="lazy" />' +
+            '<div class="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-[11px] font-bold gap-1 pointer-events-none">' +
+              '<svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 1114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg>' +
+              '<span>Ampliar HD</span>' +
+            '</div>' +
+          '</div>';
+        }
+        galleryHtml = '<div class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm space-y-4 text-left">' +
+          '<div class="flex items-center justify-between border-b border-slate-100 pb-3">' +
+            '<div class="flex items-center gap-2.5">' +
+              '<div class="p-2 rounded-xl bg-clinical-50 text-clinical-600 border border-clinical-200 shrink-0"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg></div>' +
+              '<div><h3 class="text-sm sm:text-base font-black text-clinical-600 uppercase tracking-wider font-display">Galería Fotográfica (' + fotos.length + ')</h3></div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">' + fotosCards + '</div>' +
+        '</div>';
+      }
+
+      let headerImgHtml = '';
+      if (hasImg) {
+        headerImgHtml = '<img src="' + srv.imagenUrl + '" alt="" class="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-30 select-none pointer-events-none" aria-hidden="true" />' +
+          '<img src="' + srv.imagenUrl + '" alt="" class="relative w-full h-full object-contain z-10 cursor-pointer group-hover:scale-[1.01] transition-transform duration-300" onclick="openGeneratedLightboxByService(' + numIdx + ', 0)" />';
+      } else {
+        headerImgHtml = '<div class="w-full h-full bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 flex flex-col items-center justify-center text-white p-8 text-center"><span class="text-xl font-black">' + (srv.titulo || '') + '</span><span class="text-xs text-slate-300 mt-1">Tratamiento Médico Especializado</span></div>';
+      }
+
+      let zoomBtnHtml = hasImg 
+        ? '<button type="button" onclick="openGeneratedLightboxByService(' + numIdx + ', 0)" class="absolute bottom-3 right-3 p-2 rounded-xl bg-slate-900/85 hover:bg-blue-600 text-white shadow-lg transition-all cursor-pointer hover:scale-105 border border-white/20 flex items-center gap-1.5 px-3 text-xs font-bold z-20" title="Ampliar foto"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg><span class="hidden sm:inline">Ampliar HD</span></button>'
+        : '';
+
+      let badgeSpanHtml = badgeText
+        ? '<span class="text-[10px] sm:text-xs font-black uppercase tracking-wider bg-amber-400 text-amber-950 px-3 py-1 rounded-full shadow-md border border-amber-300 inline-block">⭐ ' + badgeText + '</span>'
+        : '';
+
+      let fichaBadgesHtml = '';
+      if (srv.precio) {
+        fichaBadgesHtml += '<div class="p-3.5 rounded-2xl bg-emerald-50/90 border border-emerald-200/80 flex flex-col justify-center"><span class="block text-[10px] font-bold text-emerald-700 uppercase">Inversión</span><span class="font-black text-emerald-950 text-sm sm:text-base mt-1 block">' + srv.precio + '</span></div>';
+      }
+      if (srv.duracion) {
+        fichaBadgesHtml += '<div class="p-3.5 rounded-2xl bg-blue-50/90 border border-blue-200/80 flex flex-col justify-center"><span class="block text-[10px] font-bold text-blue-700 uppercase">Duración</span><span class="font-black text-blue-950 text-sm sm:text-base mt-1 block">⏳ ' + srv.duracion + '</span></div>';
+      }
+      if (srv.recuperacion) {
+        fichaBadgesHtml += '<div class="p-3.5 rounded-2xl bg-purple-50/90 border border-purple-200/80 flex flex-col justify-center"><span class="block text-[10px] font-bold text-purple-700 uppercase">Recuperación</span><span class="font-black text-purple-950 text-sm sm:text-base mt-1 block">⏱️ ' + srv.recuperacion + '</span></div>';
+      }
+      if (srv.modalidad) {
+        fichaBadgesHtml += '<div class="p-3.5 rounded-2xl bg-teal-50/90 border border-teal-200/80 flex flex-col justify-center"><span class="block text-[10px] font-bold text-teal-700 uppercase">Modalidad</span><span class="font-black text-teal-950 text-sm sm:text-base mt-1 block">🏥 ' + srv.modalidad + '</span></div>';
+      }
+
+      let segurosHtml = '';
+      ${data.aseguradoras && data.aseguradoras.length > 0 ? `
+        segurosHtml = '<div class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm space-y-4 text-left">' +
+          '<div class="flex items-center gap-2.5 border-b border-slate-100 pb-3">' +
+            '<div class="p-2.5 rounded-2xl bg-clinical-50 text-clinical-600 border border-clinical-200/80 flex items-center justify-center shrink-0"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg></div>' +
+            '<div><h3 class="text-sm sm:text-base font-black text-clinical-600 uppercase tracking-wider font-display">Cobertura de Seguros Médicos & Reembolso SRI (Ecuador)</h3></div>' +
+          '</div>' +
+          '<p class="text-base sm:text-lg text-slate-700 leading-relaxed font-normal pt-1">' +
+            'Para este tratamiento se emite <strong class="text-slate-900 font-semibold">Factura Electrónica autorizada por el SRI</strong> y <strong class="text-slate-900 font-semibold">Formulario de Reclamo Médico firmado</strong> con código CIE-10 para trámite de reembolso o cobertura con las principales aseguradoras (${data.aseguradoras.slice(0, 5).join(", ")}${data.aseguradoras.length > 5 ? " y más" : ""}).' +
+          '</p>' +
+        '</div>';
+      ` : ''}
+
+      container.innerHTML = 
+        '<!-- Header de la Página Independiente -->' +
+        '<header class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-2xs shrink-0">' +
+          '<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-18 flex items-center justify-between gap-3">' +
+            '<button type="button" onclick="closeSingleServiceModal()" class="inline-flex items-center gap-2.5 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-clinical-50 border border-clinical-200 text-clinical-700 hover:bg-clinical-100 active:scale-95 font-black text-xs sm:text-sm transition-all cursor-pointer shadow-2xs group" aria-label="Regresar">' +
+              '<svg class="w-4 h-4 text-clinical-600 group-hover:-translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>' +
+              '<span>Regresar</span>' +
+            '</button>' +
+          '</div>' +
+        '</header>' +
+
+        '<!-- Cuerpo de la Página (Desktop 2 Columnas) -->' +
+        '<main class="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">' +
+          '<nav class="flex items-center gap-2 text-xs text-slate-500 font-medium mb-6 flex-wrap">' +
+            '<button type="button" onclick="closeSingleServiceModal()" class="hover:underline transition-colors cursor-pointer font-semibold text-clinical-700">Inicio</button>' +
+            '<span class="text-slate-300">/</span>' +
+            '<button type="button" onclick="closeSingleServiceModal()" class="hover:underline transition-colors cursor-pointer font-semibold text-clinical-700">Procedimientos & Tratamientos</button>' +
+            '<span class="text-slate-300">/</span>' +
+            '<span class="text-slate-900 font-bold truncate max-w-xs">' + (srv.titulo || '') + '</span>' +
+          '</nav>' +
+
+          '<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-start">' +
+            '<!-- Columna Izquierda (7 cols) -->' +
+            '<div class="lg:col-span-7 space-y-6">' +
+              '<div class="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden p-2 sm:p-3">' +
+                '<div class="relative aspect-16/10 sm:aspect-16/9 bg-slate-950 rounded-2xl overflow-hidden group select-none flex items-center justify-center">' +
+                  headerImgHtml +
+                  (badgeSpanHtml ? '<div class="absolute top-3 left-3 z-20">' + badgeSpanHtml + '</div>' : '') +
+                  zoomBtnHtml +
+                '</div>' +
+              '</div>' +
+
+              '<div class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm space-y-4 text-left">' +
+                '<div class="flex items-center gap-2.5 border-b border-slate-100 pb-3">' +
+                  '<div class="p-2.5 rounded-2xl bg-clinical-50 text-clinical-600 border border-clinical-200/80 flex items-center justify-center shrink-0"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></div>' +
+                  '<div><h3 class="text-sm sm:text-base font-black text-clinical-600 uppercase tracking-wider font-display">Descripción Clínica del Tratamiento</h3></div>' +
+                '</div>' +
+                '<div class="text-base sm:text-lg text-slate-700 leading-relaxed whitespace-pre-line font-normal pt-1">' + (srv.descripcion || '') + '</div>' +
+              '</div>' +
+
+              galleryHtml +
+              reelHtml +
+              segurosHtml +
+            '</div>' +
+
+            '<!-- Columna Derecha (5 cols) Sticky Sidebar -->' +
+            '<div class="lg:col-span-5 space-y-6 lg:sticky lg:top-24">' +
+              '<div class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-lg space-y-6 text-left">' +
+                '<div class="space-y-2">' +
+                  '<span class="text-[10px] font-black uppercase tracking-widest text-clinical-700 bg-clinical-50 border border-clinical-200/80 px-2.5 py-1 rounded-lg inline-block">Procedimiento Especializado</span>' +
+                  '<h1 class="text-2xl sm:text-3xl font-black text-slate-900 leading-tight tracking-tight font-display">' + (srv.titulo || '') + '</h1>' +
+                '</div>' +
+
+                (fichaBadgesHtml ? '<div class="grid grid-cols-2 gap-3">' + fichaBadgesHtml + '</div>' : '') +
+
+                '<div class="space-y-3 pt-2">' +
+                  '<button type="button" onclick="selectServiceForBookingByIdx(' + numIdx + ')" class="w-full py-4 px-6 rounded-2xl bg-clinical-600 hover:bg-clinical-700 text-white font-extrabold text-sm sm:text-base uppercase tracking-wider flex items-center justify-center gap-2.5 shadow-xl shadow-clinical-600/30 transition-all cursor-pointer group">' +
+                    '<span>Seleccionar y Agendar</span>' +
+                    '<svg class="w-5 h-5 text-white group-hover:translate-x-1 transition-transform shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>' +
+                  '</button>' +
+                  '<button type="button" onclick="closeSingleServiceModal()" class="w-full py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer text-center">' +
+                    'Explorar otros procedimientos' +
+                  '</button>' +
+                '</div>' +
+
+                '<div class="space-y-3 pt-4 border-t border-slate-100 text-left text-xs text-slate-700 font-medium">' +
+                  '<div class="flex items-start gap-2"><svg class="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg><span>Atención profesional personalizada y evaluación minuciosa</span></div>' +
+                  '<div class="flex items-start gap-2"><svg class="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg><span>Protocolos médicos respaldados con evidencia clínica</span></div>' +
+                  '<div class="flex items-start gap-2"><svg class="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg><span>Factura electrónica oficial para reembolso de seguros SRI</span></div>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+        '</main>' +
+
+        '<!-- Barra Fija Inferior para Mobile -->' +
+        '<div class="lg:hidden sticky bottom-0 inset-x-0 p-3 sm:p-4 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-2xl flex items-center gap-3 z-40">' +
+          '<button type="button" onclick="closeSingleServiceModal()" class="p-3 rounded-2xl bg-clinical-50 text-clinical-700 border border-clinical-200 font-bold transition-colors cursor-pointer shrink-0">' +
+            '<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>' +
+          '</button>' +
+          '<button type="button" onclick="selectServiceForBookingByIdx(' + numIdx + ')" class="flex-1 py-3.5 px-5 rounded-2xl bg-clinical-600 hover:bg-clinical-700 text-white font-extrabold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg cursor-pointer">' +
+            '<span>Seleccionar Servicio</span>' +
+          '</button>' +
+        '</div>';
+
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeSingleServiceModal(e) {
+      if (e && e.target !== e.currentTarget && e.target.id !== 'single-service-detail-modal') return;
+      const modal = document.getElementById('single-service-detail-modal');
+      if (modal) {
+        modal.classList.remove('flex');
+        modal.classList.add('hidden');
+        document.body.style.overflow = '';
+      }
+    }
+
+    // 4.3 Visor Lightbox Global de Imágenes Clínicas
+    let currentLightboxImages = [];
+    let currentLightboxIndex = 0;
+    let currentLightboxZoom = 1;
+    let currentLightboxTitle = '';
+
+    window.openGeneratedLightboxByService = function(srvIdx, photoIdx) {
+      const srv = (window.servicesData || [])[srvIdx];
+      if (!srv) return;
+      const all = [srv.imagenUrl, ...(srv.galeriaFotos || [])].filter(Boolean);
+      currentLightboxImages = all;
+      if (!currentLightboxImages.length) return;
+      currentLightboxTitle = srv.titulo || 'Fotografía Clínica';
+      currentLightboxIndex = typeof photoIdx === 'number' && photoIdx >= 0 && photoIdx < currentLightboxImages.length ? photoIdx : 0;
+      currentLightboxZoom = 1;
+
+      const modal = document.getElementById('gallery-lightbox-modal');
+      if (!modal) return;
+      updateLightboxView();
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      document.body.style.overflow = 'hidden';
+    };
+
+    window.openGeneratedLightbox = function(title, index, customImages) {
+      if (customImages && Array.isArray(customImages)) {
+        currentLightboxImages = customImages.filter(Boolean);
+      } else {
+        const srv = (window.servicesData || []).find(s => s.titulo === title);
+        if (srv) {
+          const all = [srv.imagenUrl, ...(srv.galeriaFotos || [])].filter(Boolean);
+          currentLightboxImages = all;
+        } else {
+          currentLightboxImages = [];
+        }
+      }
+
+      if (!currentLightboxImages.length) return;
+      currentLightboxTitle = title || 'Fotografía Clínica';
+      currentLightboxIndex = typeof index === 'number' && index >= 0 && index < currentLightboxImages.length ? index : 0;
+      currentLightboxZoom = 1;
+
+      const modal = document.getElementById('gallery-lightbox-modal');
+      if (!modal) return;
+      
+      updateLightboxView();
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      document.body.style.overflow = 'hidden';
+    };
+
+    function updateLightboxView() {
+      if (!currentLightboxImages.length) return;
+      const img = document.getElementById('lightbox-main-img');
+      const titleEl = document.getElementById('lightbox-title');
+      const counterEl = document.getElementById('lightbox-counter');
+      const zoomVal = document.getElementById('lightbox-zoom-val');
+      const prevBtn = document.getElementById('lightbox-prev-btn');
+      const nextBtn = document.getElementById('lightbox-next-btn');
+      const track = document.getElementById('lightbox-thumbs-track');
+
+      if (img) {
+        img.src = currentLightboxImages[currentLightboxIndex];
+        img.style.transform = 'scale(' + currentLightboxZoom + ')';
+      }
+      if (titleEl) titleEl.textContent = currentLightboxTitle;
+      if (counterEl) {
+        counterEl.textContent = 'Fotografía clínica ' + (currentLightboxIndex + 1) + ' de ' + currentLightboxImages.length + 
+          (currentLightboxIndex === 0 ? ' (Portada)' : ' (Detalle clínico)');
+      }
+      if (zoomVal) zoomVal.textContent = Math.round(currentLightboxZoom * 100) + '%';
+
+      if (prevBtn && nextBtn) {
+        const hasMultiple = currentLightboxImages.length > 1;
+        prevBtn.style.display = hasMultiple ? 'block' : 'none';
+        nextBtn.style.display = hasMultiple ? 'block' : 'none';
+      }
+
+      if (track) {
+        if (currentLightboxImages.length > 1) {
+          let thumbsHtml = '';
+          for (let i = 0; i < currentLightboxImages.length; i++) {
+            const isAct = i === currentLightboxIndex;
+            thumbsHtml += '<button type="button" onclick="lightboxGoTo(' + i + ')" class="relative w-12 sm:w-16 aspect-square rounded-xl overflow-hidden border-2 transition-all cursor-pointer shrink-0 ' +
+              (isAct ? 'border-blue-500 ring-2 ring-blue-400 scale-105 opacity-100' : 'border-transparent opacity-50 hover:opacity-100') + '">' +
+              '<img src="' + currentLightboxImages[i] + '" class="w-full h-full object-cover" />' +
+              '<span class="absolute bottom-0 inset-x-0 bg-black/70 text-[8px] font-bold text-white text-center py-0.5">#' + (i + 1) + '</span>' +
+            '</button>';
+          }
+          track.innerHTML = thumbsHtml;
+          if (track.parentElement) track.parentElement.style.display = 'flex';
+        } else {
+          if (track.parentElement) track.parentElement.style.display = 'none';
+        }
+      }
+    }
+
+    window.closeGeneratedLightbox = function(e) {
+      if (e && e.target !== e.currentTarget && e.target.id !== 'gallery-lightbox-modal') return;
+      const modal = document.getElementById('gallery-lightbox-modal');
+      if (modal) {
+        modal.classList.remove('flex');
+        modal.classList.add('hidden');
+        document.body.style.overflow = '';
+      }
+    };
+
+    window.lightboxNext = function() {
+      currentLightboxZoom = 1;
+      currentLightboxIndex = (currentLightboxIndex + 1) % currentLightboxImages.length;
+      updateLightboxView();
+    };
+
+    window.lightboxPrev = function() {
+      currentLightboxZoom = 1;
+      currentLightboxIndex = (currentLightboxIndex - 1 + currentLightboxImages.length) % currentLightboxImages.length;
+      updateLightboxView();
+    };
+
+    window.lightboxGoTo = function(idx) {
+      currentLightboxZoom = 1;
+      currentLightboxIndex = idx;
+      updateLightboxView();
+    };
+
+    window.lightboxZoomIn = function() {
+      currentLightboxZoom = Math.min(currentLightboxZoom + 0.35, 3);
+      const img = document.getElementById('lightbox-main-img');
+      const zoomVal = document.getElementById('lightbox-zoom-val');
+      if (img) img.style.transform = 'scale(' + currentLightboxZoom + ')';
+      if (zoomVal) zoomVal.textContent = Math.round(currentLightboxZoom * 100) + '%';
+    };
+
+    window.lightboxZoomOut = function() {
+      currentLightboxZoom = Math.max(currentLightboxZoom - 0.35, 0.75);
+      const img = document.getElementById('lightbox-main-img');
+      const zoomVal = document.getElementById('lightbox-zoom-val');
+      if (img) img.style.transform = 'scale(' + currentLightboxZoom + ')';
+      if (zoomVal) zoomVal.textContent = Math.round(currentLightboxZoom * 100) + '%';
+    };
+
+    window.toggleLightboxZoom = function() {
+      currentLightboxZoom = currentLightboxZoom === 1 ? 1.75 : 1;
+      const img = document.getElementById('lightbox-main-img');
+      const zoomVal = document.getElementById('lightbox-zoom-val');
+      if (img) img.style.transform = 'scale(' + currentLightboxZoom + ')';
+      if (zoomVal) zoomVal.textContent = Math.round(currentLightboxZoom * 100) + '%';
+    };
+
+    function selectServiceForBooking(title) {
+      if (typeof closeSingleServiceModal === 'function') {
+        closeSingleServiceModal();
+      }
+      if (typeof closeServicesModal === 'function') {
+        closeServicesModal();
+      }
+
+      // 1. Asignar tratamiento en el selector interactivo #agenda-service
+      const serviceSelect = document.getElementById('agenda-service');
+      if (serviceSelect && title) {
+        let found = false;
+        for (let i = 0; i < serviceSelect.options.length; i++) {
+          if (serviceSelect.options[i].value === title) {
+            serviceSelect.selectedIndex = i;
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          const opt = document.createElement('option');
+          opt.value = title;
+          opt.text = title;
+          opt.selected = true;
+          serviceSelect.appendChild(opt);
+        }
+        if (typeof window.handleServiceSelectionChange === 'function') {
+          window.handleServiceSelectionChange(title);
+        }
+      }
+
+      // 2. Asignar en cualquier otro campo de entrada de servicio o motivo
+      const inputs = document.querySelectorAll('select, input[type="text"], textarea');
+      inputs.forEach(inp => {
+        if (inp.id === 'motivoConsulta' || inp.name === 'servicio' || (inp.placeholder && inp.placeholder.toLowerCase().includes('servicio'))) {
+          inp.value = title;
+        }
+      });
+
+      // 3. Redireccionar suavemente a la sección de contáctenos / agendar cita
+      const citaSec = document.getElementById('contacto') || document.getElementById('agendar') || document.getElementById('cita');
+      if (citaSec) {
+        citaSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        window.location.hash = '#contacto';
+      }
+    }
+
+    function selectServiceForBookingByIdx(idx) {
+      const numIdx = typeof idx === 'number' ? idx : parseInt(idx, 10);
+      const srv = (window.servicesData || [])[numIdx];
+      const title = srv ? (srv.titulo || '') : '';
+      selectServiceForBooking(title);
+    }
+
+    window.openSingleServiceModal = openSingleServiceModal;
+    window.closeSingleServiceModal = closeSingleServiceModal;
+    window.selectServiceForBooking = selectServiceForBooking;
+    window.selectServiceForBookingByIdx = selectServiceForBookingByIdx;
 
     // Modal de Catálogo Completo de Servicios ("Mis Servicios")
     function openServicesModal() {
       const modal = document.getElementById('services-modal');
       if (modal) {
         modal.classList.remove('hidden');
+        modal.classList.add('flex');
         document.body.style.overflow = 'hidden';
         const input = document.getElementById('service-search-input');
         if (input) {
@@ -3891,6 +5743,7 @@ ${jsonLd}
       }
       const modal = document.getElementById('services-modal');
       if (modal) {
+        modal.classList.remove('flex');
         modal.classList.add('hidden');
         document.body.style.overflow = '';
       }
@@ -3989,25 +5842,148 @@ ${jsonLd}
 
     // 2. Acordeón Interactivo de FAQs con atributos ARIA para Accesibilidad
     function toggleFaq(index) {
-      const answerElement = document.getElementById('faq-answer-' + index);
-      const iconElement = document.getElementById('faq-icon-' + index);
-      const buttonElement = answerElement.previousElementSibling;
-      const isExpanded = buttonElement.getAttribute('aria-expanded') === 'true';
+      try {
+        const answerElement = document.getElementById('faq-answer-' + index);
+        const iconElement = document.getElementById('faq-icon-' + index);
+        if (!answerElement) return;
+        
+        const isHidden = answerElement.classList.contains('hidden');
+        const buttonElement = answerElement.previousElementSibling;
 
-      if (isExpanded) {
-        // Colapsar
-        answerElement.classList.add('hidden');
-        buttonElement.setAttribute('aria-expanded', 'false');
-        answerElement.setAttribute('aria-hidden', 'true');
-        iconElement.classList.remove('rotate-180');
-      } else {
-        // Expandir
-        answerElement.classList.remove('hidden');
-        buttonElement.setAttribute('aria-expanded', 'true');
-        answerElement.setAttribute('aria-hidden', 'false');
-        iconElement.classList.add('rotate-180');
+        if (!isHidden) {
+          // Colapsar
+          answerElement.classList.add('hidden');
+          if (buttonElement) buttonElement.setAttribute('aria-expanded', 'false');
+          answerElement.setAttribute('aria-hidden', 'true');
+          if (iconElement) iconElement.classList.remove('rotate-180');
+        } else {
+          // Expandir
+          answerElement.classList.remove('hidden');
+          if (buttonElement) buttonElement.setAttribute('aria-expanded', 'true');
+          answerElement.setAttribute('aria-hidden', 'false');
+          if (iconElement) iconElement.classList.add('rotate-180');
+        }
+      } catch (err) {
+        console.error("Error al desplegar FAQ:", err);
       }
     }
+    window.toggleFaq = toggleFaq;
+
+    let faqsExpandedAll = false;
+    function toggleMoreFaqs() {
+      try {
+        const extraItems = document.querySelectorAll('.faq-extra-item');
+        const txtElem = document.getElementById('txt-toggle-more-faqs');
+        const iconElem = document.getElementById('icon-toggle-more-faqs');
+        faqsExpandedAll = !faqsExpandedAll;
+
+        extraItems.forEach(item => {
+          if (faqsExpandedAll) {
+            item.classList.remove('hidden');
+          } else {
+            item.classList.add('hidden');
+          }
+        });
+
+        if (txtElem) {
+          const totalCount = ${totalFaqsCount};
+          txtElem.innerText = faqsExpandedAll 
+            ? "Ver menos preguntas" 
+            : ("Ver más preguntas frecuentes (" + (totalCount - 3) + " más)");
+        }
+        if (iconElem) {
+          if (faqsExpandedAll) {
+            iconElem.classList.add('rotate-180');
+          } else {
+            iconElem.classList.remove('rotate-180');
+          }
+        }
+      } catch (err) {
+        console.error("Error al desplegar mas FAQs:", err);
+      }
+    }
+    window.toggleMoreFaqs = toggleMoreFaqs;
+
+    // Helper para uniones seguras en JS estático
+    function safeJoinJS(val, sep) {
+      if (!val) return "";
+      if (Array.isArray(val)) return val.filter(Boolean).join(sep || ", ");
+      if (typeof val === "string") return val.trim();
+      return "";
+    }
+
+    // 3. FUNCIONES DE ACORDEÓN DE PREGUNTAS FRECUENTES Y ASISTENTE VIRTUAL
+    function toggleFaqAccordion(faqId) {
+      try {
+        const content = document.getElementById('faq-content-' + faqId);
+        const card = document.querySelector('[data-faq-id="' + faqId + '"]');
+        if (!content || !card) return;
+
+        const isCurrentlyHidden = content.classList.contains('hidden');
+        const button = card.querySelector('button');
+        
+        // Si ya está abierto, colapsarlo
+        if (!isCurrentlyHidden) {
+          content.classList.add('hidden');
+          card.classList.remove('bg-slate-50/90', 'border-blue-300', 'shadow-xs', 'ring-1', 'ring-blue-400/20');
+          card.classList.add('bg-white', 'border-slate-200');
+          if (button) button.setAttribute('aria-expanded', 'false');
+          const title = card.querySelector('h4');
+          if (title) {
+            title.classList.remove('text-blue-900');
+            title.classList.add('text-slate-800');
+          }
+          const chev = card.querySelector('.faq-chevron');
+          if (chev) {
+            chev.classList.remove('rotate-180', 'bg-blue-50', 'text-blue-600', 'border-blue-200', 'shadow-2xs');
+            chev.classList.add('bg-slate-50', 'text-slate-400', 'border-slate-200/80');
+          }
+          return;
+        }
+
+        // Cerrar todos los demás acordes
+        document.querySelectorAll('.faq-accordion-item').forEach(item => {
+          const cId = item.getAttribute('data-faq-id');
+          const cElem = document.getElementById('faq-content-' + cId);
+          const chev = item.querySelector('.faq-chevron');
+          const btn = item.querySelector('button');
+          const title = item.querySelector('h4');
+          
+          if (cElem) cElem.classList.add('hidden');
+          item.classList.remove('bg-slate-50/90', 'border-blue-300', 'shadow-xs', 'ring-1', 'ring-blue-400/20');
+          item.classList.add('bg-white', 'border-slate-200');
+          if (btn) btn.setAttribute('aria-expanded', 'false');
+          if (title) {
+            title.classList.remove('text-blue-900');
+            title.classList.add('text-slate-800');
+          }
+          if (chev) {
+            chev.classList.remove('rotate-180', 'bg-blue-50', 'text-blue-600', 'border-blue-200', 'shadow-2xs');
+            chev.classList.add('bg-slate-50', 'text-slate-400', 'border-slate-200/80');
+          }
+        });
+
+        // Abrir el seleccionado
+        content.classList.remove('hidden');
+        card.classList.remove('bg-white', 'border-slate-200');
+        card.classList.add('bg-slate-50/90', 'border-blue-300', 'shadow-xs', 'ring-1', 'ring-blue-400/20');
+        if (button) button.setAttribute('aria-expanded', 'true');
+        const activeTitle = card.querySelector('h4');
+        if (activeTitle) {
+          activeTitle.classList.remove('text-slate-800');
+          activeTitle.classList.add('text-blue-900');
+        }
+        
+        const chev = card.querySelector('.faq-chevron');
+        if (chev) {
+          chev.classList.remove('bg-slate-50', 'text-slate-400', 'border-slate-200/80');
+          chev.classList.add('rotate-180', 'bg-blue-50', 'text-blue-600', 'border-blue-200', 'shadow-2xs');
+        }
+      } catch (err) {
+        console.error("Error en toggleFaqAccordion:", err);
+      }
+    }
+    window.toggleFaqAccordion = toggleFaqAccordion;
 
     // 4. Modal de Blog Médico
     const blogPostsData = ${JSON.stringify(data.blogPosts || [])};
@@ -4026,11 +6002,13 @@ ${jsonLd}
       
       const modal = document.getElementById('blog-modal');
       modal.classList.remove('hidden');
+      modal.classList.add('flex');
       document.body.style.overflow = 'hidden';
     }
     
     function closeBlogModal() {
       const modal = document.getElementById('blog-modal');
+      modal.classList.remove('flex');
       modal.classList.add('hidden');
       document.body.style.overflow = '';
     }
@@ -4051,6 +6029,7 @@ ${jsonLd}
         const modal = document.getElementById('patient-guide-modal');
         if (modal) {
           modal.classList.remove('hidden');
+          modal.classList.add('flex');
           document.body.style.overflow = 'hidden';
         }
       } else {
@@ -4065,6 +6044,7 @@ ${jsonLd}
       }
       const modal = document.getElementById('patient-guide-modal');
       if (modal) {
+        modal.classList.remove('flex');
         modal.classList.add('hidden');
         document.body.style.overflow = '';
       }
@@ -4173,12 +6153,89 @@ ${jsonLd}
       });
     });
 
-    // 5. Formulario de Selección de Fecha de Cita, Modal de Resumen y WhatsApp Dinámico
+    // 5. Formulario de Selección de Fecha de Cita, Selector de Modalidad (Presencial vs. Teleconsulta), Motivo y WhatsApp Dinámico
+    let selectedBookingModality = 'presencial';
+    let selectedBookingService = '';
+
+    window.switchTarifaTab = function(tab) {
+      const presTab = document.getElementById('btn-tarifa-presencial');
+      const teleTab = document.getElementById('btn-tarifa-teleconsulta');
+      const presContent = document.getElementById('tarifa-content-presencial');
+      const teleContent = document.getElementById('tarifa-content-teleconsulta');
+
+      if (tab === 'presencial') {
+        if (presTab) {
+          presTab.className = "px-3 py-1 rounded-lg transition-all cursor-pointer bg-white text-emerald-800 shadow-xs font-extrabold";
+        }
+        if (teleTab) {
+          teleTab.className = "px-3 py-1 rounded-lg transition-all cursor-pointer text-slate-600 hover:text-slate-900 flex items-center gap-1";
+        }
+        if (presContent) presContent.classList.remove('hidden');
+        if (teleContent) teleContent.classList.add('hidden');
+      } else {
+        if (presTab) {
+          presTab.className = "px-3 py-1 rounded-lg transition-all cursor-pointer text-slate-600 hover:text-slate-900";
+        }
+        if (teleTab) {
+          teleTab.className = "px-3 py-1 rounded-lg transition-all cursor-pointer bg-white text-emerald-800 shadow-xs font-extrabold flex items-center gap-1";
+        }
+        if (presContent) presContent.classList.add('hidden');
+        if (teleContent) teleContent.classList.remove('hidden');
+      }
+    };
+
+    window.switchBookingModality = function(modality) {
+      selectedBookingModality = modality;
+      const presBtns = [document.getElementById('form-modality-presencial'), document.getElementById('form-modality-presencial-mob')];
+      const teleBtns = [document.getElementById('form-modality-teleconsulta'), document.getElementById('form-modality-teleconsulta-mob')];
+
+      presBtns.forEach(btn => {
+        if (!btn) return;
+        if (modality === 'presencial') {
+          btn.className = "px-3 py-1.5 rounded-lg transition-all cursor-pointer text-xs bg-white text-emerald-800 shadow-xs font-extrabold";
+        } else {
+          btn.className = "px-3 py-1.5 rounded-lg transition-all cursor-pointer text-xs text-slate-600 hover:text-slate-900";
+        }
+      });
+
+      teleBtns.forEach(btn => {
+        if (!btn) return;
+        if (modality === 'teleconsulta') {
+          btn.className = "px-3 py-1.5 rounded-lg transition-all cursor-pointer text-xs bg-emerald-600 text-white shadow-xs font-extrabold flex items-center gap-1";
+        } else {
+          btn.className = "px-3 py-1.5 rounded-lg transition-all cursor-pointer text-xs text-slate-600 hover:text-slate-900 flex items-center gap-1";
+        }
+      });
+
+      if (typeof window.switchTarifaTab === 'function') {
+        window.switchTarifaTab(modality);
+      }
+    };
+
+    window.handleServiceSelectionChange = function(val) {
+      selectedBookingService = val || '';
+      const clearBtn = document.getElementById('agenda-service-clear');
+      if (clearBtn) {
+        if (selectedBookingService) {
+          clearBtn.classList.remove('hidden');
+        } else {
+          clearBtn.classList.add('hidden');
+        }
+      }
+    };
+
+    window.clearBookingService = function() {
+      const selectEl = document.getElementById('agenda-service');
+      if (selectEl) selectEl.value = '';
+      window.handleServiceSelectionChange('');
+    };
+
     (function initAppointmentForm() {
       const dateInput = document.getElementById('agenda-date');
       const timeSelect = document.getElementById('agenda-time');
       const nameInput = document.getElementById('agenda-name');
       const detailsInput = document.getElementById('agenda-details');
+      const serviceSelect = document.getElementById('agenda-service');
       const appointmentModal = document.getElementById('appointment-modal');
       const modalFecha = document.getElementById('modal-app-fecha');
       const modalHora = document.getElementById('modal-app-hora');
@@ -4186,6 +6243,14 @@ ${jsonLd}
       const modalDetalles = document.getElementById('modal-app-detalles');
       const modalDetallesContainer = document.getElementById('modal-app-detalles-container');
       const modalWhatsappBtn = document.getElementById('modal-confirm-whatsapp-btn');
+      const modalBadge = document.getElementById('modal-app-modalidad-badge');
+      const modalServiceContainer = document.getElementById('modal-app-service-container');
+      const modalServiceTitle = document.getElementById('modal-app-service-title');
+      const modalPriceLabel = document.getElementById('modal-app-price-label');
+      const modalPriceVal = document.getElementById('modal-app-price-value');
+      const modalPayments = document.getElementById('modal-app-payments-text');
+      const modalLocPresencial = document.getElementById('modal-app-location-presencial');
+      const modalLocTele = document.getElementById('modal-app-location-teleconsulta');
 
       if (!dateInput) return;
 
@@ -4207,7 +6272,12 @@ ${jsonLd}
       const especialidadName = ${JSON.stringify(data.especialidad || '')};
       const ciudadName = ${JSON.stringify(data.ciudad || '')};
       const clinicaName = ${JSON.stringify(data.nombreClinicaGBP || '')};
+      const precioConsultaPres = ${JSON.stringify(data.precioConsulta || '$50 USD')};
+      const precioConsultaTele = ${JSON.stringify(data.precioTeleconsulta || '$40 USD')};
+      const metodosPres = ${JSON.stringify((data.metodosPago || ["Efectivo", "Transferencia", "Tarjetas"]).join(" • "))};
+      const metodosTele = "Transferencia Bancaria • Tarjeta Débito/Crédito • Link Digital";
       const plantillaMsg = ${JSON.stringify(data.whatsappMensajePlantilla || "Hola Dr(a). {{medico}}, deseo agendar una consulta médica de {{especialidad}} para el día {{fecha}} a las {{hora}}.{{nombre}} Por favor me confirma disponibilidad.")};
+      const serviciosList = ${JSON.stringify(data.servicios || [])};
 
       function formatReadableDate(dateVal) {
         if (!dateVal) return 'Fecha a coordinar';
@@ -4227,6 +6297,17 @@ ${jsonLd}
         const valTime = timeSelect ? timeSelect.value : '10:30 AM';
         const valName = nameInput && nameInput.value.trim() ? ' Mi nombre es ' + nameInput.value.trim() + '.' : '';
         const valDetailsText = detailsInput && detailsInput.value.trim() ? ' Detalles de la consulta: ' + detailsInput.value.trim() + '.' : '';
+        const selectedSrv = (serviceSelect && serviceSelect.value) || selectedBookingService || '';
+        const isTele = selectedBookingModality === 'teleconsulta';
+        const modalidadStr = isTele ? 'Teleconsulta Online (Videollamada)' : 'Consulta Presencial (En Consultorio)';
+        
+        let precioActual = isTele ? precioConsultaTele : precioConsultaPres;
+        if (selectedSrv) {
+          const foundSrv = serviciosList.find(s => s.titulo === selectedSrv);
+          if (foundSrv && foundSrv.precio) {
+            precioActual = foundSrv.precio;
+          }
+        }
 
         const fechaTexto = formatReadableDate(valDate);
 
@@ -4239,9 +6320,20 @@ ${jsonLd}
                  .replace(/\{\{fecha\}\}/gi, fechaTexto)
                  .replace(/\{\{hora\}\}/gi, valTime)
                  .replace(/\{\{nombre\}\}/gi, valName)
+                 .replace(/\{\{modalidad\}\}/gi, modalidadStr)
+                 .replace(/\{\{servicio\}\}/gi, selectedSrv || 'Consulta Médica General')
+                 .replace(/\{\{precio\}\}/gi, precioActual)
                  .replace(/\{\{detalles\}\}/gi, detailsInput && detailsInput.value.trim() ? 'Detalles: ' + detailsInput.value.trim() : '');
 
-        // Fallback si la plantilla no incluía tags
+        // Fallbacks inteligentes si la plantilla personalizada no tenía las etiquetas
+        if (selectedSrv && !plantillaMsg.includes('{{servicio}}') && !msg.includes(selectedSrv)) {
+          msg = msg.replace(/consulta médica/i, 'consulta para valoración de ' + selectedSrv);
+        }
+
+        if (isTele && !plantillaMsg.includes('{{modalidad}}') && !msg.toLowerCase().includes('teleconsulta') && !msg.toLowerCase().includes('online')) {
+          msg += ' [Modalidad solicitada: Teleconsulta Online]';
+        }
+
         if (valName && !plantillaMsg.includes('{{nombre}}') && !msg.includes(valName)) {
           msg += valName;
         }
@@ -4253,16 +6345,80 @@ ${jsonLd}
         return rawWhatsappBase + '?text=' + encodeURIComponent(msg);
       }
 
-      window.openAppointmentModal = function(service) {
+      window.openAppointmentModal = function(serviceOverride) {
         if (!appointmentModal) return;
+
+        if (typeof serviceOverride === 'string' && serviceOverride && serviceOverride !== 'whatsapp') {
+          if (serviceSelect) {
+            serviceSelect.value = serviceOverride;
+          }
+          selectedBookingService = serviceOverride;
+          window.handleServiceSelectionChange(serviceOverride);
+        }
+
         const valDate = dateInput.value;
         const valTime = timeSelect ? timeSelect.value : '10:30 AM';
         const valPatient = nameInput && nameInput.value.trim() ? nameInput.value.trim() : 'A coordinar en recepción';
         const valDetails = detailsInput && detailsInput.value.trim() ? detailsInput.value.trim() : '';
+        const currentSrv = (serviceSelect && serviceSelect.value) || selectedBookingService || '';
+        const isTele = selectedBookingModality === 'teleconsulta';
 
         if (modalFecha) modalFecha.textContent = formatReadableDate(valDate);
         if (modalHora) modalHora.textContent = valTime;
         if (modalPaciente) modalPaciente.textContent = valPatient;
+
+        // Modalidad
+        if (modalBadge) {
+          if (isTele) {
+            modalBadge.className = "text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 bg-blue-100 text-blue-800 border border-blue-200";
+            modalBadge.innerHTML = "💻 Teleconsulta Online";
+          } else {
+            modalBadge.className = "text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 bg-emerald-100 text-emerald-800 border border-emerald-200";
+            modalBadge.innerHTML = "🏥 Consulta Presencial";
+          }
+        }
+
+        // Servicio / Tratamiento
+        if (modalServiceContainer && modalServiceTitle) {
+          if (currentSrv) {
+            modalServiceTitle.textContent = currentSrv;
+            modalServiceContainer.classList.remove('hidden');
+          } else {
+            modalServiceContainer.classList.add('hidden');
+          }
+        }
+
+        // Precio y Pagos
+        let precioActual = isTele ? precioConsultaTele : precioConsultaPres;
+        if (currentSrv) {
+          const foundSrv = serviciosList.find(s => s.titulo === currentSrv);
+          if (foundSrv && foundSrv.precio) {
+            precioActual = foundSrv.precio;
+          }
+        }
+
+        if (modalPriceLabel) {
+          modalPriceLabel.textContent = currentSrv 
+            ? 'Tarifa Estimada del Tratamiento:' 
+            : (isTele ? 'Tarifa Teleconsulta Online:' : 'Tarifa Consulta Presencial:');
+        }
+        if (modalPriceVal) {
+          modalPriceVal.textContent = precioActual;
+        }
+        if (modalPayments) {
+          modalPayments.textContent = isTele ? metodosTele : metodosPres;
+        }
+
+        // Ubicación / Plataforma
+        if (modalLocPresencial && modalLocTele) {
+          if (isTele) {
+            modalLocPresencial.classList.add('hidden');
+            modalLocTele.classList.remove('hidden');
+          } else {
+            modalLocPresencial.classList.remove('hidden');
+            modalLocTele.classList.add('hidden');
+          }
+        }
 
         if (modalDetallesContainer && modalDetalles) {
           if (valDetails) {
@@ -4278,6 +6434,7 @@ ${jsonLd}
         }
 
         appointmentModal.classList.remove('hidden');
+        appointmentModal.classList.add('flex');
         document.body.style.overflow = 'hidden';
       };
 
@@ -4286,6 +6443,7 @@ ${jsonLd}
           return;
         }
         if (appointmentModal) {
+          appointmentModal.classList.remove('flex');
           appointmentModal.classList.add('hidden');
           document.body.style.overflow = '';
         }
@@ -4305,14 +6463,31 @@ ${jsonLd}
       function parseRange(str) {
         if (!str) return { opens: 0, closes: 0, isClosed: true };
         const s = str.toLowerCase();
-        if (s.includes('cerrado') || s.includes('no atiende')) {
+        if (s.includes('cerrado') || s.includes('no atiende') || s.includes('sin atención')) {
           return { opens: 0, closes: 0, isClosed: true };
         }
-        const m = str.match(/(\d{1,2}:\d{2})/g);
-        if (m && m.length >= 2) {
-          const p1 = m[0].split(':').map(Number);
-          const p2 = m[1].split(':').map(Number);
-          return { opens: p1[0] * 60 + p1[1], closes: p2[0] * 60 + p2[1], isClosed: false, opensText: m[0], closesText: m[1] };
+        if (s.includes('24 hora') || s.includes('24h') || s.includes('24/7')) {
+          return { opens: 0, closes: 24 * 60, isClosed: false, opensText: '00:00', closesText: '23:59' };
+        }
+        function toMins(h, m, ampm) {
+          let numH = parseInt(h, 10);
+          const numM = m ? parseInt(m, 10) : 0;
+          const clean = ampm ? ampm.toLowerCase().replace(/[.\s]/g, '') : '';
+          if (clean === 'pm' && numH < 12) numH += 12;
+          else if (clean === 'am' && numH === 12) numH = 0;
+          else if (numH >= 1 && numH <= 6) numH += 12;
+          return { mins: numH * 60 + numM, text: String(numH).padStart(2, '0') + ':' + String(numM).padStart(2, '0') };
+        }
+        const regex = /(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?\s*(?:-|a|hasta|to|–|—)\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?/i;
+        const match = regex.exec(str);
+        if (match) {
+          let t1 = toMins(match[1], match[2], match[3]);
+          let t2 = toMins(match[4], match[5], match[6]);
+          if (t2.mins <= t1.mins && !match[6]) {
+            let numH2 = parseInt(match[4], 10);
+            if (numH2 < 12) t2 = toMins(match[4], match[5], 'pm');
+          }
+          return { opens: t1.mins, closes: t2.mins, isClosed: false, opensText: t1.text, closesText: t2.text };
         }
         return { opens: 9 * 60, closes: 18 * 60, isClosed: false, opensText: '09:00', closesText: '18:00' };
       }
@@ -4335,14 +6510,14 @@ ${jsonLd}
           rowId = 'sch-domingo';
         }
 
-        // Resaltar día actual en la lista
+        // Resaltar día actual en la lista sin alterar el padding
         ['sch-semana', 'sch-sabado', 'sch-domingo'].forEach(id => {
           const el = document.getElementById(id);
           if (el) {
             if (id === rowId) {
-              el.classList.add('bg-clinical-50/80', 'px-2', 'rounded-lg', 'font-extrabold', 'text-clinical-900');
+              el.classList.add('bg-clinical-100/70', 'font-extrabold', 'text-clinical-950', 'shadow-2xs');
             } else {
-              el.classList.remove('bg-clinical-50/80', 'px-2', 'rounded-lg', 'font-extrabold', 'text-clinical-900');
+              el.classList.remove('bg-clinical-100/70', 'font-extrabold', 'text-clinical-950', 'shadow-2xs');
             }
           }
         });
@@ -4350,12 +6525,12 @@ ${jsonLd}
         const parsed = parseRange(dayText);
         let badgeText = 'Cerrado hoy';
         let badgeDetail = 'Horarios presenciales';
-        let color = 'slate';
+        let color = 'rose';
 
         if (parsed.isClosed) {
           badgeText = 'Cerrado hoy';
           badgeDetail = 'Próxima atención: Lunes 09:00';
-          color = 'slate';
+          color = 'rose';
         } else if (currentMins >= parsed.opens && currentMins < parsed.closes) {
           if (parsed.closes - currentMins <= 45) {
             badgeText = 'Abierto ahora';
@@ -4373,7 +6548,7 @@ ${jsonLd}
         } else {
           badgeText = 'Cerrado por hoy';
           badgeDetail = 'Horario regular hasta las ' + parsed.closesText;
-          color = 'slate';
+          color = 'rose';
         }
 
         // Actualizar Hero Badge
@@ -4381,16 +6556,12 @@ ${jsonLd}
         const heroMobile = document.getElementById('hero-status-mobile');
         const heroDetail = document.getElementById('hero-status-detail');
         const heroDot = document.getElementById('hero-status-dot');
-        const heroPing = document.getElementById('hero-status-ping');
 
         if (heroMobile) heroMobile.textContent = badgeText;
         if (heroText) heroText.textContent = badgeText;
         if (heroDetail) heroDetail.textContent = badgeDetail;
         if (heroDot) {
-          heroDot.className = 'relative inline-flex rounded-full h-2.5 w-2.5 ' + (color === 'emerald' ? 'bg-emerald-500' : color === 'amber' ? 'bg-amber-500' : 'bg-slate-400');
-        }
-        if (heroPing) {
-          heroPing.className = 'animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ' + (color === 'emerald' ? 'bg-emerald-400' : color === 'amber' ? 'bg-amber-400' : 'bg-slate-300');
+          heroDot.className = 'w-2.5 h-2.5 md:w-3 md:h-3 rounded-full shrink-0 ' + (color === 'emerald' ? 'bg-emerald-500 animate-pulse' : color === 'amber' ? 'bg-amber-500 animate-pulse' : 'bg-rose-500 animate-pulse');
         }
 
         // Actualizar Location Badge
@@ -4400,11 +6571,11 @@ ${jsonLd}
 
         if (locText) locText.textContent = badgeText;
         if (locDot) {
-          locDot.className = 'w-2 h-2 rounded-full ' + (color === 'emerald' ? 'bg-emerald-500 animate-pulse' : color === 'amber' ? 'bg-amber-500' : 'bg-slate-400');
+          locDot.className = 'w-2 h-2 rounded-full ' + (color === 'emerald' ? 'bg-emerald-500 animate-pulse' : color === 'amber' ? 'bg-amber-500 animate-pulse' : 'bg-rose-500 animate-pulse');
         }
         if (locPill) {
-          locPill.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold ' + 
-            (color === 'emerald' ? 'bg-emerald-100 text-emerald-800' : color === 'amber' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700');
+          locPill.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black shadow-2xs ' + 
+            (color === 'emerald' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : color === 'amber' ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-rose-50 text-rose-700 border border-rose-200');
         }
       }
 
@@ -4547,6 +6718,99 @@ ${jsonLd}
       }
     })();
 
+    // 9. Popup de Bienvenida y Saludo Personalizado
+    (function initWelcomePopupScript() {
+      const modal = document.getElementById('welcome-popup-modal');
+      const card = document.getElementById('welcome-popup-card');
+      const input = document.getElementById('welcome-visitor-name-input');
+      const franjaTexto = document.getElementById('franja-saludo-texto');
+      const formNombre = document.getElementById('agenda-name') || document.getElementById('preview-booking-name');
+
+      function formatCapitalize(str) {
+        if (!str) return '';
+        return str.toLowerCase().replace(/(?:^|\s|['-])\S/g, function(c) {
+          return c.toUpperCase();
+        });
+      }
+
+      function applyVisitorName(rawName) {
+        if (!rawName) return;
+        const name = formatCapitalize(rawName.trim());
+        if (franjaTexto) {
+          const template = franjaTexto.getAttribute('data-template') || '¡Hola {nombre}, te muestro un poco de mi!';
+          franjaTexto.innerHTML = template.replace('{nombre}', '<span class="text-clinical-600 font-extrabold">' + name + '</span>');
+        }
+        if (formNombre && !formNombre.value.trim()) {
+          formNombre.value = name;
+        }
+        const inputs = document.querySelectorAll('input[name="nombre"], input[id*="nombre"], input[placeholder*="nombre" i]');
+        inputs.forEach(inp => {
+          if (!inp.value.trim()) inp.value = name;
+        });
+      }
+
+      window.openWelcomePopup = function() {
+        const m = document.getElementById('welcome-popup-modal');
+        const c = document.getElementById('welcome-popup-card');
+        const inp = document.getElementById('welcome-visitor-name-input');
+        if (!m || !c) return;
+        m.classList.remove('hidden');
+        m.classList.add('flex');
+        document.body.style.overflow = 'hidden';
+        c.classList.remove('scale-95', 'opacity-0');
+        c.classList.add('scale-100', 'opacity-100');
+        if (inp) setTimeout(function() { inp.focus(); }, 60);
+      };
+
+      window.closeWelcomePopup = function(e) {
+        if (e && e.target !== e.currentTarget && e.target.id !== 'welcome-popup-modal') return;
+        const m = document.getElementById('welcome-popup-modal');
+        const c = document.getElementById('welcome-popup-card');
+        if (!m || !c) return;
+        c.classList.remove('scale-100', 'opacity-100');
+        c.classList.add('scale-95', 'opacity-0');
+        setTimeout(() => {
+          m.classList.remove('flex');
+          m.classList.add('hidden');
+          document.body.style.overflow = '';
+        }, 180);
+      };
+
+      window.submitWelcomePopup = function(e) {
+        if (e) e.preventDefault();
+        const inp = document.getElementById('welcome-visitor-name-input');
+        const rawName = inp ? inp.value : '';
+        const name = formatCapitalize(rawName.trim());
+        if (name) {
+          try {
+            localStorage.setItem('visitor_name', name);
+          } catch(err) {}
+          applyVisitorName(name);
+        }
+        window.closeWelcomePopup();
+      };
+
+      // Auto-inicio inmediato mientras carga la web de fondo
+      function triggerAutoWelcome() {
+        try {
+          const savedName = localStorage.getItem('visitor_name');
+          if (savedName) {
+            applyVisitorName(savedName);
+          } else {
+            window.openWelcomePopup();
+          }
+        } catch(err) {
+          window.openWelcomePopup();
+        }
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', triggerAutoWelcome);
+      } else {
+        triggerAutoWelcome();
+      }
+    })();
+
     // Sincronización en Tiempo Real con el Generador para Pestañas de Vista Previa
     try {
       if (typeof BroadcastChannel !== 'undefined') {
@@ -4578,12 +6842,21 @@ ${jsonLd}
 export function generateManifestJson(data: MedicalLandingData): string {
   const cleanAppUrl = normalizeDomainUrl(data.dominioWeb);
   const activeIcon = getActiveFaviconUrl(data) || data.fotoUrl || "https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=512&auto=format&fit=crop";
-  const appShortName = (data.pwaAppTitle && data.pwaAppTitle.trim()) ? data.pwaAppTitle.trim() : (data.nombreMedico || data.especialidad).slice(0, 16);
+  
+  const appShortName = (data.pwaShortName && data.pwaShortName.trim()) 
+    ? data.pwaShortName.trim() 
+    : (data.pwaAppTitle && data.pwaAppTitle.trim()) 
+      ? data.pwaAppTitle.trim() 
+      : (data.nombreMedico || data.especialidad).slice(0, 16);
+
+  const appFullName = (data.pwaAppTitle && data.pwaAppTitle.trim())
+    ? data.pwaAppTitle.trim()
+    : `${data.nombreMedico || 'Consultorio Médico'} | ${data.especialidad || 'Atención Médica'}`;
   
   const manifest = {
     "id": `${cleanAppUrl}/`,
     "short_name": appShortName,
-    "name": `${data.nombreMedico} | ${data.especialidad}`,
+    "name": appFullName,
     "description": data.filosofia || data.metaDescripcion,
     "icons": [
       {
@@ -4601,9 +6874,9 @@ export function generateManifestJson(data: MedicalLandingData): string {
     ],
     "start_url": "/",
     "scope": "/",
-    "background_color": "#ffffff",
+    "background_color": data.pwaBackgroundColor || "#ffffff",
     "display": "standalone",
-    "theme_color": data.colorPrimarioHex || "#1e6fd9",
+    "theme_color": data.pwaThemeColor || data.colorPrimarioHex || "#1e6fd9",
     "orientation": "portrait-primary"
   };
 
@@ -4689,66 +6962,6 @@ self.addEventListener('fetch', (event) => {
         });
       })
   );
-});
-
-// 4. Base para recibir Notificaciones Push de Recordatorios de Citas
-self.addEventListener('push', (event) => {
-  let notificationData = {
-    title: 'Recordatorio de Consulta Médica',
-    body: 'Mañana tienes una consulta programada. Haz clic para ver detalles y ubicación.',
-    icon: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=192&auto=format&fit=crop',
-    badge: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=96&auto=format&fit=crop'
-  };
-
-  if (event.data) {
-    try {
-      const dataText = event.data.text();
-      notificationData = JSON.parse(dataText);
-    } catch (e) {
-      notificationData.body = event.data.text();
-    }
-  }
-
-  const options = {
-    body: notificationData.body,
-    icon: notificationData.icon,
-    badge: notificationData.badge,
-    vibrate: [100, 50, 100],
-    data: {
-      dateOfArrival: Date.now(),
-      primaryKey: '1'
-    },
-    actions: [
-      { action: 'explore', title: 'Ver Ubicación', icon: '' },
-      { action: 'close', title: 'Cerrar', icon: '' }
-    ]
-  };
-
-  event.waitUntil(
-    self.registration.showNotification(notificationData.title, options)
-  );
-});
-
-// Manejo del click en las notificaciones
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-
-  if (event.action === 'explore') {
-    // Abrir la landing page en la sección de agendar/ubicación
-    event.waitUntil(
-      clients.matchAll({ type: 'window' }).then((windowClients) => {
-        for (var i = 0; i < windowClients.length; i++) {
-          var client = windowClients[i];
-          if (client.url === '/' && 'focus' in client) {
-            return client.focus();
-          }
-        }
-        if (clients.openWindow) {
-          return clients.openWindow('/#agendar');
-        }
-      })
-    );
-  }
 });
 `;
 }
