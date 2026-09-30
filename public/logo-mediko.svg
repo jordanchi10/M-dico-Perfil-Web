@@ -1,0 +1,26 @@
+<svg viewBox="0 0 500 130" xmlns="http://www.w3.org/2000/svg" width="500" height="130">
+  <g transform="translate(10, 8)">
+    <path
+      d="M 60 98 C 24 74, 10 52, 10 32 C 10 16, 22 6, 38 6 C 48 6, 56 12, 60 18 C 64 12, 72 6, 82 6 C 98 6, 110 16, 110 32 C 110 52, 96 74, 60 98 Z"
+      stroke="#ED1C24"
+      stroke-width="10"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      fill="none"
+    />
+    <path
+      d="M 30 50 L 50 72 L 102 16"
+      stroke="#0072BC"
+      stroke-width="15"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      fill="none"
+    />
+  </g>
+  <text x="138" y="74" font-family="DejaVu Sans, Arial, Helvetica, sans-serif" font-weight="900" font-size="58" fill="#0072BC" letter-spacing="-1.5">
+    Medico<tspan fill="#0072BC">.ec</tspan>
+  </text>
+  <text x="140" y="104" font-family="DejaVu Sans, Arial, Helvetica, sans-serif" font-weight="800" font-size="14.5" fill="#4B5563" letter-spacing="2.2">
+    ESPECIALISTAS MÉDICOS <tspan fill="#ED1C24">ONLINE</tspan>
+  </text>
+</svg>

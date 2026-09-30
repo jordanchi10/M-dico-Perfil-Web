@@ -37,13 +37,40 @@ export function FormClinicLocation({
   updateField
 }: FormClinicLocationProps) {
   const handleCitySelect = (cityPreset: EcuadorCityPreset) => {
+    const prevCity = data.ciudad || "";
+    let newClinicName = data.nombreClinicaGBP || "";
+    if (newClinicName.includes("{{CIUDAD}}")) {
+      newClinicName = newClinicName.replace(/\{\{CIUDAD\}\}/g, cityPreset.ciudad);
+    } else if (prevCity && prevCity !== cityPreset.ciudad && newClinicName.includes(prevCity)) {
+      newClinicName = newClinicName.replace(new RegExp(prevCity, "gi"), cityPreset.ciudad);
+    }
+
+    let newMetaTitulo = data.metaTitulo;
+    if (newMetaTitulo && prevCity && prevCity !== cityPreset.ciudad && newMetaTitulo.includes(prevCity)) {
+      newMetaTitulo = newMetaTitulo.replace(new RegExp(prevCity, "gi"), cityPreset.ciudad);
+    }
+
+    let newMetaDesc = data.metaDescripcion;
+    if (newMetaDesc && prevCity && prevCity !== cityPreset.ciudad && newMetaDesc.includes(prevCity)) {
+      newMetaDesc = newMetaDesc.replace(new RegExp(prevCity, "gi"), cityPreset.ciudad);
+    }
+
+    let newKeywords = data.metaKeywords;
+    if (newKeywords && prevCity && prevCity !== cityPreset.ciudad && newKeywords.includes(prevCity)) {
+      newKeywords = newKeywords.replace(new RegExp(prevCity, "gi"), cityPreset.ciudad);
+    }
+
     onChange({
       ...data,
       ciudad: cityPreset.ciudad,
       estadoRegion: cityPreset.provincia,
       codigoPostal: cityPreset.codigoPostal,
       latitud: cityPreset.latitud,
-      longitud: cityPreset.longitud
+      longitud: cityPreset.longitud,
+      nombreClinicaGBP: newClinicName,
+      ...(newMetaTitulo ? { metaTitulo: newMetaTitulo } : {}),
+      ...(newMetaDesc ? { metaDescripcion: newMetaDesc } : {}),
+      ...(newKeywords ? { metaKeywords: newKeywords } : {})
     });
   };
 

@@ -52,6 +52,14 @@ import {
   Award,
   Stethoscope
 } from "lucide-react";
+import {
+  IconHome3D,
+  IconDoctor3D,
+  IconServices3D,
+  IconReviews3D,
+  IconAppointment3D,
+  IconWhatsapp3D
+} from "../Mobile3DIcons";
 import { PRESET_PALETTES, generateScaleFromHex, getActiveColorScale, ensureValid7CharHex } from "../../utils/colorUtils";
 import { LANDING_STYLE_PRESETS, SUPPORTED_FONTS, SYSTEM_FONTS, GOOGLE_FONTS } from "../../utils/stylePresets";
 import { compressAndConvertToWebP, formatBytes, CompressResult } from "../../utils/imageCompressor";
@@ -1931,36 +1939,36 @@ export function FormDesign({
           {[
             { 
               id: "flotante", 
-              label: "Burbuja Flotante", 
-              desc: "Navegación ergonómica móvil con iconos de colores independientes por sección.",
+              label: "Burbuja Flotante 3D", 
+              desc: "Navegación ergonómica móvil con iconos 3D táctiles y cápsulas de alto relieve.",
               renderPreview: () => (
-                <div className="mt-2.5 p-1.5 rounded-xl bg-slate-50/90 border border-slate-200/80 flex items-center justify-around gap-1 w-full shadow-2xs">
-                  <div className="w-5 h-5 rounded-md bg-blue-100 text-blue-600 flex items-center justify-center">
-                    <Home className="w-3 h-3" />
+                <div className="mt-2.5 p-1.5 rounded-2xl bg-slate-900/90 border border-slate-700/80 flex items-center justify-around gap-1 w-full shadow-inner">
+                  <div className="w-6 h-6 rounded-xl bg-gradient-to-b from-blue-400 via-blue-500 to-blue-600 flex items-center justify-center shadow-[0_2px_5px_rgba(59,130,246,0.5),inset_0_1px_1px_rgba(255,255,255,0.7)] border-t border-white/50">
+                    <IconHome3D className="w-4 h-4" />
                   </div>
-                  <div className="w-5 h-5 rounded-md bg-indigo-100 text-indigo-600 flex items-center justify-center">
-                    <Award className="w-3 h-3" />
+                  <div className="w-6 h-6 rounded-xl bg-gradient-to-b from-indigo-400 via-indigo-500 to-indigo-600 flex items-center justify-center shadow-[0_2px_5px_rgba(99,102,241,0.5),inset_0_1px_1px_rgba(255,255,255,0.7)] border-t border-white/50">
+                    <IconDoctor3D className="w-4 h-4" />
                   </div>
-                  <div className="w-5 h-5 rounded-md bg-teal-100 text-teal-600 flex items-center justify-center">
-                    <Stethoscope className="w-3 h-3" />
+                  <div className="w-6 h-6 rounded-xl bg-gradient-to-b from-teal-400 via-teal-500 to-teal-600 flex items-center justify-center shadow-[0_2px_5px_rgba(20,184,166,0.5),inset_0_1px_1px_rgba(255,255,255,0.7)] border-t border-white/50">
+                    <IconServices3D className="w-4 h-4" />
                   </div>
-                  <div className="w-5 h-5 rounded-md bg-amber-100 text-amber-600 flex items-center justify-center">
-                    <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+                  <div className="w-6 h-6 rounded-xl bg-gradient-to-b from-amber-300 via-amber-400 to-amber-500 flex items-center justify-center shadow-[0_2px_5px_rgba(245,158,11,0.6),inset_0_1px_1px_rgba(255,255,255,0.8)] border-t border-white/60">
+                    <IconReviews3D className="w-4 h-4" />
                   </div>
-                  <div className="w-5 h-5 rounded-md bg-emerald-600 text-white flex items-center justify-center shadow-2xs">
-                    <Calendar className="w-3 h-3" />
+                  <div className="w-6 h-6 rounded-xl bg-gradient-to-b from-emerald-400 via-emerald-500 to-emerald-600 flex items-center justify-center shadow-[0_2px_5px_rgba(16,185,129,0.6),inset_0_1px_1px_rgba(255,255,255,0.8)] border-t border-white/60 ring-1 ring-emerald-300">
+                    <IconAppointment3D className="w-4 h-4" />
                   </div>
                 </div>
               )
             },
             { 
               id: "estatico_pulso", 
-              label: "Botón con Pulso", 
-              desc: "Botón en color primario con texto blanco y resplandor de pulso continuo.",
+              label: "Botón con Pulso 3D", 
+              desc: "Botón 3D táctil con pulso continuo y calendario tridimensional en relieve.",
               renderPreview: () => (
-                <div className="mt-2.5 p-2 rounded-xl bg-slate-50/90 border border-slate-200/80 flex items-center justify-center w-full">
-                  <div className="px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white text-[10px] font-black flex items-center gap-1.5 shadow-md ring-4 ring-emerald-400/40 animate-pulse">
-                    <Calendar className="w-3.5 h-3.5 text-white shrink-0" />
+                <div className="mt-2.5 p-2 rounded-2xl bg-slate-900/90 border border-slate-700/80 flex items-center justify-center w-full">
+                  <div className="px-3 py-1.5 rounded-xl bg-gradient-to-b from-emerald-400 via-emerald-600 to-emerald-700 text-white text-[10px] font-black flex items-center gap-1.5 shadow-[0_4px_10px_rgba(16,185,129,0.6),inset_0_1.5px_1px_rgba(255,255,255,0.7),inset_0_-2px_2px_rgba(0,0,0,0.3)] border-t border-white/40 ring-2 ring-emerald-400/50 animate-pulse">
+                    <IconAppointment3D className="w-3.5 h-3.5 shrink-0" />
                     <span>Confirmar Cita</span>
                   </div>
                 </div>
@@ -1968,16 +1976,16 @@ export function FormDesign({
             },
             { 
               id: "barra_fija_dual", 
-              label: "Barra Fija Dual", 
-              desc: "Barra inferior: Botón esmeralda 'AGENDAR CITA' (WhatsApp) y botón 'Reseñas'.",
+              label: "Barra Fija Dual 3D", 
+              desc: "Barra inferior: Botón 3D WhatsApp esmeralda 'AGENDAR CITA' y botón 'Reseñas' oro 3D.",
               renderPreview: () => (
-                <div className="mt-2.5 p-1.5 rounded-xl bg-slate-50/90 border border-slate-200/80 flex items-center gap-1.5 w-full">
-                  <div className="flex-1 bg-emerald-600 text-white rounded-lg py-1 px-1 text-[9px] font-black flex items-center justify-center gap-0.5 truncate">
-                    <MessageCircle className="w-2.5 h-2.5 shrink-0 fill-white text-white" />
+                <div className="mt-2.5 p-1.5 rounded-2xl bg-slate-900/90 border border-slate-700/80 flex items-center gap-1.5 w-full">
+                  <div className="flex-1 bg-gradient-to-b from-emerald-400 via-emerald-500 to-emerald-600 text-white rounded-xl py-1 px-1.5 text-[9px] font-black flex items-center justify-center gap-1 shadow-[0_3px_8px_rgba(16,185,129,0.5),inset_0_1px_1px_rgba(255,255,255,0.6)] border-t border-white/40 truncate">
+                    <IconWhatsapp3D className="w-3.5 h-3.5 shrink-0" />
                     <span>AGENDAR CITA</span>
                   </div>
-                  <div className="flex-1 bg-white text-slate-800 border border-slate-200/90 rounded-lg py-1 px-1 text-[9px] font-extrabold flex items-center justify-center gap-0.5 truncate shadow-2xs">
-                    <Star className="w-2.5 h-2.5 shrink-0 fill-amber-400 text-amber-500" />
+                  <div className="flex-1 bg-gradient-to-b from-white via-slate-100 to-slate-200 text-slate-900 border border-slate-300 rounded-xl py-1 px-1.5 text-[9px] font-extrabold flex items-center justify-center gap-1 shadow-[0_2px_6px_rgba(0,0,0,0.12),inset_0_1px_1px_rgba(255,255,255,0.9)] border-t border-white truncate">
+                    <IconReviews3D className="w-3.5 h-3.5 shrink-0" />
                     <span>Reseñas</span>
                   </div>
                 </div>

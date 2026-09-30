@@ -220,6 +220,7 @@ export interface MedicalLandingData {
   doctoraliaUrl: string; // Enlace de agenda previa (opcional)
   metaTitulo?: string; // Título SEO para Google
   metaDescripcion?: string; // Descripción SEO para Google
+  metaKeywords?: string; // Palabras clave SEO locales para indexación
   googleSiteVerification?: string; // Código o metaetiqueta de verificación de Google Search Console (ej: "abcdef1234567890" o `<meta name="google-site-verification" content="..." />`)
   googleVerificationFileCode?: string; // Código para archivo HTML de verificación google[código].html (ej: "google1234567890abcdef.html" o "1234567890abcdef")
   googleAnalyticsId?: string; // ID de Medición de Google Analytics 4 (ej: "G-XXXXXXXXXX" o script gtag.js completo)
@@ -605,6 +606,9 @@ export const defaultMedicalData: MedicalLandingData = {
   ],
   emailContacto: "contacto@consultoriomedico.ec",
   doctoraliaUrl: "",
+  metaTitulo: "{{ESPECIALIDAD}} en {{CIUDAD}} | {{NOMBRE_MEDICO}}",
+  metaDescripcion: "Consulta con {{NOMBRE_MEDICO}}, especialista en {{ESPECIALIDAD}} en {{CIUDAD}}, Ecuador. Atención médica certificada, tecnología de vanguardia y citas inmediatas por WhatsApp.",
+  metaKeywords: "{{ESPECIALIDAD}} {{CIUDAD}}, médico {{ESPECIALIDAD}} {{CIUDAD}}, especialista {{CIUDAD}} Ecuador, consulta médica {{CIUDAD}}",
   horarios: {
     semana: "Lunes a Viernes: 09:00 AM - 07:00 PM",
     sabado: "Sábados: 09:00 AM - 02:00 PM",

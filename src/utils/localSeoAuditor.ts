@@ -154,19 +154,86 @@ export function runLocalSeoAudit(data: MedicalLandingData): LocalSeoAuditReport 
       "Google prioriza a los consultorios que muestran horarios claros en los microdatos Schema openingHoursSpecification."
   });
 
+  // 7. META TÍTULO LOCAL CON ESPECIALIDAD Y CIUDAD
+  const metaTituloVal = (data.metaTitulo || "").trim();
+  const especialidadVal = (data.especialidad || "").toLowerCase().trim();
+  const cleanCityLower = ciudadVal.toLowerCase();
+  
+  const hasTitleWithSpecialtyAndCity = metaTituloVal !== "" &&
+    metaTituloVal.toLowerCase().includes(cleanCityLower) &&
+    (especialidadVal === "" || metaTituloVal.toLowerCase().includes(especialidadVal.split(" ")[0]));
+
+  items.push({
+    id: "meta-titulo-local",
+    field: "metaTitulo",
+    title: "Meta Título Local (Especialidad + Ciudad)",
+    isCritical: false,
+    status: hasTitleWithSpecialtyAndCity 
+      ? "pass" 
+      : (metaTituloVal === "" ? "pass" : "warning"),
+    currentValue: metaTituloVal || `Auto: "${data.especialidad} en ${data.ciudad} | Dr(a). ${data.nombreMedico}"`,
+    message: hasTitleWithSpecialtyAndCity
+      ? `Título optimizado con Especialidad y Ciudad: "${metaTituloVal}"`
+      : (metaTituloVal === "" 
+          ? `Generación automática activa: "${data.especialidad} en ${data.ciudad} | Dr(a). ${data.nombreMedico}"`
+          : `El título personalizado no incluye explícitamente la ciudad "${data.ciudad}". Se recomienda la fórmula: "[Especialidad] en [Ciudad] | [Doctor]".`),
+    recommendation:
+      "Los pacientes buscan '[Especialidad] en [Ciudad]' (ej. 'Pediatra en Quito', 'Dermatólogo en Guayaquil'). Incluir ambos términos en el título multiplica la tasa de clics y el ranking local."
+  });
+
+  // 8. META DESCRIPCIÓN LOCAL CON LLAMADO A LA ACCIÓN
+  const metaDescVal = (data.metaDescripcion || "").trim();
+  const descIncludesCity = metaDescVal.toLowerCase().includes(cleanCityLower);
+  const descLengthValid = metaDescVal.length >= 80 && metaDescVal.length <= 165;
+
+  items.push({
+    id: "meta-descripcion-local",
+    field: "metaDescripcion",
+    title: "Meta Descripción con Geolocalización",
+    isCritical: false,
+    status: (descIncludesCity && descLengthValid) 
+      ? "pass" 
+      : (metaDescVal === "" ? "pass" : "warning"),
+    currentValue: metaDescVal ? `${metaDescVal.slice(0, 60)}... (${metaDescVal.length} caracteres)` : "Auto-generada con ciudad y llamado a la acción",
+    message: (descIncludesCity && descLengthValid)
+      ? `Descripción de longitud ideal (${metaDescVal.length} car.) que incluye la ciudad de atención.`
+      : (metaDescVal === ""
+          ? `Generación automática orientada a ${data.ciudad} con seguros y llamado a la acción.`
+          : `Revisa la descripción: debe incluir la ciudad "${data.ciudad}" y tener entre 120 y 160 caracteres (actual: ${metaDescVal.length}).`),
+    recommendation:
+      "Una descripción persuasiva con la ciudad de origen convence al paciente antes de hacer clic en los resultados de Google."
+  });
+
+  // 9. CÓDIGO POSTAL DE ECUADOR (6 dígitos)
+  const cpVal = (data.codigoPostal || "").trim();
+  const isValidCp = /^\d{6}$/.test(cpVal);
+  items.push({
+    id: "codigo-postal-ec",
+    field: "codigoPostal",
+    title: "Código Postal Oficial Ecuador (6 dígitos)",
+    isCritical: false,
+    status: isValidCp ? "pass" : "warning",
+    currentValue: cpVal || "Sin configurar",
+    message: isValidCp
+      ? `Código postal válido para Ecuador: ${cpVal}.`
+      : "Se recomienda un código postal oficial de 6 dígitos de Ecuador (ej. 170504 para Quito, 090150 para Guayaquil).",
+    recommendation:
+      "El código postal valida la microzona física del consultorio para las búsquedas 'cerca de mí' en Google Maps."
+  });
+
   // Cálculo de puntajes y estados
   const criticalItems = items.filter(i => i.isCritical);
   const criticalErrors = criticalItems.filter(i => i.status === "error");
   const warnings = items.filter(i => i.status === "warning");
 
   const totalPoints = items.reduce((acc, item) => {
-    if (item.status === "pass") return acc + (item.isCritical ? 25 : 10);
-    if (item.status === "warning") return acc + (item.isCritical ? 10 : 5);
+    if (item.status === "pass") return acc + (item.isCritical ? 20 : 7);
+    if (item.status === "warning") return acc + (item.isCritical ? 8 : 3);
     return acc;
   }, 0);
 
-  // Puntos máximos posibles: 4 críticos * 25 (100) + 2 secundarios * 10 (20) = 120
-  const maxPoints = 120;
+  // 4 críticos * 20 (80) + 5 secundarios * 7 (35) = 115 max
+  const maxPoints = 115;
   const calculatedScore = Math.min(100, Math.round((totalPoints / maxPoints) * 100));
 
   const missingCriticalFields = criticalErrors.map(i => i.title);

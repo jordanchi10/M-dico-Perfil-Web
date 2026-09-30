@@ -22,6 +22,118 @@ export function normalizeDomainUrl(rawUrl?: string): string {
 }
 
 /**
+ * Retorna el código ISO 3166-2:EC según la provincia ecuatoriana para geoetiquetado y rich snippets
+ */
+export function getEcuadorIsoRegion(provincia?: string): string {
+  if (!provincia) return "EC";
+  const p = provincia.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (p.includes("pichincha")) return "EC-P";
+  if (p.includes("guayas")) return "EC-G";
+  if (p.includes("azuay")) return "EC-A";
+  if (p.includes("manabi")) return "EC-M";
+  if (p.includes("tungurahua")) return "EC-T";
+  if (p.includes("el oro")) return "EC-O";
+  if (p.includes("loja")) return "EC-L";
+  if (p.includes("chimborazo")) return "EC-H";
+  if (p.includes("imbabura")) return "EC-I";
+  if (p.includes("santo domingo")) return "EC-SD";
+  if (p.includes("cotopaxi")) return "EC-X";
+  if (p.includes("esmeraldas")) return "EC-E";
+  if (p.includes("los rios")) return "EC-R";
+  if (p.includes("canar")) return "EC-F";
+  if (p.includes("carchi")) return "EC-C";
+  if (p.includes("bolivar")) return "EC-B";
+  if (p.includes("pastaza")) return "EC-Y";
+  if (p.includes("morona")) return "EC-S";
+  if (p.includes("napo")) return "EC-N";
+  if (p.includes("zamora")) return "EC-Z";
+  if (p.includes("sucumbios")) return "EC-U";
+  if (p.includes("orellana")) return "EC-D";
+  if (p.includes("galapagos")) return "EC-W";
+  if (p.includes("santa elena")) return "EC-SE";
+  return "EC";
+}
+
+/**
+ * Normaliza y resuelve las variables de SEO Local con Especialidad y Ciudad de origen para Ecuador
+ */
+export function resolveLocalSeoFields(data: MedicalLandingData) {
+  const cleanCity = (data.ciudad && data.ciudad !== "{{CIUDAD}}") ? data.ciudad.trim() : "Quito";
+  const cleanRegion = (data.estadoRegion && data.estadoRegion !== "{{PROVINCIA}}") ? data.estadoRegion.trim() : "Pichincha";
+  const cleanDoctor = (data.nombreMedico && data.nombreMedico !== "{{MEDICO}}") ? data.nombreMedico.trim() : "Doctor Especialista";
+  const cleanSpecialty = (data.especialidad && data.especialidad !== "{{ESPECIALIDAD}}") ? data.especialidad.trim() : "Medicina Especializada";
+  
+  // Limpiar nombre de clínica resolviendo posibles placeholders {{CIUDAD}} y {{ESPECIALIDAD}}
+  let cleanClinic = (data.nombreClinicaGBP || `Centro Médico de Especialidades ${cleanCity}`).trim();
+  cleanClinic = cleanClinic
+    .replace(/\{\{CIUDAD\}\}/gi, cleanCity)
+    .replace(/\{\{ESPECIALIDAD\}\}/gi, cleanSpecialty)
+    .replace(/\{\{MEDICO\}\}/gi, cleanDoctor);
+
+  // Meta Título Local prioritario para Google Search: [Especialidad] en [Ciudad] | [Doctor] - [Clínica]
+  let resolvedTitle = (data.metaTitulo || "").trim();
+  if (resolvedTitle) {
+    resolvedTitle = resolvedTitle
+      .replace(/\{\{CIUDAD\}\}/gi, cleanCity)
+      .replace(/\{\{ESPECIALIDAD\}\}/gi, cleanSpecialty)
+      .replace(/\{\{MEDICO\}\}/gi, cleanDoctor);
+  } else {
+    resolvedTitle = `${cleanSpecialty} en ${cleanCity} | Dr(a). ${cleanDoctor} - ${cleanClinic}`;
+    if (resolvedTitle.length > 65) {
+      resolvedTitle = `${cleanSpecialty} en ${cleanCity} | Dr(a). ${cleanDoctor}`;
+    }
+  }
+
+  // Meta Descripción Local orientada a intención de búsqueda local y conversión (130-155 caracteres)
+  let resolvedDesc = (data.metaDescripcion || "").trim();
+  if (resolvedDesc) {
+    resolvedDesc = resolvedDesc
+      .replace(/\{\{CIUDAD\}\}/gi, cleanCity)
+      .replace(/\{\{ESPECIALIDAD\}\}/gi, cleanSpecialty)
+      .replace(/\{\{MEDICO\}\}/gi, cleanDoctor);
+  } else {
+    resolvedDesc = `¿Buscas ${cleanSpecialty.toLowerCase()} en ${cleanCity}? Consulta médica con ${cleanDoctor} en ${cleanClinic}, ${cleanCity} (${cleanRegion}, Ecuador). Registro MSP/SENESCYT y seguros privados. ¡Agenda tu cita!`;
+    if (resolvedDesc.length > 160) {
+      resolvedDesc = `${cleanSpecialty} en ${cleanCity}, Ecuador. Consulta con ${cleanDoctor} en ${cleanClinic}. Registro MSP y facturación SRI. Agenda tu cita.`;
+    }
+  }
+
+  // Palabras clave locales altamente enfocadas
+  let customKeywords = (data.metaKeywords || "").trim();
+  if (customKeywords) {
+    customKeywords = customKeywords
+      .replace(/\{\{CIUDAD\}\}/gi, cleanCity)
+      .replace(/\{\{ESPECIALIDAD\}\}/gi, cleanSpecialty)
+      .replace(/\{\{MEDICO\}\}/gi, cleanDoctor);
+  }
+  const localKeywords = customKeywords || [
+    `${cleanSpecialty} en ${cleanCity}`,
+    `${cleanSpecialty} ${cleanCity}`,
+    `médico ${cleanSpecialty.toLowerCase()} en ${cleanCity}`,
+    `doctor ${cleanSpecialty.toLowerCase()} ${cleanCity}`,
+    cleanDoctor,
+    cleanClinic,
+    `consulta médica ${cleanCity}`,
+    `especialista en ${cleanCity} Ecuador`,
+    ...(data.servicios || []).slice(0, 4).map(s => `${s.titulo} ${cleanCity}`)
+  ].join(", ");
+
+  const isoRegion = getEcuadorIsoRegion(cleanRegion);
+
+  return {
+    cleanCity,
+    cleanRegion,
+    cleanDoctor,
+    cleanSpecialty,
+    cleanClinic,
+    resolvedTitle,
+    resolvedDesc,
+    localKeywords,
+    isoRegion
+  };
+}
+
+/**
  * Obtiene la URL activa del Favicon e ícono PWA (adaptado e independiente)
  */
 export function getActiveFaviconUrl(data: MedicalLandingData): string {
@@ -686,6 +798,8 @@ ${generateLandingStyleCssVariables(selectedStylePreset)}
  */
 export function generateJsonLd(data: MedicalLandingData, appUrl: string = "https://tu-dominio.com"): string {
   const cleanAppUrl = normalizeDomainUrl(data.dominioWeb || appUrl);
+  const { cleanCity, cleanRegion, cleanDoctor, cleanSpecialty, cleanClinic } = resolveLocalSeoFields(data);
+  const isClinica = data.tipoEnfoqueLanding === "clinica";
   
   // Citaciones de autoridad médica (E-E-A-T) para Schema
   const citationEntities = (data.backlinksAutoridad || [])
@@ -867,16 +981,17 @@ export function generateJsonLd(data: MedicalLandingData, appUrl: string = "https
     };
   }
 
-  // Catálogo de servicios / tratamientos ofrecidos
+  // Catálogo de servicios / tratamientos ofrecidos con localidad de atención
   const offerCatalog = {
     "@type": "OfferCatalog",
-    "name": `Tratamientos y Procedimientos de ${data.especialidad}`,
-    "itemListElement": (data.servicios || []).map((s, idx) => ({
+    "name": `Tratamientos y Procedimientos de ${cleanSpecialty} en ${cleanCity}`,
+    "itemListElement": (data.servicios || []).map((s) => ({
       "@type": "Offer",
       "itemOffered": {
         "@type": "MedicalProcedure",
         "name": s.titulo,
-        "description": s.descripcion
+        "description": s.descripcion,
+        "areaServed": cleanCity
       }
     }))
   };
@@ -902,24 +1017,29 @@ export function generateJsonLd(data: MedicalLandingData, appUrl: string = "https
 
   // Temas de conocimiento experto para Google E-E-A-T
   const knowsAboutTopics = Array.from(new Set([
-    data.especialidad,
+    cleanSpecialty,
+    `${cleanSpecialty} en ${cleanCity}`,
+    `${cleanSpecialty} Ecuador`,
+    `Medicina en ${cleanCity}`,
     ...(data.servicios || []).map(s => s.titulo),
     ...(data.backlinksAutoridad || []).map(b => b.portalNombre)
   ])).filter(Boolean);
 
+  const primaryType = isClinica ? ["MedicalBusiness", "MedicalClinic"] : ["MedicalBusiness", "Physician"];
+
   const medicalBusinessObject: Record<string, any> = {
-    "@type": ["MedicalBusiness", "Physician"],
+    "@type": primaryType,
     "@id": `${cleanAppUrl}/#medicalbusiness`,
-    "name": data.nombreMedico,
-    "legalName": data.nombreClinicaGBP || data.nombreMedico,
+    "name": isClinica ? cleanClinic : cleanDoctor,
+    "legalName": cleanClinic,
     "image": data.fotoUrl,
     ...(data.logoUrl ? { "logo": data.logoUrl } : {}),
     "telephone": data.telefonoGBP,
     "email": data.emailContacto || undefined,
     "url": cleanAppUrl,
     "hasMap": `https://maps.google.com/maps?q=${data.latitud},${data.longitud}`,
-    "medicalSpecialty": data.especialidad,
-    "description": data.filosofia,
+    "medicalSpecialty": cleanSpecialty,
+    "description": data.filosofia || `Atención médica especializada en ${cleanSpecialty} en ${cleanCity}, Ecuador.`,
     "priceRange": data.precioConsulta || "$$$",
     "currenciesAccepted": "USD",
     "paymentAccepted": paymentAcceptedText,
@@ -928,14 +1048,31 @@ export function generateJsonLd(data: MedicalLandingData, appUrl: string = "https
     "address": {
       "@type": "PostalAddress",
       "streetAddress": data.direccionFisica,
-      "addressLocality": data.ciudad,
-      "addressRegion": data.estadoRegion,
-      "postalCode": data.codigoPostal,
+      "addressLocality": cleanCity,
+      "addressRegion": cleanRegion,
+      "postalCode": data.codigoPostal || undefined,
       "addressCountry": "EC"
     },
-    "areaServed": {
-      "@type": "AdministrativeArea",
-      "name": `${data.ciudad}, ${data.estadoRegion}, Ecuador`
+    "areaServed": [
+      {
+        "@type": "City",
+        "name": cleanCity,
+        "containedInPlace": {
+          "@type": "AdministrativeArea",
+          "name": `${cleanRegion}, Ecuador`
+        }
+      },
+      {
+        "@type": "Country",
+        "name": "Ecuador"
+      }
+    ],
+    "contactPoint": {
+      "@type": "ContactPoint",
+      "telephone": data.telefonoGBP,
+      "contactType": "reservations",
+      "areaServed": "EC",
+      "availableLanguage": ["Spanish", "es"]
     },
     "geo": {
       "@type": "GeoCoordinates",
@@ -970,6 +1107,30 @@ export function generateJsonLd(data: MedicalLandingData, appUrl: string = "https
         "@type": "FAQPage",
         "@id": `${cleanAppUrl}/#faq`,
         "mainEntity": faqEntities
+      },
+      {
+        "@type": "BreadcrumbList",
+        "@id": `${cleanAppUrl}/#breadcrumb`,
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Inicio",
+            "item": `${cleanAppUrl}/`
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": `${cleanSpecialty} en ${cleanCity}`,
+            "item": `${cleanAppUrl}/#servicios`
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": isClinica ? cleanClinic : cleanDoctor,
+            "item": `${cleanAppUrl}/#nosotros`
+          }
+        ]
       }
     ]
   };
@@ -1472,10 +1633,10 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
   const mobileNavHtml = finalMobileNavs.map(nav => {
     if (nav.icon === 'home') {
       return `
-    <!-- Inicio (3D Azul Zafiro) -->
-    <a href="#inicio" class="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-blue-700 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-blue-400/50 cursor-pointer" aria-label="Ir al inicio de la página">
-      <div class="relative w-9 h-9 rounded-2xl bg-gradient-to-b from-blue-400 via-blue-500 to-blue-600 text-white flex items-center justify-center shadow-[0_4px_10px_-1px_rgba(59,130,246,0.45),inset_0_1.5px_1px_rgba(255,255,255,0.7),inset_0_-2px_2px_rgba(0,0,0,0.2)] border-t border-white/40 transition-all duration-200 group-hover:scale-105 group-hover:shadow-[0_6px_14px_-1px_rgba(59,130,246,0.55),inset_0_1.5px_1px_rgba(255,255,255,0.8),inset_0_-2px_2px_rgba(0,0,0,0.2)] active:scale-95">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 text-white drop-shadow-[0_1.5px_1px_rgba(0,0,0,0.25)] transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+    <!-- Inicio (Azul Zafiro / Clínico) -->
+    <a href="#inicio" class="flex flex-col items-center gap-1 py-1 px-2 rounded-xl text-slate-700 hover:text-blue-700 hover:bg-blue-50/80 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-blue-400/50 cursor-pointer" aria-label="Ir al inicio de la página">
+      <div class="w-8 h-8 rounded-xl bg-blue-100/80 text-blue-700 border border-blue-200/70 flex items-center justify-center shadow-xs group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 transition-all duration-200">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
         </svg>
       </div>
@@ -1483,10 +1644,10 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
     </a>`;
     } else if (nav.icon === 'doctor') {
       return `
-    <!-- Especialista / Doctor (3D Índigo) -->
-    <a href="#nosotros" class="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-indigo-700 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-indigo-400/50 cursor-pointer" aria-label="Conocer trayectoria del especialista">
-      <div class="relative w-9 h-9 rounded-2xl bg-gradient-to-b from-indigo-400 via-indigo-500 to-indigo-600 text-white flex items-center justify-center shadow-[0_4px_10px_-1px_rgba(99,102,241,0.45),inset_0_1.5px_1px_rgba(255,255,255,0.7),inset_0_-2px_2px_rgba(0,0,0,0.2)] border-t border-white/40 transition-all duration-200 group-hover:scale-105 group-hover:shadow-[0_6px_14px_-1px_rgba(99,102,241,0.55),inset_0_1.5px_1px_rgba(255,255,255,0.8),inset_0_-2px_2px_rgba(0,0,0,0.2)] active:scale-95">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 text-white drop-shadow-[0_1.5px_1px_rgba(0,0,0,0.25)] transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+    <!-- Especialista / Doctor (Índigo / Púrpura) -->
+    <a href="#nosotros" class="flex flex-col items-center gap-1 py-1 px-2 rounded-xl text-slate-700 hover:text-indigo-700 hover:bg-indigo-50/80 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-indigo-400/50 cursor-pointer" aria-label="Conocer trayectoria del especialista">
+      <div class="w-8 h-8 rounded-xl bg-indigo-100/80 text-indigo-700 border border-indigo-200/70 flex items-center justify-center shadow-xs group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-600 transition-all duration-200">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
           <path stroke-linecap="round" stroke-linejoin="round" d="M19 11a2 2 0 012 2v1a2 2 0 01-2 2h-1a2 2 0 01-2-2v-1a2 2 0 012-2h1z" />
         </svg>
@@ -1495,10 +1656,10 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
     </a>`;
     } else if (nav.icon === 'servicios') {
       return `
-    <!-- Tratamientos / Servicios (3D Teal) -->
-    <a href="#servicios" class="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-teal-700 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-teal-400/50 cursor-pointer" aria-label="Ver tratamientos y procedimientos médicos">
-      <div class="relative w-9 h-9 rounded-2xl bg-gradient-to-b from-teal-400 via-teal-500 to-teal-600 text-white flex items-center justify-center shadow-[0_4px_10px_-1px_rgba(20,184,166,0.45),inset_0_1.5px_1px_rgba(255,255,255,0.7),inset_0_-2px_2px_rgba(0,0,0,0.2)] border-t border-white/40 transition-all duration-200 group-hover:scale-105 group-hover:shadow-[0_6px_14px_-1px_rgba(20,184,166,0.55),inset_0_1.5px_1px_rgba(255,255,255,0.8),inset_0_-2px_2px_rgba(0,0,0,0.2)] active:scale-95">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 text-white drop-shadow-[0_1.5px_1px_rgba(0,0,0,0.25)] transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+    <!-- Tratamientos / Servicios (Teal / Esmeralda Claro) -->
+    <a href="#servicios" class="flex flex-col items-center gap-1 py-1 px-2 rounded-xl text-slate-700 hover:text-teal-700 hover:bg-teal-50/80 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-teal-400/50 cursor-pointer" aria-label="Ver tratamientos y procedimientos médicos">
+      <div class="w-8 h-8 rounded-xl bg-teal-100/80 text-teal-700 border border-teal-200/70 flex items-center justify-center shadow-xs group-hover:bg-teal-600 group-hover:text-white group-hover:border-teal-600 transition-all duration-200">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-3-3v6m-7 5h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
       </div>
@@ -1506,10 +1667,10 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
     </a>`;
     } else if (nav.icon === 'clinica') {
       return `
-    <!-- Instalaciones (3D Teal) -->
-    <a href="#instalaciones" class="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-teal-700 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-teal-400/50 cursor-pointer" aria-label="Ver fotos de instalaciones">
-      <div class="relative w-9 h-9 rounded-2xl bg-gradient-to-b from-teal-400 via-teal-500 to-teal-600 text-white flex items-center justify-center shadow-[0_4px_10px_-1px_rgba(20,184,166,0.45),inset_0_1.5px_1px_rgba(255,255,255,0.7),inset_0_-2px_2px_rgba(0,0,0,0.2)] border-t border-white/40 transition-all duration-200 group-hover:scale-105 group-hover:shadow-[0_6px_14px_-1px_rgba(20,184,166,0.55),inset_0_1.5px_1px_rgba(255,255,255,0.8),inset_0_-2px_2px_rgba(0,0,0,0.2)] active:scale-95">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 text-white drop-shadow-[0_1.5px_1px_rgba(0,0,0,0.25)] transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+    <!-- Instalaciones (Teal / Esmeralda Claro) -->
+    <a href="#instalaciones" class="flex flex-col items-center gap-1 py-1 px-2 rounded-xl text-slate-700 hover:text-teal-700 hover:bg-teal-50/80 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-teal-400/50 cursor-pointer" aria-label="Ver fotos de instalaciones">
+      <div class="w-8 h-8 rounded-xl bg-teal-100/80 text-teal-700 border border-teal-200/70 flex items-center justify-center shadow-xs group-hover:bg-teal-600 group-hover:text-white group-hover:border-teal-600 transition-all duration-200">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
       </div>
@@ -1517,10 +1678,10 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
     </a>`;
     } else if (nav.icon === 'opiniones') {
       return `
-    <!-- Reseñas de Pacientes (3D Ámbar Dorado) -->
-    <a href="#resenas" onclick="if(document.getElementById('resenas')){ document.getElementById('resenas').scrollIntoView({behavior: 'smooth'}); return false; }" class="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-amber-700 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-amber-400/50 cursor-pointer" aria-label="Ver reseñas y calificaciones de pacientes">
-      <div class="relative w-9 h-9 rounded-2xl bg-gradient-to-b from-amber-300 via-amber-400 to-amber-500 text-amber-950 flex items-center justify-center shadow-[0_4px_10px_-1px_rgba(245,158,11,0.5),inset_0_1.5px_1px_rgba(255,255,255,0.8),inset_0_-2px_2px_rgba(0,0,0,0.2)] border-t border-white/50 transition-all duration-200 group-hover:scale-105 group-hover:shadow-[0_6px_14px_-1px_rgba(245,158,11,0.6),inset_0_1.5px_1px_rgba(255,255,255,0.9),inset_0_-2px_2px_rgba(0,0,0,0.2)] active:scale-95">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 fill-amber-950 text-amber-950 drop-shadow-[0_1px_1px_rgba(255,255,255,0.4)] transition-transform group-hover:scale-110" viewBox="0 0 20 20" aria-hidden="true">
+    <!-- Reseñas de Pacientes (Ámbar / Estrella Amarilla) -->
+    <a href="#resenas" onclick="if(document.getElementById('resenas')){ document.getElementById('resenas').scrollIntoView({behavior: 'smooth'}); return false; }" class="flex flex-col items-center gap-1 py-1 px-2 rounded-xl text-slate-700 hover:text-amber-700 hover:bg-amber-50/80 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-amber-400/50 cursor-pointer" aria-label="Ver reseñas y calificaciones de pacientes">
+      <div class="w-8 h-8 rounded-xl bg-amber-100/80 text-amber-600 border border-amber-200/70 flex items-center justify-center shadow-xs group-hover:bg-amber-500 group-hover:text-white group-hover:border-amber-500 transition-all duration-200">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 transition-transform group-hover:scale-110 fill-amber-400 text-amber-500 group-hover:fill-white group-hover:text-white" viewBox="0 0 20 20" aria-hidden="true">
           <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
         </svg>
       </div>
@@ -1528,10 +1689,10 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
     </a>`;
     } else if (nav.icon === 'casos') {
       return `
-    <!-- Casos Clínicos (3D Púrpura) -->
-    <a href="#casos" class="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-purple-700 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-purple-400/50 cursor-pointer" aria-label="Ver casos clínicos">
-      <div class="relative w-9 h-9 rounded-2xl bg-gradient-to-b from-purple-400 via-purple-500 to-purple-600 text-white flex items-center justify-center shadow-[0_4px_10px_-1px_rgba(168,85,247,0.45),inset_0_1.5px_1px_rgba(255,255,255,0.7),inset_0_-2px_2px_rgba(0,0,0,0.2)] border-t border-white/40 transition-all duration-200 group-hover:scale-105 active:scale-95">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 text-white drop-shadow-[0_1.5px_1px_rgba(0,0,0,0.25)] transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+    <!-- Casos Clínicos (Púrpura / Violeta) -->
+    <a href="#casos" class="flex flex-col items-center gap-1 py-1 px-2 rounded-xl text-slate-700 hover:text-purple-700 hover:bg-purple-50/80 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-purple-400/50 cursor-pointer" aria-label="Ver casos clínicos">
+      <div class="w-8 h-8 rounded-xl bg-purple-100/80 text-purple-700 border border-purple-200/70 flex items-center justify-center shadow-xs group-hover:bg-purple-600 group-hover:text-white group-hover:border-purple-600 transition-all duration-200">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
       </div>
@@ -1539,10 +1700,10 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
     </a>`;
     } else if (nav.icon === 'video') {
       return `
-    <!-- Redes / Video (3D Rosa) -->
-    <a href="#redes-sociales" class="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-pink-700 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-pink-400/50 cursor-pointer" aria-label="Ver videos y redes">
-      <div class="relative w-9 h-9 rounded-2xl bg-gradient-to-b from-pink-400 via-pink-500 to-pink-600 text-white flex items-center justify-center shadow-[0_4px_10px_-1px_rgba(236,72,153,0.45),inset_0_1.5px_1px_rgba(255,255,255,0.7),inset_0_-2px_2px_rgba(0,0,0,0.2)] border-t border-white/40 transition-all duration-200 group-hover:scale-105 active:scale-95">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 text-white drop-shadow-[0_1.5px_1px_rgba(0,0,0,0.25)] transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+    <!-- Redes / Video (Rosa / Rojo) -->
+    <a href="#redes-sociales" class="flex flex-col items-center gap-1 py-1 px-2 rounded-xl text-slate-700 hover:text-pink-700 hover:bg-pink-50/80 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-pink-400/50 cursor-pointer" aria-label="Ver videos y redes">
+      <div class="w-8 h-8 rounded-xl bg-pink-100/80 text-pink-700 border border-pink-200/70 flex items-center justify-center shadow-xs group-hover:bg-pink-600 group-hover:text-white group-hover:border-pink-600 transition-all duration-200">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
         </svg>
       </div>
@@ -1550,10 +1711,10 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
     </a>`;
     } else if (nav.icon === 'guias') {
       return `
-    <!-- Guías Médicas (3D Cian) -->
-    <a href="#guias-pacientes" class="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-cyan-700 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-cyan-400/50 cursor-pointer" aria-label="Ver guías médicas">
-      <div class="relative w-9 h-9 rounded-2xl bg-gradient-to-b from-cyan-400 via-cyan-500 to-cyan-600 text-white flex items-center justify-center shadow-[0_4px_10px_-1px_rgba(6,182,212,0.45),inset_0_1.5px_1px_rgba(255,255,255,0.7),inset_0_-2px_2px_rgba(0,0,0,0.2)] border-t border-white/40 transition-all duration-200 group-hover:scale-105 active:scale-95">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 text-white drop-shadow-[0_1.5px_1px_rgba(0,0,0,0.25)] transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+    <!-- Guías Médicas (Cian / Azul cielo) -->
+    <a href="#guias-pacientes" class="flex flex-col items-center gap-1 py-1 px-2 rounded-xl text-slate-700 hover:text-cyan-700 hover:bg-cyan-50/80 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-cyan-400/50 cursor-pointer" aria-label="Ver guías médicas">
+      <div class="w-8 h-8 rounded-xl bg-cyan-100/80 text-cyan-700 border border-cyan-200/70 flex items-center justify-center shadow-xs group-hover:bg-cyan-600 group-hover:text-white group-hover:border-cyan-600 transition-all duration-200">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
         </svg>
       </div>
@@ -1561,10 +1722,10 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
     </a>`;
     } else if (nav.icon === 'faq') {
       return `
-    <!-- FAQ (3D Ámbar) -->
-    <a href="#faq" class="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-amber-700 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-amber-400/50 cursor-pointer" aria-label="Ver preguntas frecuentes">
-      <div class="relative w-9 h-9 rounded-2xl bg-gradient-to-b from-amber-300 via-amber-400 to-amber-500 text-amber-950 flex items-center justify-center shadow-[0_4px_10px_-1px_rgba(245,158,11,0.5),inset_0_1.5px_1px_rgba(255,255,255,0.8),inset_0_-2px_2px_rgba(0,0,0,0.2)] border-t border-white/50 transition-all duration-200 group-hover:scale-105 active:scale-95">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 text-amber-950 drop-shadow-[0_1px_1px_rgba(255,255,255,0.4)] transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+    <!-- FAQ (Ámbar / Oro) -->
+    <a href="#faq" class="flex flex-col items-center gap-1 py-1 px-2 rounded-xl text-slate-700 hover:text-amber-700 hover:bg-amber-50/80 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-amber-400/50 cursor-pointer" aria-label="Ver preguntas frecuentes">
+      <div class="w-8 h-8 rounded-xl bg-amber-100/80 text-amber-700 border border-amber-200/70 flex items-center justify-center shadow-xs group-hover:bg-amber-500 group-hover:text-white group-hover:border-amber-500 transition-all duration-200">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       </div>
@@ -1572,10 +1733,10 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
     </a>`;
     } else if (nav.icon === 'blog') {
       return `
-    <!-- Blog (3D Ámbar Cálido) -->
-    <a href="#blog" class="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-amber-700 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-amber-400/50 cursor-pointer" aria-label="Ver artículos de salud">
-      <div class="relative w-9 h-9 rounded-2xl bg-gradient-to-b from-amber-400 via-amber-500 to-amber-600 text-white flex items-center justify-center shadow-[0_4px_10px_-1px_rgba(245,158,11,0.5),inset_0_1.5px_1px_rgba(255,255,255,0.7),inset_0_-2px_2px_rgba(0,0,0,0.2)] border-t border-white/40 transition-all duration-200 group-hover:scale-105 active:scale-95">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 text-white drop-shadow-[0_1.5px_1px_rgba(0,0,0,0.25)] transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+    <!-- Blog (Ámbar / Oro) -->
+    <a href="#blog" class="flex flex-col items-center gap-1 py-1 px-2 rounded-xl text-slate-700 hover:text-amber-700 hover:bg-amber-50/80 transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-amber-400/50 cursor-pointer" aria-label="Ver artículos de salud">
+      <div class="w-8 h-8 rounded-xl bg-amber-100/80 text-amber-700 border border-amber-200/70 flex items-center justify-center shadow-xs group-hover:bg-amber-500 group-hover:text-white group-hover:border-amber-500 transition-all duration-200">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 4a2 2 0 00-2-2h-3m3 3h-3m3 3h-3M9 17h3m-3-3h3m-3-3h3" />
         </svg>
       </div>
@@ -1584,18 +1745,18 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
     } else if (nav.icon === 'cita') {
       const isPulse = data.estiloCta === 'estatico_pulso';
       return `
-    <!-- Agendar Cita (3D Verde Esmeralda Hero CTA) -->
-    <a href="#agendar" onclick="if(document.getElementById('agendar')){ document.getElementById('agendar').scrollIntoView({behavior: 'smooth'}); return false; } else if(window.openAppointmentModal){ openAppointmentModal('whatsapp'); return false; }" class="flex flex-col items-center gap-1 py-1 px-2.5 rounded-2xl ${isPulse ? 'bg-emerald-600/15 border-2 border-emerald-400 text-emerald-950 shadow-md' : 'bg-emerald-500/15 border border-emerald-300/80 text-emerald-950 shadow-xs hover:bg-emerald-500/25'} transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-emerald-400/60 cursor-pointer" aria-label="Agendar cita con el médico">
-      <div class="relative w-9 h-9 rounded-2xl ${isPulse ? 'bg-gradient-to-b from-emerald-400 via-emerald-600 to-emerald-800 ring-2 ring-emerald-400 shadow-[0_6px_16px_-1px_rgba(16,185,129,0.7),inset_0_2px_1.5px_rgba(255,255,255,0.8),inset_0_-2.5px_2px_rgba(0,0,0,0.3)] animate-pulse' : 'bg-gradient-to-b from-emerald-400 via-emerald-500 to-emerald-700 shadow-[0_5px_12px_-1px_rgba(16,185,129,0.55),inset_0_2px_1.5px_rgba(255,255,255,0.75),inset_0_-2.5px_2px_rgba(0,0,0,0.25)]'} text-white border-t border-white/50 flex items-center justify-center transition-all duration-200 group-hover:scale-110 active:scale-95">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 text-white drop-shadow-[0_1.5px_1px_rgba(0,0,0,0.3)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+    <!-- Agendar Cita (Verde Esmeralda / CTA de Alta Conversión) -->
+    <a href="#agendar" onclick="if(document.getElementById('agendar')){ document.getElementById('agendar').scrollIntoView({behavior: 'smooth'}); return false; } else if(window.openAppointmentModal){ openAppointmentModal('whatsapp'); return false; }" class="flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl ${isPulse ? 'bg-emerald-600 text-white ring-4 ring-emerald-400/50 shadow-lg animate-pulse' : 'bg-emerald-500/15 border border-emerald-300 text-emerald-800 shadow-xs hover:bg-emerald-600 hover:text-white'} transition-all duration-200 transform active:scale-95 group focus:outline-none focus:ring-2 focus:ring-emerald-400/60 cursor-pointer" aria-label="Agendar cita con el médico">
+      <div class="relative w-8 h-8 rounded-xl ${isPulse ? 'bg-emerald-700 text-white' : 'bg-emerald-600 text-white'} flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-200">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
-        <span class="absolute -top-1 -right-1 flex h-3 w-3">
-          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-80"></span>
-          <span class="relative inline-flex rounded-full h-3 w-3 bg-gradient-to-br from-emerald-200 to-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9),inset_0_1px_1px_white] border border-white"></span>
+        <span class="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-300"></span>
         </span>
       </div>
-      <span class="text-[10px] font-black tracking-tight text-emerald-900 group-hover:text-emerald-700">${isPulse ? 'Agendar' : 'Cita'}</span>
+      <span class="text-[10px] font-black tracking-tight">${isPulse ? 'Agendar' : 'Cita'}</span>
     </a>`;
     }
     return "";
@@ -2222,13 +2383,16 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
     .replace(/^(domingos?):\s*/i, "")
     .trim() || "Cerrado";
 
+  const { cleanCity, cleanRegion, cleanDoctor, cleanSpecialty, cleanClinic, resolvedTitle, resolvedDesc, localKeywords, isoRegion } = resolveLocalSeoFields(data);
+
   return `<!DOCTYPE html>
 <html lang="es" class="scroll-smooth">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${data.metaTitulo || `${data.nombreMedico} | ${data.especialidad} en ${data.ciudad}, Ecuador`}</title>
-  <meta name="description" content="${data.metaDescripcion || `Consulta médica con ${data.nombreMedico}, especialista en ${data.especialidad} en ${data.ciudad}, Ecuador (${data.estadoRegion}). Registro MSP y SENESCYT. Facturación SRI y seguros médicos.`}">${cleanGoogleVerification ? `\n  \n  <!-- Verificación de Propiedad Google Search Console -->\n  <meta name="google-site-verification" content="${cleanGoogleVerification}">` : ''}${gaSnippet ? `\n  \n  ${gaSnippet}` : ''}
+  <title>${resolvedTitle}</title>
+  <meta name="description" content="${resolvedDesc}">
+  <meta name="keywords" content="${localKeywords}">${cleanGoogleVerification ? `\n  \n  <!-- Verificación de Propiedad Google Search Console -->\n  <meta name="google-site-verification" content="${cleanGoogleVerification}">` : ''}${gaSnippet ? `\n  \n  ${gaSnippet}` : ''}
   
   <!-- Favicon Personalizado / Ícono PWA -->
   ${activeFavicon ? `<link rel="icon" href="${activeFavicon.startsWith('data:') ? activeFavicon : `${activeFavicon}${activeFavicon.includes('?') ? '&' : '?'}v=${uniqueVersion}`}">
@@ -2243,15 +2407,15 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
   <link rel="alternate" type="text/markdown" title="LLM Knowledge Context" href="${cleanAppUrl}/llms.txt">
   <meta name="ai-llm-knowledge" content="${cleanAppUrl}/llms.txt">
   
-  <!-- SEO Local & Geo Tags para Ecuador -->
-  <meta name="geo.region" content="EC">
-  <meta name="geo.placename" content="${data.ciudad}, ${data.estadoRegion}, Ecuador">
+  <!-- SEO Local & Geo Tags para Ecuador (ISO 3166-2:EC Subregional) -->
+  <meta name="geo.region" content="${isoRegion}">
+  <meta name="geo.placename" content="${cleanCity}, ${cleanRegion}, Ecuador">
   <meta name="geo.position" content="${data.latitud};${data.longitud}">
   <meta name="ICBM" content="${data.latitud}, ${data.longitud}">
   
   <!-- Open Graph / Redes Sociales (WhatsApp, Facebook, Twitter, LinkedIn) -->
-  <meta property="og:title" content="${data.metaTitulo || `${data.nombreMedico} | ${data.especialidad} en ${data.ciudad}, Ecuador`}">
-  <meta property="og:description" content="${data.metaDescripcion || `Agenda tu consulta médica con un especialista certificado en ${data.ciudad}, Ecuador. Más de ${data.anosExperiencia} años de trayectoria médica.`}">
+  <meta property="og:title" content="${resolvedTitle}">
+  <meta property="og:description" content="${resolvedDesc}">
   <meta property="og:url" content="${cleanAppUrl}">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="es_EC">
@@ -2260,8 +2424,8 @@ export function generateHtmlFile(data: MedicalLandingData, appUrl: string = "htt
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="${data.metaTitulo || `${data.nombreMedico} | ${data.especialidad} en ${data.ciudad}, Ecuador`}">
-  <meta name="twitter:description" content="${data.metaDescripcion || `Consulta médica con ${data.nombreMedico}, especialista en ${data.especialidad} en ${data.ciudad}, Ecuador.`}">
+  <meta name="twitter:title" content="${resolvedTitle}">
+  <meta name="twitter:description" content="${resolvedDesc}">
   <meta name="twitter:image" content="${activeOgImage}">
   <meta name="twitter:url" content="${cleanAppUrl}">
   
@@ -2965,8 +3129,8 @@ ${jsonLd}
               ${data.nombreMedico}
             </h2>
             <h1 class="text-[0.935rem] sm:text-base md:text-xl lg:text-2xl ${data.tipoOverlayHero === "claro" ? "text-blue-700 font-extrabold" : "text-cyan-300 font-semibold"} uppercase tracking-wide sm:tracking-wider leading-snug drop-shadow-xs break-words max-w-full hero-animate-specialty">
-              <span id="hero-specialty-typewriter" data-full-text="${data.especialidad}">${data.especialidad}</span>
-              <span class="sr-only"> en ${data.ciudad || "Ecuador"}</span>
+              <span id="hero-specialty-typewriter" data-full-text="${cleanSpecialty}">${cleanSpecialty}</span>
+              <span class="font-bold opacity-90 capitalize"> en ${cleanCity}</span>
             </h1>
           </div>
 
@@ -4035,13 +4199,13 @@ ${jsonLd}
   ${data.estiloCta === 'barra_fija_dual' ? `
   <!-- BARRA INFERIOR MÓVIL FIJA DUAL (WHATSAPP + RESEÑAS) -->
   <div id="mobile-dual-cta-bar" class="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-xl border-t border-slate-200/90 py-2.5 px-3 flex items-center gap-2.5 md:hidden z-50 shadow-[0_-8px_25px_rgba(0,0,0,0.12)] pb-[calc(0.6rem+env(safe-area-inset-bottom))]">
-    <a href="${data.whatsappUrl}" target="_blank" rel="noopener noreferrer" class="flex-1 bg-gradient-to-b from-emerald-500 via-emerald-600 to-emerald-700 hover:from-emerald-400 hover:to-emerald-600 text-white py-3 px-3.5 rounded-2xl font-black text-xs flex items-center justify-center gap-2 shadow-[0_5px_15px_-2px_rgba(16,185,129,0.5),inset_0_1.5px_1px_rgba(255,255,255,0.5),inset_0_-2.5px_2px_rgba(0,0,0,0.25)] border-t border-white/40 transition-all active:scale-95 text-center uppercase tracking-wide cursor-pointer" aria-label="Agendar cita por WhatsApp">
-      <svg class="w-4 h-4 fill-white shrink-0 drop-shadow-[0_1px_1px_rgba(0,0,0,0.3)]" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.717-1.454L0 24zm6.59-2.635c1.6.95 3.51 1.45 5.48 1.45 5.86 0 10.63-4.77 10.63-10.63 0-2.84-1.1-5.51-3.11-7.51a10.522 10.522 0 00-7.52-3.12c-5.87 0-10.64 4.77-10.64 10.64 0 2.05.54 4.05 1.56 5.81L1.92 22.2l4.727-1.242c1.7.93 3.59 1.41 5.4 1.41z" /></svg>
-      <span class="truncate font-black drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)]">AGENDAR CITA</span>
+    <a href="${data.whatsappUrl}" target="_blank" rel="noopener noreferrer" class="flex-1 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white py-3 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 text-center uppercase tracking-wide cursor-pointer" aria-label="Agendar cita por WhatsApp">
+      <svg class="w-4 h-4 fill-white shrink-0" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.717-1.454L0 24zm6.59-2.635c1.6.95 3.51 1.45 5.48 1.45 5.86 0 10.63-4.77 10.63-10.63 0-2.84-1.1-5.51-3.11-7.51a10.522 10.522 0 00-7.52-3.12c-5.87 0-10.64 4.77-10.64 10.64 0 2.05.54 4.05 1.56 5.81L1.92 22.2l4.727-1.242c1.7.93 3.59 1.41 5.4 1.41z" /></svg>
+      <span class="truncate font-black">AGENDAR CITA</span>
     </a>
-    <a href="#resenas" onclick="if(document.getElementById('resenas')){ document.getElementById('resenas').scrollIntoView({behavior: 'smooth'}); return false; }" class="flex-1 bg-gradient-to-b from-white via-slate-50 to-slate-100 hover:from-white hover:to-slate-100 text-slate-800 border border-slate-200/90 py-3 px-3.5 rounded-2xl font-black text-xs flex items-center justify-center gap-1.5 shadow-[0_4px_10px_-2px_rgba(0,0,0,0.08),inset_0_1.5px_1px_rgba(255,255,255,0.9),inset_0_-2px_2px_rgba(0,0,0,0.06)] border-t border-white transition-all active:scale-95 text-center cursor-pointer" aria-label="Ver reseñas de Google de los pacientes">
-      <svg class="w-4 h-4 fill-amber-400 text-amber-500 shrink-0 drop-shadow-[0_1px_1px_rgba(0,0,0,0.15)]" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-      <span class="truncate font-black">Reseñas</span>
+    <a href="#resenas" onclick="if(document.getElementById('resenas')){ document.getElementById('resenas').scrollIntoView({behavior: 'smooth'}); return false; }" class="flex-1 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-800 border border-slate-200/90 py-3 px-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition-all active:scale-95 text-center cursor-pointer" aria-label="Ver reseñas de Google de los pacientes">
+      <svg class="w-4 h-4 fill-amber-400 text-amber-500 shrink-0" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+      <span class="truncate font-bold">Reseñas</span>
     </a>
   </div>
   ` : `
@@ -5406,9 +5570,9 @@ ${jsonLd}
             '<div class="p-2.5 rounded-2xl bg-clinical-50 text-clinical-600 border border-clinical-200/80 flex items-center justify-center shrink-0"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg></div>' +
             '<div><h3 class="text-sm sm:text-base font-black text-clinical-600 uppercase tracking-wider font-display">Cobertura de Seguros Médicos & Reembolso SRI (Ecuador)</h3></div>' +
           '</div>' +
-          '<p class="text-base sm:text-lg text-slate-700 leading-relaxed font-normal pt-1">' +
-            'Para este tratamiento se emite <strong class="text-slate-900 font-semibold">Factura Electrónica autorizada por el SRI</strong> y <strong class="text-slate-900 font-semibold">Formulario de Reclamo Médico firmado</strong> con código CIE-10 para trámite de reembolso o cobertura con las principales aseguradoras (${data.aseguradoras.slice(0, 5).join(", ")}${data.aseguradoras.length > 5 ? " y más" : ""}).' +
-          '</p>' +
+          '<div class="p-5 sm:p-6 rounded-2xl bg-clinical-50 border border-clinical-200 text-sm text-slate-700 leading-relaxed font-normal">' +
+            'Para este tratamiento se emite <strong class="text-slate-900 font-bold">Factura Electrónica autorizada por el SRI</strong> y <strong class="text-slate-900 font-bold">Formulario de Reclamo Médico firmado</strong> con código CIE-10 para trámite de reembolso o cobertura con las principales aseguradoras (${data.aseguradoras.slice(0, 5).join(", ")}${data.aseguradoras.length > 5 ? " y más" : ""}).' +
+          '</div>' +
         '</div>';
       ` : ''}
 
@@ -5449,7 +5613,7 @@ ${jsonLd}
                   '<div class="p-2.5 rounded-2xl bg-clinical-50 text-clinical-600 border border-clinical-200/80 flex items-center justify-center shrink-0"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></div>' +
                   '<div><h3 class="text-sm sm:text-base font-black text-clinical-600 uppercase tracking-wider font-display">Descripción Clínica del Tratamiento</h3></div>' +
                 '</div>' +
-                '<div class="text-base sm:text-lg text-slate-700 leading-relaxed whitespace-pre-line font-normal pt-1">' + (srv.descripcion || '') + '</div>' +
+                '<div class="text-sm sm:text-base text-slate-700 leading-relaxed whitespace-pre-line bg-slate-50/70 p-5 sm:p-6 rounded-2xl border border-slate-200/70">' + (srv.descripcion || '') + '</div>' +
               '</div>' +
 
               galleryHtml +

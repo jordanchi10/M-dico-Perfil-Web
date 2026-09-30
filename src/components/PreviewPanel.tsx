@@ -197,6 +197,7 @@ const ClinicalBeforeAfterSliderItem: React.FC<ClinicalBeforeAfterSliderItemProps
         onMouseMove={(e) => isDragging.current && handleSliderMove(e.clientX)}
         onTouchMove={handleTouchMove}
         onClick={(e) => handleSliderMove(e.clientX)}
+        style={{ touchAction: "none" }}
         className="relative w-full aspect-[4/3] rounded-xl overflow-hidden select-none bg-slate-200 cursor-ew-resize border border-slate-300/70 shadow-sm"
       >
         {/* Imagen Después (Fondo) */}
@@ -229,7 +230,7 @@ const ClinicalBeforeAfterSliderItem: React.FC<ClinicalBeforeAfterSliderItemProps
           onMouseDown={handleMouseDown}
           onTouchStart={handleMouseDown}
           className="absolute top-0 bottom-0 w-0.5 bg-white flex items-center justify-center cursor-ew-resize shadow-lg z-20 group/slider-handle"
-          style={{ left: `${sliderPos}%`, transform: "translateX(-50%)" }}
+          style={{ left: `${sliderPos}%`, transform: "translateX(-50%)", touchAction: "none" }}
         >
           {/* Anillo exterior con pulso / brillo animado */}
           <span className="absolute w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-blue-500/30 animate-ping opacity-75 pointer-events-none" />
@@ -1741,16 +1742,10 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                   </div>
                 )}
 
-                {/* HEADER / NAV (En móvil: se oculta arriba al inicio y aparece suavemente al hacer scroll) */}
+                {/* HEADER / NAV */}
                 <header 
                   id="preview-landing-header" 
-                  className={`${
-                    device === "mobile"
-                      ? `fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${
-                          isScrolled ? "translate-y-0 opacity-100 shadow-md pointer-events-auto" : "-translate-y-full opacity-0 pointer-events-none"
-                        }`
-                      : "sticky top-0 z-30 shadow-xs bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-2 sm:px-4 h-16 sm:h-20 flex items-center w-full"
-                  }`}
+                  className="sticky top-0 z-40 shadow-xs bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-2 sm:px-4 h-16 sm:h-20 flex flex-col justify-center w-full transition-all duration-200"
                 >
                   <div className="w-[90%] max-w-[90%] mx-auto flex items-center justify-between h-full">
                     {/* Brand Logo */}
@@ -1763,7 +1758,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                           loading="eager"
                           fetchPriority="high"
                           decoding="async"
-                          className="object-contain object-left max-w-[180px] sm:max-w-[280px] md:max-w-[340px] bg-transparent shrink-0 transition-all duration-200"
+                          className="object-contain object-left max-w-[140px] sm:max-w-[220px] md:max-w-[340px] bg-transparent shrink-0 transition-all duration-200"
                         />
                       ) : (
                         <div className="flex flex-col text-left">
@@ -1775,6 +1770,29 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                         </div>
                       )}
                     </div>
+
+                {/* MENÚ TABLET (Pills compactas de navegación con scroll suave) */}
+                {device === "tablet" && (
+                  <nav className="flex items-center gap-1 bg-slate-100/90 border border-slate-200/80 p-1 rounded-full shadow-2xs mx-2 overflow-x-auto scrollbar-none max-w-[50%]">
+                    {activeNavs.map((item) => {
+                      const isActive = activeSection === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => scrollToSection(item.id)}
+                          style={isActive ? { backgroundColor: activeColorScale["600"], color: "#FFFFFF" } : {}}
+                          className={`px-2.5 py-1 text-[12px] font-bold rounded-full transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 ${
+                            isActive 
+                              ? "text-white font-extrabold shadow-xs"
+                              : "text-slate-700 hover:text-slate-950 hover:bg-white/90"
+                          }`}
+                        >
+                          {item.label}
+                        </button>
+                      );
+                    })}
+                  </nav>
+                )}
 
                 {/* VERSIÓN 1 DE MENÚ DESKTOP: CÁPSULA CENTRADA (PÍLDORA) */}
                 {device === "desktop" && (data.estiloMenuDesktop || "capsula") === "capsula" && (
@@ -1929,18 +1947,18 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                     onClick={() => scrollToSection("faqs")}
                     aria-label="Asistente Virtual IA"
                     title="Ir al Asistente Virtual IA"
-                    className="px-3 py-1.5 sm:px-3.5 sm:py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 active:from-blue-700 active:to-violet-700 text-white rounded-full flex items-center gap-1.5 shadow-md hover:shadow-indigo-500/25 transition-all duration-300 shrink-0 hover:scale-105 cursor-pointer border border-indigo-300/40 text-xs sm:text-xs font-black tracking-tight"
+                    className="px-2.5 py-1.5 sm:px-3.5 sm:py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 active:from-blue-700 active:to-violet-700 text-white rounded-full flex items-center gap-1.5 shadow-md hover:shadow-indigo-500/25 transition-all duration-300 shrink-0 hover:scale-105 cursor-pointer border border-indigo-300/40 text-xs font-black tracking-tight"
                   >
-                    <Bot className="w-4 h-4 shrink-0 text-indigo-100" />
-                    <span>Asistente</span>
+                    <Bot className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 text-indigo-100" />
+                    <span className="hidden xs:inline">Asistente</span>
                   </button>
 
-                  {/* Mobile Hamburger Menu Button (Only in mobile view mode) */}
-                  {device === "mobile" && (
+                  {/* Mobile & Tablet Hamburger Menu Button */}
+                  {(device === "mobile" || device === "tablet") && (
                     <button
                       onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                       style={mobileMenuOpen ? { backgroundColor: activeColorScale["600"], color: "#FFFFFF", borderColor: activeColorScale["600"] } : {}}
-                      className={`w-9 h-9 rounded-full border flex items-center justify-center transition-all cursor-pointer shadow-2xs ${
+                      className={`w-9 h-9 rounded-full border flex items-center justify-center transition-all cursor-pointer shadow-2xs shrink-0 ${
                         mobileMenuOpen 
                           ? "text-white"
                           : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
@@ -1954,8 +1972,8 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                 </div>
               </div>
 
-              {/* Mobile Slide-Down Menu Panel (Lista vertical con el mismo estilo de etiqueta/tarjeta) */}
-              {device === "mobile" && mobileMenuOpen && (
+              {/* Mobile & Tablet Slide-Down Menu Panel */}
+              {(device === "mobile" || device === "tablet") && mobileMenuOpen && (
                 <div className="overflow-hidden max-w-full w-full border-t border-slate-100 mt-2.5 pb-2">
                   <nav className="flex flex-col gap-2 bg-slate-50/90 p-2.5 rounded-2xl border border-slate-200/80 mt-1 w-full overflow-hidden">
                     {activeNavs.map((item) => {
@@ -2272,7 +2290,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                       data.tipoOverlayHero === "claro" ? "text-blue-700 font-extrabold drop-shadow-2xs" : "text-cyan-300 font-semibold drop-shadow-xs"
                     }`}>
                       <TypewriterText text={data.especialidad} />
-                      <span className="sr-only"> en {data.ciudad || "Ecuador"}</span>
+                      <span className="font-bold opacity-90 capitalize"> en {data.ciudad || "Ecuador"}</span>
                     </h1>
                   </div>
 
@@ -5073,112 +5091,108 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                 href={data.whatsappUrl || "#"} 
                 target="_blank" 
                 rel="noopener noreferrer" 
-                className="flex-1 bg-gradient-to-b from-emerald-500 via-emerald-600 to-emerald-700 hover:from-emerald-400 hover:to-emerald-600 text-white py-2.5 px-3.5 rounded-2xl font-black text-xs flex items-center justify-center gap-2 shadow-[0_5px_15px_-2px_rgba(16,185,129,0.5),inset_0_1.5px_1px_rgba(255,255,255,0.5),inset_0_-2.5px_2px_rgba(0,0,0,0.25)] border-t border-white/40 hover:-translate-y-0.5 active:translate-y-0.5 active:scale-98 transition-all duration-200 text-center uppercase tracking-wide cursor-pointer"
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white py-2.5 px-3.5 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all duration-200 text-center uppercase tracking-wide cursor-pointer"
               >
-                <MessageCircle className="w-4 h-4 shrink-0 fill-white text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.3)]" />
-                <span className="truncate font-black drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)]">AGENDAR CITA</span>
+                <MessageCircle className="w-4 h-4 shrink-0 fill-white text-white" />
+                <span className="truncate font-black">AGENDAR CITA</span>
               </a>
               <button 
                 type="button" 
                 onClick={() => {
                   scrollToSection("resenas");
                 }}
-                className="flex-1 bg-gradient-to-b from-white via-slate-50 to-slate-100 hover:from-white hover:to-slate-100 text-slate-800 border border-slate-200/90 py-2.5 px-3.5 rounded-2xl font-black text-xs flex items-center justify-center gap-1.5 shadow-[0_4px_10px_-2px_rgba(0,0,0,0.08),inset_0_1.5px_1px_rgba(255,255,255,0.9),inset_0_-2px_2px_rgba(0,0,0,0.06)] border-t border-white hover:-translate-y-0.5 active:translate-y-0.5 active:scale-98 transition-all duration-200 text-center cursor-pointer"
+                className="flex-1 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-800 border border-slate-200/90 py-2.5 px-3.5 rounded-xl font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all duration-200 text-center cursor-pointer"
               >
-                <Star className="w-4 h-4 shrink-0 fill-amber-400 text-amber-500 drop-shadow-[0_1px_1px_rgba(0,0,0,0.15)]" />
+                <Star className="w-4 h-4 shrink-0 fill-amber-400 text-amber-500" />
                 <span className="truncate font-black">Reseñas</span>
               </button>
             </div>
           ) : (
             <nav 
               aria-label="Navegación Móvil Rápida"
-              className="sticky bottom-0 inset-x-0 bg-white/95 backdrop-blur-xl border-t border-slate-200/90 py-2 px-2 flex justify-around items-center z-30 shadow-[0_-6px_20px_rgba(0,0,0,0.08)] shrink-0"
+              className="sticky bottom-0 inset-x-0 bg-white/95 backdrop-blur-xl border-t border-slate-200/90 py-2 px-2.5 flex justify-around items-center z-30 shadow-[0_-6px_20px_rgba(0,0,0,0.08)] shrink-0"
             >
-              {/* Inicio (3D Azul Zafiro) */}
+              {/* Inicio (Azul Zafiro) */}
               <a 
                 href="#preview-landing-hero" 
                 onClick={(e) => {
                   e.preventDefault();
                   scrollToSection("inicio");
                 }}
-                className="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-blue-700 transition-all duration-200 transform active:scale-95 group cursor-pointer"
+                className="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-blue-700 hover:bg-blue-50/80 transition-all duration-200 transform active:scale-95 group cursor-pointer"
               >
-                <div className="relative w-9 h-9 rounded-2xl bg-gradient-to-b from-blue-400 via-blue-500 to-blue-600 text-white flex items-center justify-center shadow-[0_4px_10px_-1px_rgba(59,130,246,0.45),inset_0_1.5px_1px_rgba(255,255,255,0.7),inset_0_-2px_2px_rgba(0,0,0,0.2)] border-t border-white/40 transition-all duration-200 group-hover:scale-105 group-hover:shadow-[0_6px_14px_-1px_rgba(59,130,246,0.55),inset_0_1.5px_1px_rgba(255,255,255,0.8),inset_0_-2px_2px_rgba(0,0,0,0.2)] active:scale-95">
-                  <Home className="w-4.5 h-4.5 text-white drop-shadow-[0_1.5px_1px_rgba(0,0,0,0.25)] transition-transform group-hover:scale-110" />
+                <div className="w-8 h-8 rounded-xl bg-blue-100/80 text-blue-700 border border-blue-200/70 flex items-center justify-center shadow-xs group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 transition-all duration-200">
+                  <Home className="w-4 h-4 transition-transform group-hover:scale-110" />
                 </div>
                 <span className="text-[10px] font-extrabold tracking-tight">Inicio</span>
               </a>
 
-              {/* Doctor (3D Índigo) */}
+              {/* Doctor (Índigo) */}
               <a 
                 href="#preview-landing-nosotros" 
                 onClick={(e) => {
                   e.preventDefault();
                   scrollToSection("nosotros");
                 }}
-                className="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-indigo-700 transition-all duration-200 transform active:scale-95 group cursor-pointer"
+                className="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-indigo-700 hover:bg-indigo-50/80 transition-all duration-200 transform active:scale-95 group cursor-pointer"
               >
-                <div className="relative w-9 h-9 rounded-2xl bg-gradient-to-b from-indigo-400 via-indigo-500 to-indigo-600 text-white flex items-center justify-center shadow-[0_4px_10px_-1px_rgba(99,102,241,0.45),inset_0_1.5px_1px_rgba(255,255,255,0.7),inset_0_-2px_2px_rgba(0,0,0,0.2)] border-t border-white/40 transition-all duration-200 group-hover:scale-105 group-hover:shadow-[0_6px_14px_-1px_rgba(99,102,241,0.55),inset_0_1.5px_1px_rgba(255,255,255,0.8),inset_0_-2px_2px_rgba(0,0,0,0.2)] active:scale-95">
-                  <Award className="w-4.5 h-4.5 text-white drop-shadow-[0_1.5px_1px_rgba(0,0,0,0.25)] transition-transform group-hover:scale-110" />
+                <div className="w-8 h-8 rounded-xl bg-indigo-100/80 text-indigo-700 border border-indigo-200/70 flex items-center justify-center shadow-xs group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-600 transition-all duration-200">
+                  <Award className="w-4 h-4 transition-transform group-hover:scale-110" />
                 </div>
                 <span className="text-[10px] font-extrabold tracking-tight">{isClinica ? "Nosotros" : "Doctor"}</span>
               </a>
 
-              {/* Servicios (3D Teal) */}
+              {/* Servicios (Teal) */}
               <a 
                 href="#preview-landing-servicios" 
                 onClick={(e) => {
                   e.preventDefault();
                   scrollToSection("servicios");
                 }}
-                className="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-teal-700 transition-all duration-200 transform active:scale-95 group cursor-pointer"
+                className="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-teal-700 hover:bg-teal-50/80 transition-all duration-200 transform active:scale-95 group cursor-pointer"
               >
-                <div className="relative w-9 h-9 rounded-2xl bg-gradient-to-b from-teal-400 via-teal-500 to-teal-600 text-white flex items-center justify-center shadow-[0_4px_10px_-1px_rgba(20,184,166,0.45),inset_0_1.5px_1px_rgba(255,255,255,0.7),inset_0_-2px_2px_rgba(0,0,0,0.2)] border-t border-white/40 transition-all duration-200 group-hover:scale-105 group-hover:shadow-[0_6px_14px_-1px_rgba(20,184,166,0.55),inset_0_1.5px_1px_rgba(255,255,255,0.8),inset_0_-2px_2px_rgba(0,0,0,0.2)] active:scale-95">
-                  <Stethoscope className="w-4.5 h-4.5 text-white drop-shadow-[0_1.5px_1px_rgba(0,0,0,0.25)] transition-transform group-hover:scale-110" />
+                <div className="w-8 h-8 rounded-xl bg-teal-100/80 text-teal-700 border border-teal-200/70 flex items-center justify-center shadow-xs group-hover:bg-teal-600 group-hover:text-white group-hover:border-teal-600 transition-all duration-200">
+                  <Stethoscope className="w-4 h-4 transition-transform group-hover:scale-110" />
                 </div>
                 <span className="text-[10px] font-extrabold tracking-tight">Servicios</span>
               </a>
 
-              {/* Reseñas (3D Ámbar Dorado) */}
+              {/* Reseñas (Ámbar con estrella amarilla) */}
               <a 
                 href="#preview-landing-resenas" 
                 onClick={(e) => {
                   e.preventDefault();
                   scrollToSection("resenas");
                 }}
-                className="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-amber-700 transition-all duration-200 transform active:scale-95 group cursor-pointer"
+                className="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-slate-700 hover:text-amber-700 hover:bg-amber-50/80 transition-all duration-200 transform active:scale-95 group cursor-pointer"
               >
-                <div className="relative w-9 h-9 rounded-2xl bg-gradient-to-b from-amber-300 via-amber-400 to-amber-500 text-amber-950 flex items-center justify-center shadow-[0_4px_10px_-1px_rgba(245,158,11,0.5),inset_0_1.5px_1px_rgba(255,255,255,0.8),inset_0_-2px_2px_rgba(0,0,0,0.2)] border-t border-white/50 transition-all duration-200 group-hover:scale-105 group-hover:shadow-[0_6px_14px_-1px_rgba(245,158,11,0.6),inset_0_1.5px_1px_rgba(255,255,255,0.9),inset_0_-2px_2px_rgba(0,0,0,0.2)] active:scale-95">
-                  <Star className="w-4.5 h-4.5 fill-amber-950 text-amber-950 drop-shadow-[0_1px_1px_rgba(255,255,255,0.4)] transition-transform group-hover:scale-110" />
+                <div className="w-8 h-8 rounded-xl bg-amber-100/80 text-amber-600 border border-amber-200/70 flex items-center justify-center shadow-xs group-hover:bg-amber-500 group-hover:text-white group-hover:border-amber-500 transition-all duration-200">
+                  <Star className="w-4 h-4 transition-transform group-hover:scale-110 fill-amber-400 text-amber-500 group-hover:fill-white group-hover:text-white" />
                 </div>
                 <span className="text-[10px] font-extrabold tracking-tight">Reseñas</span>
               </a>
 
-              {/* Agendar Cita (3D Verde Esmeralda Hero CTA) */}
+              {/* Agendar Cita (Verde Esmeralda) */}
               <a 
                 href="#agendar-preview" 
                 onClick={(e) => {
                   e.preventDefault();
                   scrollToSection("contacto");
                 }}
-                className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-2xl transition-all duration-200 transform active:scale-95 group cursor-pointer ${
+                className={`flex flex-col items-center gap-1 py-1 px-2 rounded-xl transition-all duration-200 transform active:scale-95 group cursor-pointer ${
                   data.estiloCta === "estatico_pulso"
-                    ? "bg-emerald-600/15 border-2 border-emerald-400 text-emerald-950 shadow-md"
-                    : "bg-emerald-500/15 border border-emerald-300/80 text-emerald-950 shadow-xs hover:bg-emerald-500/25"
+                    ? "bg-emerald-600 text-white ring-4 ring-emerald-400/50 shadow-md animate-pulse"
+                    : "bg-emerald-500/15 border border-emerald-300 text-emerald-800 shadow-xs hover:bg-emerald-600 hover:text-white"
                 }`}
               >
-                <div className={`relative w-9 h-9 rounded-2xl ${
-                  data.estiloCta === "estatico_pulso"
-                    ? "bg-gradient-to-b from-emerald-400 via-emerald-600 to-emerald-800 ring-2 ring-emerald-400 shadow-[0_6px_16px_-1px_rgba(16,185,129,0.7),inset_0_2px_1.5px_rgba(255,255,255,0.8),inset_0_-2.5px_2px_rgba(0,0,0,0.3)] animate-pulse"
-                    : "bg-gradient-to-b from-emerald-400 via-emerald-500 to-emerald-700 shadow-[0_5px_12px_-1px_rgba(16,185,129,0.55),inset_0_2px_1.5px_rgba(255,255,255,0.75),inset_0_-2.5px_2px_rgba(0,0,0,0.25)]"
-                } text-white border-t border-white/50 flex items-center justify-center transition-all duration-200 group-hover:scale-110 active:scale-95`}>
-                  <Calendar className="w-4.5 h-4.5 text-white drop-shadow-[0_1.5px_1px_rgba(0,0,0,0.3)]" />
-                  <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-80"></span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-gradient-to-br from-emerald-200 to-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9),inset_0_1px_1px_white] border border-white"></span>
+                <div className={`relative w-8 h-8 rounded-xl ${data.estiloCta === "estatico_pulso" ? "bg-emerald-700 text-white" : "bg-emerald-600 text-white"} flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-200`}>
+                  <Calendar className="w-4 h-4" />
+                  <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-300"></span>
                   </span>
                 </div>
-                <span className="text-[10px] font-black tracking-tight text-emerald-900 group-hover:text-emerald-700">{data.estiloCta === "estatico_pulso" ? "Agendar" : "Cita"}</span>
+                <span className="text-[10px] font-black tracking-tight">{data.estiloCta === "estatico_pulso" ? "Agendar" : "Cita"}</span>
               </a>
             </nav>
           )

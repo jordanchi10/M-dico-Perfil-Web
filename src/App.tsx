@@ -110,6 +110,7 @@ export default function App() {
   const [activeProfileId, setActiveProfileIdState] = useState<string | null>(getActiveProfileId);
   const [savedProfilesCount, setSavedProfilesCount] = useState<number>(0);
   const [quickSavedToast, setQuickSavedToast] = useState<string>("");
+  const [mobileActiveTab, setMobileActiveTab] = useState<"editor" | "workspace">("editor");
 
   // Estado del tema visual de la interfaz del generador (Claro / Oscuro para ergonomía visual)
   const [editorTheme, setEditorTheme] = useState<"light" | "dark">(() => {
@@ -175,23 +176,22 @@ export default function App() {
     setTimeout(() => setQuickSavedToast(""), 3000);
   };
 
-  // Actualizar favicon de la pestaña en tiempo real
+  // Favicon oficial de la plataforma Mediko (garantiza que siempre sea el logo oficial de la plataforma y NO el del médico)
   useEffect(() => {
     try {
-      const activeFavicon = medicalData.pwaIconUrl || medicalData.faviconUrl || medicalData.logoUrl;
-      if (activeFavicon) {
-        let link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
-        if (!link) {
-          link = document.createElement("link");
-          link.rel = "icon";
-          document.getElementsByTagName("head")[0].appendChild(link);
-        }
-        link.href = activeFavicon;
+      const officialFavicon = "/favicon.svg";
+      let link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
+      if (!link) {
+        link = document.createElement("link");
+        link.rel = "icon";
+        link.type = "image/svg+xml";
+        document.getElementsByTagName("head")[0].appendChild(link);
       }
+      link.href = officialFavicon;
     } catch (e) {
-      console.error("Error updating browser favicon:", e);
+      console.error("Error setting official platform favicon:", e);
     }
-  }, [medicalData.pwaIconUrl, medicalData.faviconUrl, medicalData.logoUrl]);
+  }, []);
 
   // Mantener actualizado el script JSON-LD (Schema.org Physician + FAQPage) en el <head> del documento
   useEffect(() => {
@@ -598,11 +598,45 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Hosting
         </div>
       )}
 
-      {/* CUERPO DE LA APP 100% ANCHO COMPLETO (Doble Columna) */}
-      <main id="app-main-content" className="flex-1 w-full px-4 sm:px-6 lg:px-8 xl:px-10 py-4 sm:py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      {/* SELECTOR RESPONSIVO PARA MÓVIL Y TABLET (< lg) */}
+      <div className="lg:hidden sticky top-16 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 py-2 flex items-center justify-between gap-2 shadow-xs">
+        <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-xl w-full max-w-md mx-auto">
+          <button
+            type="button"
+            onClick={() => setMobileActiveTab("editor")}
+            className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold transition-all ${
+              mobileActiveTab === "editor"
+                ? "bg-white text-blue-700 shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <UserCheck className="w-3.5 h-3.5" />
+            <span>Formulario & Datos</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileActiveTab("workspace")}
+            className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold transition-all ${
+              mobileActiveTab === "workspace"
+                ? "bg-blue-600 text-white shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <Smartphone className="w-3.5 h-3.5" />
+            <span>Vista Previa & Código</span>
+          </button>
+        </div>
+      </div>
+
+      {/* CUERPO DE LA APP 100% ANCHO COMPLETO (Doble Columna en Desktop, Conmutado en Mobile) */}
+      <main id="app-main-content" className="flex-1 w-full px-3 sm:px-6 lg:px-8 xl:px-10 py-3 sm:py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
-        {/* COLUMNA IZQUIERDA: Formulario de Control (5 Columnas) */}
-        <section id="editor-section" className="lg:col-span-5 h-full" aria-label="Panel de edición">
+        {/* COLUMNA IZQUIERDA: Formulario de Control (5 Columnas en Desktop) */}
+        <section 
+          id="editor-section" 
+          className={`lg:col-span-5 h-full ${mobileActiveTab === "editor" ? "block" : "hidden lg:block"}`} 
+          aria-label="Panel de edición"
+        >
           <div className="space-y-4">
             
             {/* TARJETA DE ESTADO DEL CLIENTE ACTUAL */}
@@ -675,7 +709,9 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Hosting
         {/* COLUMNA DERECHA: Vista Previa e Instancias de Código (7 Columnas - Fija en Escritorio) */}
         <section 
           id="workspace-section" 
-          className="lg:col-span-7 flex flex-col gap-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-5.5rem)] lg:self-start shrink-0"
+          className={`lg:col-span-7 flex flex-col gap-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-5.5rem)] lg:self-start shrink-0 ${
+            mobileActiveTab === "workspace" ? "flex" : "hidden lg:flex"
+          }`}
         >
           
           {/* Selector de espacio de trabajo */}

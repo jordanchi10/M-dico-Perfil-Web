@@ -64,7 +64,8 @@ import {
   getGoogleHtmlVerificationFilename,
   getGoogleHtmlVerificationContent,
   extractGoogleAnalyticsId,
-  generateGoogleAnalyticsScript
+  generateGoogleAnalyticsScript,
+  resolveLocalSeoFields
 } from "../../utils/generators";
 import { compressAndConvertToWebP } from "../../utils/imageCompressor";
 import { GbpPostExporterModal } from "../GbpPostExporterModal";
@@ -118,6 +119,7 @@ export function FormSeo({
   const [importErrorMsg, setImportErrorMsg] = useState<string | null>(null);
   const [showAdvancedManualForm, setShowAdvancedManualForm] = useState(false);
   const [isSubdomainsVisible, setIsSubdomainsVisible] = useState(false);
+  const [optimizedNotice, setOptimizedNotice] = useState<string | null>(null);
 
   const activeFavicon = getActiveFaviconUrl(data);
   const activeOgImage = getActiveOgImageUrl(data);
@@ -505,16 +507,10 @@ Genera la lista con los portales más relevantes de ${ciudad}, Ecuador respetand
     const raw = domainToInject !== undefined ? domainToInject : (data.dominioWeb || "");
     const cleaned = normalizeDomainUrl(raw);
 
-    // Auto-completar meta título y meta descripción si están vacíos
-    let newTitle = data.metaTitulo;
-    if (!newTitle || newTitle.trim() === "") {
-      newTitle = `${data.nombreMedico || "Dr. Especialista"} | ${data.especialidad || "Medicina"} en ${data.ciudad || "Ecuador"}`;
-    }
-
-    let newDesc = data.metaDescripcion;
-    if (!newDesc || newDesc.trim() === "") {
-      newDesc = `Sitio web oficial de ${data.nombreMedico || "Doctor"} especialista en ${data.especialidad || "atención médica"} en ${data.ciudad || "Ecuador"}. Consulta horarios, tratamientos y reserva tu cita médica online.`;
-    }
+    // Auto-completar meta título y meta descripción con el estándar de oro de SEO Local (Especialidad + Ciudad)
+    const { resolvedTitle, resolvedDesc } = resolveLocalSeoFields(data);
+    const newTitle = (data.metaTitulo && data.metaTitulo.trim() !== "") ? data.metaTitulo.trim() : resolvedTitle;
+    const newDesc = (data.metaDescripcion && data.metaDescripcion.trim() !== "") ? data.metaDescripcion.trim() : resolvedDesc;
 
     // Inyectar en el documento activo
     injectHeadTagsInDocument(cleaned, newTitle, newDesc);
@@ -1527,6 +1523,44 @@ ${extractGoogleVerificationCode(data.googleSiteVerification) ? `\n<!-- VERIFICAC
 
         {/* EDICIÓN DE META TÍTULO Y META DESCRIPCIÓN */}
         <div className="space-y-3 pt-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-gradient-to-r from-blue-50 to-indigo-50/70 p-3 rounded-xl border border-blue-200/80">
+            <div className="space-y-0.5">
+              <span className="text-xs font-black text-blue-900 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                Optimización de SEO Local para Ecuador
+              </span>
+              <p className="text-[11px] text-blue-700/80">
+                Fórmula de oro para ranking: <span className="font-bold font-mono text-[10px] bg-blue-100/70 px-1 py-0.5 rounded text-blue-900">[Especialidad] en [Ciudad] | [Doctor]</span>
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const { resolvedTitle, resolvedDesc, localKeywords } = resolveLocalSeoFields(data);
+                onChange({
+                  ...data,
+                  metaTitulo: resolvedTitle,
+                  metaDescripcion: resolvedDesc,
+                  metaKeywords: localKeywords
+                });
+                injectHeadTagsInDocument(data.dominioWeb || "", resolvedTitle, resolvedDesc);
+                setOptimizedNotice(`¡Optimizado para ${data.especialidad || 'Especialidad'} en ${data.ciudad || 'Ecuador'}!`);
+                setTimeout(() => setOptimizedNotice(null), 4000);
+              }}
+              className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer shrink-0"
+            >
+              <Zap className="w-3.5 h-3.5 text-amber-300" />
+              <span>Auto-Completar SEO Local</span>
+            </button>
+          </div>
+
+          {optimizedNotice && (
+            <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2 animate-in fade-in">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{optimizedNotice}</span>
+            </div>
+          )}
+
           <div className="flex flex-col gap-1">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-slate-700 uppercase" htmlFor="metaTitulo">
@@ -1563,6 +1597,48 @@ ${extractGoogleVerificationCode(data.googleSiteVerification) ? `\n<!-- VERIFICAC
               placeholder="Descripción atractiva para pacientes que buscan atención médica en Google..."
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all font-medium resize-none text-slate-800"
             />
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-700 uppercase" htmlFor="metaKeywords">
+                Palabras Clave SEO Local (Especialidad + Ciudad)
+              </label>
+              <span className="text-[10px] text-slate-400">Separadas por comas</span>
+            </div>
+            <input
+              id="metaKeywords"
+              type="text"
+              value={data.metaKeywords ?? ""}
+              onChange={(e) => updateField("metaKeywords", e.target.value)}
+              placeholder={`ej. ${data.especialidad || 'Traumatología'} en ${data.ciudad || 'Quito'}, médico ${data.especialidad || 'traumatólogo'} ${data.ciudad || 'Quito'}, doctor ${data.ciudad || 'Quito'}`}
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all font-medium text-slate-900"
+            />
+            <div className="flex items-center gap-1.5 flex-wrap pt-1">
+              <span className="text-[10px] text-slate-500 font-semibold">Sugerencias locales:</span>
+              {[
+                `${data.especialidad || 'Especialidad'} en ${data.ciudad || 'Quito'}`,
+                `médico ${data.especialidad || 'especialista'} ${data.ciudad || 'Quito'}`,
+                `consulta ${data.especialidad || 'médica'} ${data.ciudad || 'Quito'}`,
+                `mejor ${data.especialidad || 'médico'} en ${data.ciudad || 'Ecuador'}`
+              ].map((sug, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    const current = (data.metaKeywords || "").trim();
+                    if (!current) {
+                      updateField("metaKeywords", sug);
+                    } else if (!current.toLowerCase().includes(sug.toLowerCase())) {
+                      updateField("metaKeywords", `${current}, ${sug}`);
+                    }
+                  }}
+                  className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-[11px] font-medium text-slate-600 transition-colors border border-slate-200/60 cursor-pointer"
+                >
+                  + {sug}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
