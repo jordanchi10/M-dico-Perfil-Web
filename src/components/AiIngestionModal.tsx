@@ -134,6 +134,7 @@ export const AiIngestionModal: React.FC<AiIngestionModalProps> = ({
   const [extractionSummary, setExtractionSummary] = useState<string | null>(null);
   const [mergeMode, setMergeMode] = useState(false);
   const [showJsonRaw, setShowJsonRaw] = useState(false);
+  const [reviewTab, setReviewTab] = useState<"resumen" | "servicios" | "faqs" | "contacto" | "eeat" | "vector">("resumen");
 
   // Manejadores para la lista dinámica de URLs
   const handleUrlChange = (index: number, value: string) => {
@@ -182,7 +183,7 @@ export const AiIngestionModal: React.FC<AiIngestionModalProps> = ({
 
     setIsLoading(true);
     setErrorMessage(null);
-    setLoadingStep("Conectando con Gemini 3.7 Flash...");
+    setLoadingStep("Procesando información con el Motor de Ingesta Inteligente...");
 
     try {
       setLoadingStep("Extrayendo jerárquicamente servicios, FAQs, precios, recuperación y testimonios...");
@@ -194,13 +195,22 @@ export const AiIngestionModal: React.FC<AiIngestionModalProps> = ({
 
       const json = await res.json();
       if (!res.ok || !json.success) {
-        throw new Error(json.error || "No se pudo estructurar el texto con IA.");
+        throw new Error(json.error || "No se pudo estructurar el texto.");
       }
 
       setExtractedResult(json.data);
       setExtractionSummary(json.summary || "Estructura de la landing page, servicios, FAQs y datos extraídos con éxito.");
     } catch (err: any) {
-      setErrorMessage(err.message || "Error al procesar el texto.");
+      let rawMsg = err.message || "Error al procesar el texto.";
+      if (typeof rawMsg === "string" && rawMsg.startsWith("{") && rawMsg.includes("error")) {
+        try {
+          const parsed = JSON.parse(rawMsg);
+          rawMsg = parsed.error?.message || parsed.message || rawMsg;
+        } catch {
+          // Mantener mensaje
+        }
+      }
+      setErrorMessage(rawMsg);
     } finally {
       setIsLoading(false);
       setLoadingStep("");
@@ -288,159 +298,439 @@ export const AiIngestionModal: React.FC<AiIngestionModalProps> = ({
           
           {/* RESULTADO EXTRAÍDO Y CONFIRMACIÓN */}
           {extractedResult ? (
-            <div className="space-y-5 animate-in fade-in duration-200">
-              <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 flex items-start gap-3">
-                <div className="p-2 rounded-xl bg-emerald-600 text-white shrink-0 shadow-sm">
+            <div className="space-y-4 animate-in fade-in duration-200">
+              
+              {/* BANNER DE ÉXITO CON RESUMEN RÁPIDO */}
+              <div className="p-4 bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-indigo-500/15 rounded-2xl border border-emerald-300 dark:border-emerald-700/60 flex items-start gap-3.5">
+                <div className="p-2.5 rounded-xl bg-emerald-600 text-white shrink-0 shadow-md">
                   <Check className="w-5 h-5" />
                 </div>
-                <div className="space-y-1 flex-1">
-                  <h4 className="text-sm font-extrabold text-emerald-950 flex items-center justify-between">
-                    <span>¡Estructura Jerárquica, Servicios & FAQs Creados con Éxito!</span>
-                    <span className="text-[10px] bg-emerald-200/80 text-emerald-900 font-mono px-2 py-0.5 rounded-full font-bold">
-                      {localVector.metadata.totalNodos} Nodos ({localVector.metadata.totalFaqs} FAQs)
+                <div className="space-y-1.5 flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h4 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                      <span>¡Información Organizada & Estructurada con Éxito!</span>
+                    </h4>
+                    <span className="text-[10px] bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-mono px-2.5 py-0.5 rounded-full font-bold border border-emerald-300 dark:border-emerald-800">
+                      {extractedResult.servicios?.length || 0} Servicios • {extractedResult.faqs?.length || 0} FAQs
                     </span>
-                  </h4>
-                  <p className="text-xs text-emerald-800 leading-relaxed">
+                  </div>
+                  <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
                     {extractionSummary}
                   </p>
+
+                  {/* PILLS RÁPIDAS DE DETECCIÓN */}
+                  <div className="flex flex-wrap gap-1.5 pt-1 text-[11px]">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-200">
+                      <Stethoscope className="w-3 h-3 text-indigo-500" />
+                      {extractedResult.nombreMedico || "Médico Especialista"}
+                    </span>
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-medium text-slate-700 dark:text-slate-300">
+                      {extractedResult.especialidad}
+                    </span>
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-medium text-slate-700 dark:text-slate-300">
+                      <MapPin className="w-3 h-3 text-red-500" />
+                      {extractedResult.ciudad || "Ecuador"}
+                    </span>
+                    {extractedResult.telefonoGBP && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono text-[10px] text-slate-600 dark:text-slate-400">
+                        <Phone className="w-3 h-3 text-emerald-600" />
+                        {extractedResult.telefonoGBP}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* INSPECTOR VISUAL DEL VECTOR DE CONTEXTO LOCAL */}
-              <div className="bg-slate-900 text-white p-4.5 rounded-2xl border border-slate-800 space-y-4 shadow-inner">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <div className="flex items-center gap-2">
-                    <Database className="w-4 h-4 text-amber-400" />
-                    <h5 className="text-xs font-extrabold text-white uppercase tracking-wider">
-                      Vector de Contexto Local & Estructura de Datos
-                    </h5>
-                  </div>
-                  <span className="text-[10px] text-indigo-300 bg-indigo-950 px-2.5 py-1 rounded-lg border border-indigo-800 font-mono">
-                    ID: {localVector.id}
-                  </span>
-                </div>
+              {/* SELECTOR DE PESTAÑAS DE REVISIÓN */}
+              <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl gap-1 overflow-x-auto text-xs">
+                <button
+                  type="button"
+                  onClick={() => setReviewTab("resumen")}
+                  className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+                    reviewTab === "resumen"
+                      ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-xs"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>1. Resumen Clínico</span>
+                </button>
 
-                {/* TARJETAS RESUMEN DE LOS NIVELES JERÁRQUICOS */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                  {/* FUENTE PRIMARIA: FAQS */}
-                  <div className="p-3 bg-slate-950/80 rounded-xl border border-emerald-500/40 space-y-1.5 sm:col-span-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-extrabold text-emerald-300 uppercase flex items-center gap-1.5">
-                        <HelpCircle className="w-3.5 h-3.5 text-emerald-400" />
-                        0. Preguntas Frecuentes & Respuestas Clínicas
-                      </span>
-                      <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800">
-                        {localVector.metadata.totalFaqs} FAQs Verificadas
-                      </span>
+                <button
+                  type="button"
+                  onClick={() => setReviewTab("servicios")}
+                  className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+                    reviewTab === "servicios"
+                      ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-xs"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                  }`}
+                >
+                  <Stethoscope className="w-3.5 h-3.5" />
+                  <span>2. Servicios ({extractedResult.servicios?.length || 0})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setReviewTab("faqs")}
+                  className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+                    reviewTab === "faqs"
+                      ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-xs"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                  }`}
+                >
+                  <HelpCircle className="w-3.5 h-3.5" />
+                  <span>3. FAQs ({extractedResult.faqs?.length || 0})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setReviewTab("contacto")}
+                  className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+                    reviewTab === "contacto"
+                      ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-xs"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                  }`}
+                >
+                  <MapPin className="w-3.5 h-3.5" />
+                  <span>4. Contacto & Redes</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setReviewTab("eeat")}
+                  className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+                    reviewTab === "eeat"
+                      ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-xs"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                  }`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>5. E-E-A-T & Convenios</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setReviewTab("vector")}
+                  className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+                    reviewTab === "vector"
+                      ? "bg-slate-900 text-amber-300 shadow-xs"
+                      : "text-slate-600 dark:text-slate-400 hover:text-amber-500"
+                  }`}
+                >
+                  <Database className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Vector IA</span>
+                </button>
+              </div>
+
+              {/* CONTENIDO DE LA PESTAÑA SELECCIONADA */}
+              <div className="space-y-3">
+
+                {/* PESTAÑA 1: RESUMEN CLÍNICO */}
+                {reviewTab === "resumen" && (
+                  <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 text-xs">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      <div className="p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                          Profesional / Centro Médico:
+                        </span>
+                        <strong className="text-sm font-black text-slate-900 dark:text-white block">
+                          {extractedResult.nombreMedico}
+                        </strong>
+                        <p className="text-indigo-600 dark:text-indigo-300 font-semibold text-[11px]">
+                          {extractedResult.especialidad}
+                        </p>
+                      </div>
+
+                      <div className="p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                          Ubicación & Consultorio:
+                        </span>
+                        <strong className="text-xs font-bold text-slate-800 dark:text-slate-200 block truncate">
+                          {extractedResult.nombreClinicaGBP || "Consultorio Médico"}
+                        </strong>
+                        <p className="text-slate-600 dark:text-slate-400 text-[11px]">
+                          {extractedResult.direccionFisica} ({extractedResult.ciudad}, {extractedResult.estadoRegion || "Ecuador"})
+                        </p>
+                      </div>
+
+                      <div className="p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                          Credenciales Oficiales E-E-A-T:
+                        </span>
+                        <p className="text-slate-700 dark:text-slate-300 font-medium">
+                          <strong>SENESCYT:</strong> {extractedResult.registroSenescyt || "Verificado"}
+                        </p>
+                        <p className="text-slate-700 dark:text-slate-300 font-medium">
+                          <strong>MSP / ACESS:</strong> {extractedResult.codigoAcessMsp || "Verificado"}
+                        </p>
+                        <p className="text-slate-500 text-[11px]">
+                          {extractedResult.universidad} • {extractedResult.anosExperiencia} años de experiencia
+                        </p>
+                      </div>
+
+                      <div className="p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                          Tarifa & Horarios:
+                        </span>
+                        <p className="text-slate-800 dark:text-slate-200 font-bold">
+                          Consulta: {extractedResult.precioConsulta || "$50 USD"}
+                          {extractedResult.habilitarTeleconsulta && ` • Virtual: ${extractedResult.precioTeleconsulta || "$40 USD"}`}
+                        </p>
+                        <p className="text-slate-600 dark:text-slate-400 text-[11px]">
+                          {extractedResult.horarios?.semana || "Lunes a Viernes de 09:00 a 18:00"}
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-[11px] text-slate-300">
-                      Preguntas frecuentes y respuestas orientativas sincronizadas directamente con el FormPanel.
-                    </p>
-                  </div>
 
-                  {/* NIVEL 1: SERVICIOS & RECUPERACIÓN */}
-                  <div className="p-3 bg-slate-950/80 rounded-xl border border-indigo-500/30 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-extrabold text-indigo-300 uppercase flex items-center gap-1">
-                        <Stethoscope className="w-3.5 h-3.5 text-indigo-400" />
-                        1. Servicios & Recuperación
-                      </span>
-                      <span className="text-[10px] font-mono font-bold text-emerald-400">
-                        {localVector.jerarquia.serviciosProcedimientos.length} ítems
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-300 line-clamp-2">
-                      Precios, duración, tiempos de reposo postoperatorio e indicaciones pre/post-tratamiento.
-                    </p>
+                    {/* BIOGRAFÍA */}
+                    {extractedResult.biografiaCurta && (
+                      <div className="p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                          Perfil Profesional & Biografía Extraída:
+                        </span>
+                        <p className="text-slate-700 dark:text-slate-300 text-xs leading-relaxed">
+                          {extractedResult.biografiaCurta}
+                        </p>
+                      </div>
+                    )}
                   </div>
+                )}
 
-                  {/* NIVEL 2: TESTIMONIOS & PRUEBA SOCIAL */}
-                  <div className="p-3 bg-slate-950/80 rounded-xl border border-amber-500/30 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-extrabold text-amber-300 uppercase flex items-center gap-1">
-                        <Star className="w-3.5 h-3.5 text-amber-400" />
-                        2. Testimonios & Reseñas
-                      </span>
-                      <span className="text-[10px] font-mono font-bold text-amber-400">
-                        {localVector.jerarquia.testimoniosResenas.length} reseñas
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-300 line-clamp-2">
-                      Calificaciones de pacientes, experiencias reales y resultados reportados.
-                    </p>
-                  </div>
+                {/* PESTAÑA 2: SERVICIOS DETALLADOS */}
+                {reviewTab === "servicios" && (
+                  <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+                    {extractedResult.servicios && extractedResult.servicios.length > 0 ? (
+                      extractedResult.servicios.map((srv: any, idx: number) => (
+                        <div key={idx} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2 text-xs">
+                          <div className="flex flex-wrap items-center justify-between gap-1.5">
+                            <strong className="text-slate-900 dark:text-white font-bold flex items-center gap-1.5 text-xs">
+                              <span className="w-5 h-5 rounded-md bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-mono text-[10px] flex items-center justify-center font-bold">
+                                {idx + 1}
+                              </span>
+                              <span>{srv.titulo}</span>
+                            </strong>
 
-                  {/* NIVEL 3: BLOG & EDUCACIÓN */}
-                  <div className="p-3 bg-slate-950/80 rounded-xl border border-blue-500/30 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-extrabold text-blue-300 uppercase flex items-center gap-1">
-                        <BookOpen className="w-3.5 h-3.5 text-blue-400" />
-                        3. Blog & Educación
-                      </span>
-                      <span className="text-[10px] font-mono font-bold text-blue-400">
-                        {localVector.jerarquia.articulosEducativosBlog.length} artículos
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-300 line-clamp-2">
-                      Artículos médicos informativos, prevención y guías educativas locales.
-                    </p>
-                  </div>
+                            <div className="flex items-center gap-1.5">
+                              {srv.precio && (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                  {srv.precio}
+                                </span>
+                              )}
+                              {srv.badgeEtiqueta && (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                                  {srv.badgeEtiqueta}
+                                </span>
+                              )}
+                            </div>
+                          </div>
 
-                  {/* NIVEL 4: CASOS CLÍNICOS & GARANTÍAS */}
-                  <div className="p-3 bg-slate-950/80 rounded-xl border border-purple-500/30 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-extrabold text-purple-300 uppercase flex items-center gap-1">
-                        <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
-                        4. Casos & Políticas
-                      </span>
-                      <span className="text-[10px] font-mono font-bold text-purple-400">
-                        SRI + Reembolso
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-300 line-clamp-2">
-                      Aseguradoras, facturación electrónica y seguimiento clínico.
-                    </p>
-                  </div>
-                </div>
+                          <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
+                            {srv.descripcion}
+                          </p>
 
-                {/* DESPLEGABLE DE MUESTREO DE FAQS Y PROCEDIMIENTOS */}
-                {localVector.jerarquia.preguntasFrecuentesFaqs.length > 0 && (
-                  <div className="space-y-2 pt-2 border-t border-slate-800">
-                    <span className="text-[10px] font-extrabold text-emerald-300 uppercase tracking-wider block flex items-center gap-1">
-                      <HelpCircle className="w-3.5 h-3.5 text-emerald-400" />
-                      Preguntas Frecuentes Indexadas:
-                    </span>
-                    <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                      {localVector.jerarquia.preguntasFrecuentesFaqs.map((f, idx) => (
-                        <div key={idx} className="p-2 rounded-lg bg-slate-950 text-[11px] border border-slate-800 space-y-0.5">
-                          <span className="font-bold text-emerald-200 block truncate">P: {f.pregunta}</span>
-                          <span className="text-slate-300 line-clamp-1 text-[10px]">R: {f.respuesta}</span>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-1 text-[10px] text-slate-500 dark:text-slate-400 font-medium border-t border-slate-200/60 dark:border-slate-800">
+                            <span>⏳ Duración: <strong className="text-slate-700 dark:text-slate-300">{srv.duracion || "45 min"}</strong></span>
+                            <span>⏱️ Reposo: <strong className="text-slate-700 dark:text-slate-300">{srv.recuperacion || "Ambulatorio"}</strong></span>
+                            <span>🏥 Modalidad: <strong className="text-slate-700 dark:text-slate-300">{srv.modalidad || "Consultorio"}</strong></span>
+                            <span>🛡️ Reembolso SRI: <strong className="text-emerald-600 dark:text-emerald-400">{srv.aplicaReembolso ? "Sí" : "No"}</strong></span>
+                          </div>
                         </div>
-                      ))}
+                      ))
+                    ) : (
+                      <p className="p-4 text-center text-slate-500 text-xs">No se encontraron servicios estructurados.</p>
+                    )}
+                  </div>
+                )}
+
+                {/* PESTAÑA 3: PREGUNTAS FRECUENTES (FAQS) */}
+                {reviewTab === "faqs" && (
+                  <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+                    {extractedResult.faqs && extractedResult.faqs.length > 0 ? (
+                      extractedResult.faqs.map((faq: any, idx: number) => (
+                        <div key={idx} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1.5 text-xs">
+                          <strong className="text-emerald-900 dark:text-emerald-300 font-extrabold flex items-center gap-1.5">
+                            <HelpCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                            <span>{faq.pregunta}</span>
+                          </strong>
+                          <p className="text-slate-700 dark:text-slate-300 text-[11px] leading-relaxed pl-5">
+                            {faq.respuesta}
+                          </p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="p-4 text-center text-slate-500 text-xs">No se encontraron preguntas frecuentes en el texto.</p>
+                    )}
+                  </div>
+                )}
+
+                {/* PESTAÑA 4: CONTACTO & REDES */}
+                {reviewTab === "contacto" && (
+                  <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3 text-xs">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase">WhatsApp para citas:</span>
+                        <p className="font-mono text-emerald-600 dark:text-emerald-400 font-bold truncate">
+                          {extractedResult.whatsappUrl || "No especificado"}
+                        </p>
+                      </div>
+
+                      <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase">Teléfono de atención:</span>
+                        <p className="font-mono text-slate-800 dark:text-slate-200 font-bold truncate">
+                          {extractedResult.telefonoGBP || "No especificado"}
+                        </p>
+                      </div>
+
+                      <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase">Correo electrónico:</span>
+                        <p className="font-mono text-slate-800 dark:text-slate-200 truncate">
+                          {extractedResult.emailContacto || "No especificado"}
+                        </p>
+                      </div>
+
+                      <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase">Dominio web:</span>
+                        <p className="font-mono text-indigo-600 dark:text-indigo-400 truncate">
+                          {extractedResult.dominioWeb || "No especificado"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* REDES SOCIALES */}
+                    <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-1.5">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase block">Redes Sociales & Enlaces Detectados:</span>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
+                        <span className="p-2 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 truncate">
+                          📷 <strong>Instagram:</strong> {extractedResult.instagramUrl || "No detectado"}
+                        </span>
+                        <span className="p-2 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 truncate">
+                          📘 <strong>Facebook:</strong> {extractedResult.facebookUrl || "No detectado"}
+                        </span>
+                        <span className="p-2 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 truncate">
+                          🎵 <strong>TikTok:</strong> {extractedResult.tiktokUrl || "No detectado"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* PESTAÑA 5: E-E-A-T & CONVENIOS */}
+                {reviewTab === "eeat" && (
+                  <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3.5 text-xs">
+                    {/* ASEGURADORAS */}
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase block">Aseguradoras Aliadas (Reembolso SRI):</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {extractedResult.aseguradoras?.map((aseg: string, i: number) => (
+                          <span key={i} className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[11px] font-bold">
+                            🛡️ {aseg}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* HOSPITALES DONDE OPERA */}
+                    {extractedResult.hospitalesdondeOpera && extractedResult.hospitalesdondeOpera.length > 0 && (
+                      <div className="space-y-1.5 pt-2 border-t border-slate-200 dark:border-slate-800">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase block">Hospitales y Clínicas de Tercer Nivel:</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {extractedResult.hospitalesdondeOpera.map((hosp: string, i: number) => (
+                            <span key={i} className="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-[11px]">
+                              🏥 {hosp}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ASOCIACIONES MÉDICAS */}
+                    {extractedResult.asociaciones && extractedResult.asociaciones.length > 0 && (
+                      <div className="space-y-1.5 pt-2 border-t border-slate-200 dark:border-slate-800">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase block">Sociedades Médicas & Colegios Profesionales:</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {extractedResult.asociaciones.map((asoc: string, i: number) => (
+                            <span key={i} className="px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[11px]">
+                              🏛️ {asoc}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* MÉTODOS DE PAGO */}
+                    {extractedResult.metodosPago && (
+                      <div className="space-y-1.5 pt-2 border-t border-slate-200 dark:border-slate-800">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase block">Métodos de Pago & Facturación:</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {extractedResult.metodosPago.map((pago: string, i: number) => (
+                            <span key={i} className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-[10px]">
+                              💳 {pago}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* PESTAÑA 6: VECTOR LOCAL IA */}
+                {reviewTab === "vector" && (
+                  <div className="bg-slate-900 text-white p-4.5 rounded-2xl border border-slate-800 space-y-4 shadow-inner">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                      <div className="flex items-center gap-2">
+                        <Database className="w-4 h-4 text-amber-400" />
+                        <h5 className="text-xs font-extrabold text-white uppercase tracking-wider">
+                          Vector de Contexto Local & Estructura de Datos
+                        </h5>
+                      </div>
+                      <span className="text-[10px] text-indigo-300 bg-indigo-950 px-2.5 py-1 rounded-lg border border-indigo-800 font-mono">
+                        ID: {localVector.id}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                      <div className="p-2.5 bg-slate-950 rounded-xl border border-emerald-500/40">
+                        <span className="text-[10px] text-emerald-400 uppercase font-bold block">FAQs Indexadas</span>
+                        <strong className="text-emerald-300 text-sm font-extrabold">{localVector.metadata.totalFaqs}</strong>
+                      </div>
+                      <div className="p-2.5 bg-slate-950 rounded-xl border border-indigo-500/40">
+                        <span className="text-[10px] text-indigo-400 uppercase font-bold block">Servicios</span>
+                        <strong className="text-indigo-300 text-sm font-extrabold">{localVector.jerarquia.serviciosProcedimientos.length}</strong>
+                      </div>
+                      <div className="p-2.5 bg-slate-950 rounded-xl border border-amber-500/40">
+                        <span className="text-[10px] text-amber-400 uppercase font-bold block">Reseñas</span>
+                        <strong className="text-amber-300 text-sm font-extrabold">{localVector.jerarquia.testimoniosResenas.length}</strong>
+                      </div>
+                      <div className="p-2.5 bg-slate-950 rounded-xl border border-purple-500/40">
+                        <span className="text-[10px] text-purple-400 uppercase font-bold block">Total Nodos</span>
+                        <strong className="text-purple-300 text-sm font-extrabold">{localVector.metadata.totalNodos}</strong>
+                      </div>
                     </div>
                   </div>
                 )}
               </div>
 
               {/* OPCIONES DE APLICACIÓN Y MODO FUSIÓN */}
-              <div className="p-3.5 bg-slate-100 rounded-xl flex items-center justify-between text-xs">
-                <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-700 select-none">
+              <div className="p-3.5 bg-slate-100 dark:bg-slate-900 rounded-xl flex items-center justify-between text-xs border border-slate-200 dark:border-slate-800">
+                <label className="flex items-center gap-2.5 cursor-pointer font-medium text-slate-700 dark:text-slate-300 select-none">
                   <input
                     type="checkbox"
                     checked={mergeMode}
                     onChange={(e) => setMergeMode(e.target.checked)}
-                    className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
+                    className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 dark:border-slate-600"
                   />
-                  <span>Modo Fusión (Conservar datos actuales de la landing que no estén en el texto extraído)</span>
+                  <span>
+                    <strong>Modo Fusión:</strong> Conservar datos actuales de la landing que no vengan en el texto extraído (desmarcado reemplaza con este perfil completo).
+                  </span>
                 </label>
               </div>
 
               {/* BOTONES DE ACCIÓN */}
-              <div className="flex items-center justify-between gap-3 pt-2">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
                 <button
                   type="button"
                   onClick={handleReset}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   Escanear o ingresar otro texto
@@ -449,7 +739,7 @@ export const AiIngestionModal: React.FC<AiIngestionModalProps> = ({
                 <button
                   type="button"
                   onClick={handleApply}
-                  className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-lg shadow-indigo-500/25 flex items-center gap-2 cursor-pointer transition-all hover:scale-[1.02]"
+                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.02]"
                 >
                   <Check className="w-4 h-4" />
                   Aplicar Todo a la Landing Page
@@ -863,7 +1153,7 @@ Horarios: Lunes a Viernes 09:00 a 18:00."
         <div className="p-4 bg-slate-50 border-t border-slate-200/80 flex items-center justify-between text-xs text-slate-500">
           <div className="flex items-center gap-1.5 text-[11px]">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span>Motor de Ingesta Inteligente Activo • Gemini 3.7 Flash & Vector Local</span>
+            <span>Motor de Ingesta Inteligente Activo • Gemini &amp; Vector Local</span>
           </div>
 
           <button

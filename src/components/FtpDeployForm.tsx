@@ -14,7 +14,6 @@ import {
   generateSitemapXml,
   generateRobotsTxt,
   generateLlmsTxt,
-  generateHtaccess,
   generateServicePageHtml,
   slugifyMedicalService,
   normalizeDomainUrl,
@@ -339,15 +338,14 @@ export default function FtpDeployForm({ data, onDeploySuccess, isCompact = false
       // FASE 2: Generar código estático completo para producción
       setUploadProgress(35);
       setUploadStep("Fase 2/4: Compilando páginas HTML, CSS dinámico, directivas SEO, llms.txt y PWA...");
-      setCurrentFileTransfer("Generando index.html, estilos-config.css, sitemap.xml y .htaccess...");
-      addLog("info", "Fase 2/4: Compilando index.html, estilos-config.css, sitemap.xml, robots.txt, llms.txt, manifest.json, sw.js y .htaccess...");
+      setCurrentFileTransfer("Generando index.html, estilos-config.css y sitemap.xml...");
+      addLog("info", "Fase 2/4: Compilando index.html, estilos-config.css, sitemap.xml, robots.txt, llms.txt, manifest.json y sw.js...");
 
       const htmlCode = generateHtmlFile(exportedData, activeDomain, version);
       const cssCode = generateDynamicStylesCss(exportedData);
       const sitemapCode = generateSitemapXml(exportedData, activeDomain);
       const robotsCode = generateRobotsTxt(exportedData, activeDomain);
       const llmsCode = generateLlmsTxt(exportedData, activeDomain);
-      const htaccessCode = generateHtaccess(exportedData, activeDomain);
       const manifestCode = generateManifestJson(exportedData);
       const swCode = generateServiceWorkerJs(exportedData, version);
       const jsonldCode = generateJsonLd(exportedData, activeDomain);
@@ -376,7 +374,6 @@ Desplegado directamente en lote vía FTP el ${new Date().toLocaleString('es-EC')
         { path: "sitemap.xml", content: sitemapCode, encoding: "utf8" },
         { path: "robots.txt", content: robotsCode, encoding: "utf8" },
         { path: "llms.txt", content: llmsCode, encoding: "utf8" },
-        { path: ".htaccess", content: htaccessCode, encoding: "utf8" },
         { path: "manifest.json", content: manifestCode, encoding: "utf8" },
         { path: "service-worker.js", content: swCode, encoding: "utf8" },
         { path: "schema-physician-faq.json", content: jsonldCode, encoding: "utf8" },
@@ -400,7 +397,6 @@ Desplegado directamente en lote vía FTP el ${new Date().toLocaleString('es-EC')
       addLog("file", `Generado: estilos-config.css (${(cssCode.length / 1024).toFixed(1)} KB)`);
       addLog("file", `Generado: sitemap.xml, robots.txt & llms.txt (SEO e IA)`);
       addLog("file", `Generado: manifest.json & service-worker.js (PWA Offline)`);
-      addLog("file", `Generado: .htaccess (Compresión Gzip y Caché)`);
       addLog("file", `Generado: schema-physician-faq.json (Marcado E-E-A-T)`);
 
       // Páginas dedicadas e individuales de servicios para SEO local
@@ -542,7 +538,7 @@ Desplegado directamente en lote vía FTP el ${new Date().toLocaleString('es-EC')
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
-              Transmite todos los archivos generados (HTML, CSS, PWA, SEO, WebP y .htaccess) directamente a <span className="text-emerald-300 font-mono font-bold">{activeDomain}</span>.
+              Transmite todos los archivos estáticos generados (HTML, CSS, PWA, SEO y WebP) directamente a <span className="text-emerald-300 font-mono font-bold">{activeDomain}</span>.
             </p>
           </div>
         </div>
@@ -630,10 +626,9 @@ Desplegado directamente en lote vía FTP el ${new Date().toLocaleString('es-EC')
 
               <div className="bg-slate-950/80 border border-slate-800 p-3 rounded-xl space-y-1.5">
                 <div className="font-bold text-blue-400 flex items-center gap-1.5 text-[11px]">
-                  <Zap className="w-3.5 h-3.5" /> PWA, Apache & Assets
+                  <Zap className="w-3.5 h-3.5" /> PWA, Código Puro & Assets
                 </div>
                 <ul className="text-[11px] text-slate-300 font-mono space-y-1">
-                  <li>• .htaccess (Gzip, Caché & HTTPS)</li>
                   <li>• manifest.json & service-worker.js</li>
                   <li>• /img/*.webp (Fotos WebP físicas)</li>
                   <li>• config-perfil.json & README.md</li>
@@ -1193,7 +1188,7 @@ Desplegado directamente en lote vía FTP el ${new Date().toLocaleString('es-EC')
                       <Globe className="w-3 h-3" /> sitemap.xml & robots.txt
                     </span>
                     <span className="inline-flex items-center gap-1 bg-emerald-900/60 border border-emerald-700/50 px-2.5 py-1 rounded-lg text-[10px] font-mono text-emerald-200">
-                      <Zap className="w-3 h-3" /> llms.txt & .htaccess
+                      <Zap className="w-3 h-3" /> llms.txt (IA & SEO)
                     </span>
                   </div>
                 </div>

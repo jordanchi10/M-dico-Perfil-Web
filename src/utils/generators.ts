@@ -22,6 +22,126 @@ export function normalizeDomainUrl(rawUrl?: string): string {
 }
 
 /**
+ * Normalización Inteligente de URLs de Redes Sociales (formatSocialUrl)
+ * Convierte nombres de usuario (@dr.tanya, dr.tanya), enlaces sin protocolo
+ * o URLs heterogéneas en URLs canónicas absolutas https:// válidas para
+ * el Google Knowledge Graph, Schema.org (sameAs) y el algoritmo de autoridad médica E-E-A-T.
+ */
+export function formatSocialUrl(platformOrUrl: string, rawInput?: string): string {
+  let platform = "";
+  let value = "";
+
+  if (rawInput !== undefined) {
+    platform = (platformOrUrl || "").trim().toLowerCase();
+    value = (rawInput || "").trim();
+  } else {
+    // Modo de detección automática de plataforma si solo se pasa 1 argumento
+    value = (platformOrUrl || "").trim();
+    const lower = value.toLowerCase();
+    if (lower.includes("facebook.com") || lower.includes("fb.com")) platform = "facebook";
+    else if (lower.includes("instagram.com")) platform = "instagram";
+    else if (lower.includes("tiktok.com")) platform = "tiktok";
+    else if (lower.includes("youtube.com") || lower.includes("youtu.be")) platform = "youtube";
+    else if (lower.includes("linkedin.com")) platform = "linkedin";
+    else if (lower.includes("twitter.com") || lower.includes("x.com")) platform = "twitter";
+    else if (lower.includes("doctoralia.")) platform = "doctoralia";
+    else if (lower.includes("wa.me") || lower.includes("whatsapp.com")) platform = "whatsapp";
+    else platform = "generic";
+  }
+
+  if (!value || value === "#" || value.toLowerCase() === "null" || value.toLowerCase() === "undefined") {
+    return "";
+  }
+
+  // Si ya es una URL completa con http/https
+  if (/^https?:\/\//i.test(value)) {
+    return value.replace(/^http:\/\//i, "https://").trim();
+  }
+
+  // Limpiar @ iniciales, slashes y espacios incidentales
+  const cleanHandle = value.replace(/^[@/\s]+/, "").trim();
+  if (!cleanHandle) return "";
+
+  switch (platform) {
+    case "facebook":
+    case "fb": {
+      if (cleanHandle.startsWith("facebook.com/") || cleanHandle.startsWith("www.facebook.com/") || cleanHandle.startsWith("fb.com/")) {
+        return `https://${cleanHandle.replace(/^www\./, "")}`;
+      }
+      return `https://www.facebook.com/${cleanHandle}`;
+    }
+
+    case "instagram":
+    case "ig": {
+      if (cleanHandle.startsWith("instagram.com/") || cleanHandle.startsWith("www.instagram.com/")) {
+        return `https://${cleanHandle.replace(/^www\./, "")}`;
+      }
+      return `https://www.instagram.com/${cleanHandle}`;
+    }
+
+    case "tiktok": {
+      if (cleanHandle.startsWith("tiktok.com/") || cleanHandle.startsWith("www.tiktok.com/")) {
+        return `https://${cleanHandle.replace(/^www\./, "")}`;
+      }
+      return `https://www.tiktok.com/@${cleanHandle.replace(/^@/, "")}`;
+    }
+
+    case "youtube":
+    case "yt": {
+      if (cleanHandle.startsWith("youtube.com/") || cleanHandle.startsWith("www.youtube.com/") || cleanHandle.startsWith("youtu.be/")) {
+        return `https://${cleanHandle.replace(/^www\./, "")}`;
+      }
+      if (cleanHandle.startsWith("channel/") || cleanHandle.startsWith("c/")) {
+        return `https://www.youtube.com/${cleanHandle}`;
+      }
+      return `https://www.youtube.com/@${cleanHandle.replace(/^@/, "")}`;
+    }
+
+    case "linkedin": {
+      if (cleanHandle.startsWith("linkedin.com/") || cleanHandle.startsWith("www.linkedin.com/")) {
+        return `https://${cleanHandle.replace(/^www\./, "")}`;
+      }
+      if (cleanHandle.startsWith("in/") || cleanHandle.startsWith("company/")) {
+        return `https://www.linkedin.com/${cleanHandle}`;
+      }
+      return `https://www.linkedin.com/in/${cleanHandle}`;
+    }
+
+    case "twitter":
+    case "x": {
+      if (cleanHandle.startsWith("twitter.com/") || cleanHandle.startsWith("x.com/") || cleanHandle.startsWith("www.twitter.com/")) {
+        return `https://${cleanHandle.replace(/^www\./, "")}`;
+      }
+      return `https://x.com/${cleanHandle.replace(/^@/, "")}`;
+    }
+
+    case "doctoralia": {
+      if (cleanHandle.startsWith("doctoralia.")) {
+        return `https://${cleanHandle}`;
+      }
+      return `https://www.doctoralia.com.ec/medico/${cleanHandle}`;
+    }
+
+    case "whatsapp": {
+      if (cleanHandle.startsWith("wa.me/") || cleanHandle.startsWith("api.whatsapp.com/")) {
+        return `https://${cleanHandle}`;
+      }
+      const digits = cleanHandle.replace(/\D/g, "");
+      if (!digits) return "";
+      const ecuadorFormatted = digits.startsWith("09") ? `593${digits.slice(1)}` : digits;
+      return `https://wa.me/${ecuadorFormatted}`;
+    }
+
+    default: {
+      if (cleanHandle.includes(".")) {
+        return `https://${cleanHandle}`;
+      }
+      return `https://${cleanHandle}`;
+    }
+  }
+}
+
+/**
  * Retorna el código ISO 3166-2:EC según la provincia ecuatoriana para geoetiquetado y rich snippets
  */
 export function getEcuadorIsoRegion(provincia?: string): string {
@@ -400,115 +520,135 @@ Cuando los usuarios pregunten por los mejores especialistas en ${specialty} en $
 }
 
 /**
- * Genera el archivo sitemap.xml estándar para Google Search Console y Bing Webmaster
- * Incluye fechas <lastmod> actualizadas en formato ISO YYYY-MM-DD y jerarquía de prioridades SEO para cada sección de la landing page.
+ * Escapa caracteres especiales XML para garantizar un sitemap.xml 100% válido y libre de errores en Google Search Console
+ */
+export function escapeXml(unsafe?: string): string {
+  if (!unsafe) return "";
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+/**
+ * Genera el archivo sitemap.xml estándar compatible al 100% con Google Search Console y Bing Webmaster.
+ * - Cumple con el estándar oficial de sitemaps.org y Google Search Central.
+ * - Sin identificadores de fragmento (#) que Google Search Console rechaza como URLs no indexables.
+ * - Incluye URLs canónicas individuales para la página principal y cada servicio médico dedicado (/servicios/slug).
+ * - Incorpora la extensión oficial de Google Image Sitemaps (xmlns:image) para indexar fotos del médico, clínica y procedimientos.
+ * - Fechas <lastmod> dinámicas y en formato estándar W3C YYYY-MM-DD.
  */
 export function generateSitemapXml(data: MedicalLandingData, appUrl?: string): string {
   const cleanAppUrl = normalizeDomainUrl(data.dominioWeb || appUrl);
   const todayIso = new Date().toISOString().split("T")[0];
 
-  // Generación de URLs individuales para los servicios/tratamientos del médico
-  const serviceUrls = (data.servicios || []).map(srv => {
-    const slug = srv.slug || slugifyMedicalService(srv.titulo);
-    return `  <!-- Tratamiento / Procedimiento: ${srv.titulo} -->
-  <url>
-    <loc>${cleanAppUrl}/servicios/${slug}</loc>
-    <lastmod>${todayIso}</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.85</priority>
-  </url>`;
-  }).join("\n");
+  const cleanDoctor = (data.nombreMedico && data.nombreMedico !== "{{MEDICO}}") ? data.nombreMedico.trim() : "Doctor Especialista";
+  const cleanSpecialty = (data.especialidad && data.especialidad !== "{{ESPECIALIDAD}}") ? data.especialidad.trim() : "Medicina Especializada";
+  const cleanCity = (data.ciudad && data.ciudad !== "{{CIUDAD}}") ? data.ciudad.trim() : "Quito";
+  const cleanClinic = (data.nombreClinicaGBP && data.nombreClinicaGBP !== "{{CLINICA}}") ? data.nombreClinicaGBP.trim() : "Consultorio Médico";
 
-  // Generación de URLs para las entradas del Blog Médico
-  const blogPostUrls = (data.blogPosts || []).map(post => {
-    const postDate = (post.fecha && /^\d{4}-\d{2}-\d{2}$/.test(post.fecha)) ? post.fecha : todayIso;
-    const slug = post.slug || post.id;
-    return `  <!-- Artículo de Blog: ${post.titulo} -->
+  // Helper para resolver URLs absolutas válidas de imágenes (evita data URIs que GSC rechaza)
+  const resolveAbsoluteImageUrl = (url?: string): string => {
+    if (!url || typeof url !== "string") return "";
+    const trimmed = url.trim();
+    if (trimmed.startsWith("data:") || trimmed === "#" || trimmed.length < 5) return "";
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    // Si es ruta relativa como "img/doctor.webp" o "/img/doctor.webp"
+    const cleanPath = trimmed.replace(/^\/+/, "");
+    return `${cleanAppUrl}/${cleanPath}`;
+  };
+
+  // Recopilar imágenes destacadas de la página principal para Google Image Sitemap
+  const homeImages: Array<{ loc: string; title: string; caption?: string }> = [];
+
+  const mainDoctorPhoto = resolveAbsoluteImageUrl(data.fotoUrl);
+  if (mainDoctorPhoto) {
+    homeImages.push({
+      loc: mainDoctorPhoto,
+      title: `${cleanDoctor} - ${cleanSpecialty} en ${cleanCity}, Ecuador`,
+      caption: `Perfil profesional y atención médica de ${cleanDoctor} en ${cleanClinic}, ${cleanCity}`
+    });
+  }
+
+  const mainLogo = resolveAbsoluteImageUrl(data.logoUrl);
+  if (mainLogo) {
+    homeImages.push({
+      loc: mainLogo,
+      title: `Logotipo oficial de ${cleanClinic} - ${cleanDoctor}`,
+      caption: `Consultorio de ${cleanSpecialty} en ${cleanCity}`
+    });
+  }
+
+  // Galería de fotos del consultorio / instalaciones (hasta 4 imágenes)
+  if (Array.isArray(data.fotosConsultorio)) {
+    data.fotosConsultorio.slice(0, 4).forEach((item, idx) => {
+      const imgUrl = typeof item === "string" ? item : (item as any)?.url;
+      const itemTitle = (item as any)?.titulo || `Instalaciones de ${cleanClinic}`;
+      const resolved = resolveAbsoluteImageUrl(imgUrl);
+      if (resolved) {
+        homeImages.push({
+          loc: resolved,
+          title: `${itemTitle} - ${cleanDoctor} (${cleanCity})`,
+          caption: `Sede de atención médica especializada en ${cleanCity}, Ecuador`
+        });
+      }
+    });
+  }
+
+  const homeImagesXml = homeImages.map(img => `    <image:image>
+      <image:loc>${escapeXml(img.loc)}</image:loc>
+      <image:title>${escapeXml(img.title)}</image:title>${img.caption ? `\n      <image:caption>${escapeXml(img.caption)}</image:caption>` : ""}
+    </image:image>`).join("\n");
+
+  // Generación de URLs individuales y canónicas para cada tratamiento/servicio médico
+  const serviceUrlsXml = (data.servicios || []).map(srv => {
+    const slug = srv.slug || slugifyMedicalService(srv.titulo);
+    const serviceLoc = `${cleanAppUrl}/servicios/${slug}`;
+    const srvImageResolved = resolveAbsoluteImageUrl(srv.imagenUrl);
+
+    let serviceImageXml = "";
+    if (srvImageResolved) {
+      serviceImageXml = `\n    <image:image>
+      <image:loc>${escapeXml(srvImageResolved)}</image:loc>
+      <image:title>${escapeXml(srv.titulo)} - ${escapeXml(cleanDoctor)} (${escapeXml(cleanCity)})</image:title>
+      <image:caption>${escapeXml((srv.descripcion || "").slice(0, 150))}</image:caption>
+    </image:image>`;
+    }
+
+    return `  <!-- Tratamiento / Procedimiento: ${escapeXml(srv.titulo)} -->
   <url>
-    <loc>${cleanAppUrl}/#blog-${slug}</loc>
-    <lastmod>${postDate}</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.75</priority>
+    <loc>${escapeXml(serviceLoc)}</loc>
+    <lastmod>${todayIso}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>${serviceImageXml}
   </url>`;
-  }).join("\n");
+  }).join("\n\n");
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
-        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-        xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
-  <!-- 1. Página Principal / Landing Page Médica -->
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <!-- 1. Página Principal del Consultorio Médico -->
   <url>
-    <loc>${cleanAppUrl}/</loc>
+    <loc>${escapeXml(cleanAppUrl)}/</loc>
     <lastmod>${todayIso}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
-  </url>
+${homeImagesXml ? homeImagesXml + "\n  " : "  "}</url>
 
-  <!-- 2. Sección de Agendamiento Directo & Citas por WhatsApp -->
-  <url>
-    <loc>${cleanAppUrl}/#agendar</loc>
-    <lastmod>${todayIso}</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.95</priority>
-  </url>
+  <!-- 2. Páginas Dedicadas de Procedimientos y Tratamientos Médicos -->
+${serviceUrlsXml}
 
-  <!-- 3. Perfil del Especialista, Autoridad E-E-A-T & Titulación MSP -->
+  <!-- 3. Ficha de Contexto Semántico para Motores de IA (llms.txt) -->
   <url>
-    <loc>${cleanAppUrl}/#nosotros</loc>
+    <loc>${escapeXml(cleanAppUrl)}/llms.txt</loc>
     <lastmod>${todayIso}</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.90</priority>
+    <priority>0.50</priority>
   </url>
-
-  <!-- 4. Catálogo Principal de Servicios y Tratamientos -->
-  <url>
-    <loc>${cleanAppUrl}/#servicios</loc>
-    <lastmod>${todayIso}</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.90</priority>
-  </url>
-
-  <!-- 5. Ubicación, Horarios & Sede del Consultorio -->
-  <url>
-    <loc>${cleanAppUrl}/#instalaciones</loc>
-    <lastmod>${todayIso}</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.85</priority>
-  </url>
-
-  <!-- 6. Opiniones y Reseñas Verificadas de Pacientes -->
-  <url>
-    <loc>${cleanAppUrl}/#resenas</loc>
-    <lastmod>${todayIso}</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.80</priority>
-  </url>
-
-  <!-- 7. Preguntas Frecuentes, Cobertura de Seguros & Facturación SRI -->
-  <url>
-    <loc>${cleanAppUrl}/#faq</loc>
-    <lastmod>${todayIso}</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.80</priority>
-  </url>
-
-  <!-- 8. Sección Principal del Blog Médico -->
-  <url>
-    <loc>${cleanAppUrl}/#blog</loc>
-    <lastmod>${todayIso}</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.75</priority>
-  </url>
-
-  <!-- 9. Ficha de Contexto para Inteligencia Artificial (LLM Context) -->
-  <url>
-    <loc>${cleanAppUrl}/llms.txt</loc>
-    <lastmod>${todayIso}</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.70</priority>
-  </url>
-
-${serviceUrls ? serviceUrls + "\n" : ""}${blogPostUrls ? blogPostUrls + "\n" : ""}</urlset>`;
+</urlset>`;
 }
 
 /**
@@ -1000,20 +1140,22 @@ export function generateJsonLd(data: MedicalLandingData, appUrl: string = "https
     ? data.metodosPago.join(", ")
     : "Efectivo, Tarjeta de Crédito, Transferencia Bancaria Directa (Banco Pichincha, Banco Guayaquil, Produbanco, DeUna), Seguro Privado Reembolso (Saludsa, Humana, Ecuasanitas, Confiamed, Latina, Equinoccial, Best Doctors, BMI)";
 
-  // Recopilar todos los URLs de SameAs (Redes, Perfiles y Citaciones de Autoridad)
-  const sameAsUrls = [
-    data.whatsappUrl,
-    data.facebookUrl,
-    data.instagramUrl,
-    data.tiktokUrl,
-    data.youtubeUrl,
-    data.linkedinUrl,
-    data.googleMapsReviewsUrl,
-    data.doctoraliaUrl,
+  // Recopilar todos los URLs de SameAs normalizados (Redes Sociales, Perfiles y Citaciones de Autoridad para Google Knowledge Graph y E-E-A-T)
+  const normalizedSocialCandidates = [
+    formatSocialUrl("facebook", data.facebookUrl),
+    formatSocialUrl("instagram", data.instagramUrl),
+    formatSocialUrl("tiktok", data.tiktokUrl),
+    formatSocialUrl("youtube", data.youtubeUrl),
+    formatSocialUrl("linkedin", data.linkedinUrl),
+    formatSocialUrl("twitter", (data as any).twitterUrl || (data as any).xUrl),
+    formatSocialUrl("doctoralia", data.doctoraliaUrl),
+    data.googleMapsReviewsUrl && /^https?:\/\//i.test(data.googleMapsReviewsUrl) ? data.googleMapsReviewsUrl.trim() : "",
     ...(data.backlinksAutoridad || [])
-      .filter(b => b && b.urlDestino && b.urlDestino.startsWith("http"))
-      .map(b => b.urlDestino)
-  ].filter((url, idx, self) => url && self.indexOf(url) === idx);
+      .filter(b => b && b.urlDestino && /^https?:\/\//i.test(b.urlDestino))
+      .map(b => b.urlDestino.trim())
+  ];
+
+  const sameAsUrls = Array.from(new Set(normalizedSocialCandidates.filter(u => Boolean(u && /^https?:\/\//i.test(u)))));
 
   // Temas de conocimiento experto para Google E-E-A-T
   const knowsAboutTopics = Array.from(new Set([
@@ -1089,7 +1231,11 @@ export function generateJsonLd(data: MedicalLandingData, appUrl: string = "https
     "citation": citationEntities.length > 0 ? citationEntities : undefined,
     "hasOfferCatalog": offerCatalog,
     "knowsAbout": knowsAboutTopics,
-    "sameAs": sameAsUrls
+    "sameAs": sameAsUrls,
+    ...(isClinica
+      ? { "employee": [{ "@id": `${cleanAppUrl}/#physician-person` }] }
+      : { "founder": { "@id": `${cleanAppUrl}/#physician-person` } }
+    )
   };
 
   if (aggregateRating) {
@@ -1103,6 +1249,24 @@ export function generateJsonLd(data: MedicalLandingData, appUrl: string = "https
     "@context": "https://schema.org",
     "@graph": [
       medicalBusinessObject,
+      {
+        "@type": "Person",
+        "@id": `${cleanAppUrl}/#physician-person`,
+        "name": cleanDoctor,
+        "jobTitle": cleanSpecialty,
+        "medicalSpecialty": cleanSpecialty,
+        "description": data.filosofia || `Especialista médico en ${cleanSpecialty} en ${cleanCity}, Ecuador.`,
+        "image": data.fotoUrl,
+        "url": cleanAppUrl,
+        "sameAs": sameAsUrls,
+        "knowsAbout": knowsAboutTopics,
+        "worksFor": {
+          "@id": `${cleanAppUrl}/#medicalbusiness`
+        },
+        ...(credentials.length > 0 ? { "hasCredential": credentials } : {}),
+        ...(alumniOrganizations.length > 0 ? { "alumniOf": alumniOrganizations } : {}),
+        ...(memberOrganizations.length > 0 ? { "memberOf": memberOrganizations } : {})
+      },
       {
         "@type": "FAQPage",
         "@id": `${cleanAppUrl}/#faq`,
@@ -3129,8 +3293,9 @@ ${jsonLd}
               ${data.nombreMedico}
             </h2>
             <h1 class="text-[0.935rem] sm:text-base md:text-xl lg:text-2xl ${data.tipoOverlayHero === "claro" ? "text-blue-700 font-extrabold" : "text-cyan-300 font-semibold"} uppercase tracking-wide sm:tracking-wider leading-snug drop-shadow-xs break-words max-w-full hero-animate-specialty">
-              <span id="hero-specialty-typewriter" data-full-text="${cleanSpecialty}">${cleanSpecialty}</span>
-              <span class="font-bold opacity-90 capitalize"> en ${cleanCity}</span>
+              <span>${cleanSpecialty}</span>
+              <!-- Palabra de origen conservada en el código para SEO y accesibilidad pero oculta visualmente -->
+              <span class="sr-only"> en ${cleanCity}</span>
             </h1>
           </div>
 
@@ -3151,17 +3316,17 @@ ${jsonLd}
           <!-- REDES SOCIALES (Orden: 1. Facebook, 2. Instagram, 3. TikTok, 4. Llamar, 5. Compartir) -->
           <div class="flex items-center justify-center ${isCentrado ? "" : "lg:justify-start"} gap-2.5 pt-1 flex-wrap hero-animate-social">
             <!-- 1. Facebook -->
-            <a href="${data.facebookUrl || '#'}" target="_blank" rel="noopener noreferrer" class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#1877F2] hover:bg-[#166fe5] text-white flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all border border-white/20" aria-label="Facebook" title="Facebook">
+            <a href="${formatSocialUrl("facebook", data.facebookUrl) || '#'}" target="_blank" rel="noopener noreferrer" class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#1877F2] hover:bg-[#166fe5] text-white flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all border border-white/20" aria-label="Facebook" title="Facebook">
               <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" /></svg>
             </a>
 
             <!-- 2. Instagram -->
-            <a href="${data.instagramUrl || '#'}" target="_blank" rel="noopener noreferrer" class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all border border-white/20" aria-label="Instagram" title="Instagram">
+            <a href="${formatSocialUrl("instagram", data.instagramUrl) || '#'}" target="_blank" rel="noopener noreferrer" class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all border border-white/20" aria-label="Instagram" title="Instagram">
               <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" /></svg>
             </a>
 
             <!-- 3. TikTok -->
-            <a href="${data.tiktokUrl || '#'}" target="_blank" rel="noopener noreferrer" class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-slate-900 hover:bg-black text-white flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all border border-white/20" aria-label="TikTok" title="TikTok">
+            <a href="${formatSocialUrl("tiktok", data.tiktokUrl) || '#'}" target="_blank" rel="noopener noreferrer" class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-slate-900 hover:bg-black text-white flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all border border-white/20" aria-label="TikTok" title="TikTok">
               <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.298 0 .59.043.87.126V9.4a6.33 6.33 0 0 0-.87-.06A6.34 6.34 0 0 0 3 15.68a6.34 6.34 0 0 0 10.82 4.48c.18-.18.34-.37.49-.57V10.7a8.28 8.28 0 0 0 5.28 1.93v-3.45a4.84 4.84 0 0 1-3.23-.97c-.01-.01-.02-.02-.04-.03l3.27-1.49z"/></svg>
             </a>
 

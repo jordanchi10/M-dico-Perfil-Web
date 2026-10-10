@@ -331,6 +331,25 @@ export interface MedicalLandingData {
   popupBienvenidaBoton?: string; // ej. "Continuar", "Ingresar", "Conocer más"
   popupBienvenidaPlaceholder?: string; // ej. "Escribe tu nombre aquí..."
   franjaSaludoHeroTexto?: string; // ej. "¡Hola {nombre}, te muestro un poco de mi!"
+  
+  // 16. Validación y Diagnóstico por Bloques de Ingesta IA
+  validacionBloques?: BlockValidationReport;
+}
+
+export interface BlockValidationItem {
+  numero: number;
+  categoria: string;
+  titulo: string;
+  lineas: number;
+  elementosExtraidos?: number;
+  validado: boolean;
+}
+
+export interface BlockValidationReport {
+  bloquesDetectados: BlockValidationItem[];
+  totalBloques: number;
+  coberturaCompleta: boolean;
+  resumen: string;
 }
 
 export type DoctorProfile = MedicalLandingData;

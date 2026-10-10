@@ -89,40 +89,7 @@ import { getActiveColorScale, generateScaleFromHex } from "../utils/colorUtils";
 import { MedicalIconRenderer } from "./MedicalIconRenderer";
 import { getLiveConsultationStatus } from "../utils/scheduleUtils";
 import { getActiveLandingStyle, getDynamicGoogleFontsUrl } from "../utils/stylePresets";
-import { slugifyMedicalService, normalizeDomainUrl, generateHtmlFile } from "../utils/generators";
-
-const TypewriterText = ({ text, className }: { text: string; className?: string }) => {
-  const [displayedText, setDisplayedText] = useState("");
-  const [isTyping, setIsTyping] = useState(true);
-
-  useEffect(() => {
-    setDisplayedText("");
-    setIsTyping(true);
-    if (!text) return;
-
-    let index = 0;
-    const speed = 25; // escritura rápida
-    const interval = setInterval(() => {
-      index++;
-      setDisplayedText(text.slice(0, index));
-      if (index >= text.length) {
-        clearInterval(interval);
-        setTimeout(() => setIsTyping(false), 600);
-      }
-    }, speed);
-
-    return () => clearInterval(interval);
-  }, [text]);
-
-  return (
-    <span className={className}>
-      {displayedText}
-      {isTyping && (
-        <span className="inline-block w-1.5 h-3.5 sm:h-4 bg-current ml-1 animate-pulse rounded-xs align-middle opacity-85" />
-      )}
-    </span>
-  );
-};
+import { slugifyMedicalService, normalizeDomainUrl, generateHtmlFile, formatSocialUrl } from "../utils/generators";
 
 interface PreviewPanelProps {
   data: MedicalLandingData;
@@ -2289,8 +2256,9 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                     <h1 className={`text-[0.935rem] sm:text-base md:text-xl lg:text-2xl uppercase tracking-wide sm:tracking-wider leading-snug break-words max-w-full hero-animate-specialty ${
                       data.tipoOverlayHero === "claro" ? "text-blue-700 font-extrabold drop-shadow-2xs" : "text-cyan-300 font-semibold drop-shadow-xs"
                     }`}>
-                      <TypewriterText text={data.especialidad} />
-                      <span className="font-bold opacity-90 capitalize"> en {data.ciudad || "Ecuador"}</span>
+                      <span>{data.especialidad}</span>
+                      {/* Palabra de origen conservada en el código para SEO y accesibilidad pero oculta visualmente */}
+                      <span className="sr-only"> en {data.ciudad || "Ecuador"}</span>
                     </h1>
                   </div>
 
@@ -2327,7 +2295,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                   <div className={`flex items-center ${isDesktopAlignLeft ? "justify-start" : "justify-center"} gap-2.5 pt-1 flex-wrap hero-animate-social`}>
                     {/* 1. Facebook */}
                     <a 
-                      href={data.facebookUrl || "#"}
+                      href={formatSocialUrl("facebook", data.facebookUrl) || "#"}
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-label="Facebook del Especialista"
@@ -2339,7 +2307,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
 
                     {/* 2. Instagram */}
                     <a 
-                      href={data.instagramUrl || "#"}
+                      href={formatSocialUrl("instagram", data.instagramUrl) || "#"}
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-label="Instagram del Especialista"
@@ -2351,7 +2319,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
 
                     {/* 3. TikTok */}
                     <a 
-                      href={data.tiktokUrl || "#"}
+                      href={formatSocialUrl("tiktok", data.tiktokUrl) || "#"}
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-label="TikTok del Especialista"
@@ -2834,7 +2802,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
               <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
                 {data.instagramUrl && (
                   <a
-                    href={data.instagramUrl}
+                    href={formatSocialUrl("instagram", data.instagramUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 text-white text-xs font-extrabold shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all duration-200 cursor-pointer"
@@ -2846,7 +2814,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
 
                 {data.tiktokUrl && (
                   <a
-                    href={data.tiktokUrl}
+                    href={formatSocialUrl("tiktok", data.tiktokUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-extrabold shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all duration-200 cursor-pointer"
@@ -2858,7 +2826,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
 
                 {data.facebookUrl && (
                   <a
-                    href={data.facebookUrl}
+                    href={formatSocialUrl("facebook", data.facebookUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all duration-200 cursor-pointer"
@@ -2870,7 +2838,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
 
                 {data.youtubeUrl && (
                   <a
-                    href={data.youtubeUrl}
+                    href={formatSocialUrl("youtube", data.youtubeUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-extrabold shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all duration-200 cursor-pointer"
@@ -2882,7 +2850,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
 
                 {data.linkedinUrl && (
                   <a
-                    href={data.linkedinUrl}
+                    href={formatSocialUrl("linkedin", data.linkedinUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-800 hover:bg-blue-900 text-white text-xs font-extrabold shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all duration-200 cursor-pointer"
@@ -4167,7 +4135,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                       {/* Facebook */}
                       {data.facebookUrl && (
                         <a
-                          href={data.facebookUrl}
+                          href={formatSocialUrl("facebook", data.facebookUrl)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="w-9 h-9 rounded-xl bg-blue-600/10 hover:bg-blue-600 text-blue-600 hover:text-white flex items-center justify-center transition-all cursor-pointer border border-blue-500/20 active:scale-90"
@@ -4181,7 +4149,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                       {/* Instagram */}
                       {data.instagramUrl && (
                         <a
-                          href={data.instagramUrl}
+                          href={formatSocialUrl("instagram", data.instagramUrl)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="w-9 h-9 rounded-xl bg-pink-500/10 hover:bg-pink-600 text-pink-600 hover:text-white flex items-center justify-center transition-all cursor-pointer border border-pink-500/20 active:scale-90"
@@ -4195,7 +4163,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
                       {/* TikTok */}
                       {data.tiktokUrl && (
                         <a
-                          href={data.tiktokUrl}
+                          href={formatSocialUrl("tiktok", data.tiktokUrl)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="w-9 h-9 rounded-xl bg-slate-900/10 hover:bg-slate-900 text-slate-800 hover:text-white flex items-center justify-center transition-all cursor-pointer border border-slate-200 active:scale-90"

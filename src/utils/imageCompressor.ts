@@ -173,3 +173,127 @@ export function formatBytes(bytes: number): string {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
 }
+
+/**
+ * Recorre recursivamente cualquier objeto de datos médicos y comprime todas las imágenes
+ * en formato Base64 (DataURL) a WebP optimizado para cumplir con el límite estricto
+ * de 1 MiB (1,048,576 bytes) de Google Cloud Firestore.
+ */
+export async function optimizeMedicalDataImages(
+  rawData: any,
+  options: { maxDimension?: number; quality?: number } = {}
+): Promise<any> {
+  if (!rawData || typeof rawData !== "object") return rawData;
+
+  const maxDimension = options.maxDimension || 900;
+  const quality = options.quality || 0.75;
+
+  let cloned: any;
+  try {
+    cloned = JSON.parse(JSON.stringify(rawData));
+  } catch {
+    return rawData;
+  }
+
+  const tasks: Promise<void>[] = [];
+
+  function walk(node: any) {
+    if (!node || typeof node !== "object") return;
+
+    if (Array.isArray(node)) {
+      for (let i = 0; i < node.length; i++) {
+        const item = node[i];
+        if (
+          typeof item === "string" &&
+          item.startsWith("data:image/") &&
+          !item.startsWith("data:image/svg+xml") &&
+          item.length > 15000
+        ) {
+          tasks.push(
+            (async () => {
+              try {
+                const res = await compressAndConvertToWebP(item, {
+                  maxWidth: maxDimension,
+                  maxHeight: maxDimension,
+                  quality,
+                  format: "image/webp"
+                });
+                if (res.dataUrl && res.dataUrl.length < item.length) {
+                  node[i] = res.dataUrl;
+                }
+              } catch {
+                // Conservar original si falla la conversión en canvas
+              }
+            })()
+          );
+        } else if (typeof item === "object") {
+          walk(item);
+        }
+      }
+    } else {
+      for (const key of Object.keys(node)) {
+        const item = node[key];
+        if (
+          typeof item === "string" &&
+          item.startsWith("data:image/") &&
+          !item.startsWith("data:image/svg+xml") &&
+          item.length > 15000
+        ) {
+          tasks.push(
+            (async () => {
+              try {
+                const res = await compressAndConvertToWebP(item, {
+                  maxWidth: maxDimension,
+                  maxHeight: maxDimension,
+                  quality,
+                  format: "image/webp"
+                });
+                if (res.dataUrl && res.dataUrl.length < item.length) {
+                  node[key] = res.dataUrl;
+                }
+              } catch {
+                // Conservar original si falla la conversión en canvas
+              }
+            })()
+          );
+        } else if (typeof item === "object") {
+          walk(item);
+        }
+      }
+    }
+  }
+
+  walk(cloned);
+
+  if (tasks.length > 0) {
+    await Promise.all(tasks);
+  }
+
+  return cloned;
+}
+
+/**
+ * Prepara y comprime un perfil de médico asegurando que el tamaño del documento Firestore
+ * quede cómodamente por debajo del límite duro de 1,048,576 bytes (1 MiB).
+ * Aplica reducción progresiva si el JSON supera los umbrales seguros.
+ */
+export async function prepareProfileForCloudStorage(profileData: any): Promise<any> {
+  if (!profileData) return profileData;
+
+  // Paso 1: Optimización estándar (900px, 0.75 WebP)
+  let optimized = await optimizeMedicalDataImages(profileData, { maxDimension: 900, quality: 0.75 });
+  let jsonString = JSON.stringify(optimized);
+
+  // Si aún supera los 750 KB, Paso 2: Reducción más agresiva (650px, 0.65 WebP)
+  if (jsonString.length > 750000) {
+    optimized = await optimizeMedicalDataImages(optimized, { maxDimension: 650, quality: 0.65 });
+    jsonString = JSON.stringify(optimized);
+  }
+
+  // Si aún supera los 850 KB, Paso 3: Reducción ultra-compacta (480px, 0.55 WebP)
+  if (jsonString.length > 850000) {
+    optimized = await optimizeMedicalDataImages(optimized, { maxDimension: 480, quality: 0.55 });
+  }
+
+  return optimized;
+}

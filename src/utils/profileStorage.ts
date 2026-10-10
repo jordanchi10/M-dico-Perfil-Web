@@ -646,6 +646,34 @@ export function updateProfileTag(id: string, nuevaEtiqueta: string): SavedClient
 }
 
 /**
+ * Actualiza los datos médicos (data) de un perfil existente en localStorage
+ */
+export function updateProfileMedicalData(id: string, updatedData: MedicalLandingData): boolean {
+  try {
+    const profiles = getSavedProfiles();
+    const index = profiles.findIndex(p => p.id === id);
+    if (index === -1) return false;
+
+    const normalized = validateAndNormalizeMedicalData(updatedData);
+    profiles[index] = {
+      ...profiles[index],
+      data: normalized,
+      nombreMedico: normalized.nombreMedico || profiles[index].nombreMedico,
+      especialidad: normalized.especialidad || profiles[index].especialidad,
+      ciudad: normalized.ciudad || profiles[index].ciudad,
+      clinica: normalized.nombreClinicaGBP || profiles[index].clinica,
+      fechaActualizacion: new Date().toISOString()
+    };
+
+    localStorage.setItem(SAVED_PROFILES_STORAGE_KEY, JSON.stringify(profiles));
+    return true;
+  } catch (err) {
+    console.warn("No se pudo actualizar profile en localStorage:", err);
+    return false;
+  }
+}
+
+/**
  * Elimina un perfil por ID
  */
 export function deleteProfile(id: string): boolean {

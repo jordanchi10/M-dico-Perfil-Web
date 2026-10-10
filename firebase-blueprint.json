@@ -1,0 +1,54 @@
+{
+  "entities": {
+    "DoctorProfile": {
+      "title": "DoctorProfile",
+      "description": "Perfil médico completo estructurado para la landing page médica",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID único del perfil del médico"
+        },
+        "userId": {
+          "type": "string",
+          "description": "UID de Firebase Auth del usuario propietario"
+        },
+        "userEmail": {
+          "type": "string",
+          "description": "Correo electrónico del propietario"
+        },
+        "nombreMedico": {
+          "type": "string",
+          "description": "Nombre completo del médico especialista"
+        },
+        "especialidad": {
+          "type": "string",
+          "description": "Especialidad médica principal"
+        },
+        "ciudad": {
+          "type": "string",
+          "description": "Ciudad de atención médica en Ecuador"
+        },
+        "configData": {
+          "type": "string",
+          "description": "Datos completos de la landing page en formato JSON serializado"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Marca de tiempo de creación"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Marca de tiempo de última actualización"
+        }
+      },
+      "required": ["id", "userId", "nombreMedico", "especialidad", "ciudad", "configData"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/doctors/{doctorId}": {
+      "schema": "DoctorProfile",
+      "description": "Perfiles médicos privados creados y administrados por el usuario autenticado"
+    }
+  }
+}

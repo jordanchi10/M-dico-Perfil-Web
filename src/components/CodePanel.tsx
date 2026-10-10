@@ -15,6 +15,7 @@ import {
   generateJsonLd,
   generateSitemapXml,
   generateRobotsTxt,
+  generateLlmsTxt,
   generateServicePageHtml,
   slugifyMedicalService,
   normalizeDomainUrl,
@@ -162,6 +163,7 @@ export default function CodePanel({ data, onUpdateData }: CodePanelProps) {
   const robotsCode = generateRobotsTxt(data, activeDomain);
   const manifestCode = generateManifestJson(data);
   const swCode = generateServiceWorkerJs(data, version);
+  const llmsCode = generateLlmsTxt(data, activeDomain);
   const profileJsonCode = JSON.stringify({
     version: "1.0",
     tipoExportacion: "individual",
@@ -228,6 +230,7 @@ export default function CodePanel({ data, onUpdateData }: CodePanelProps) {
       const zipManifestCode = generateManifestJson(exportedData);
       const zipSwCode = generateServiceWorkerJs(exportedData, version);
       const zipJsonldCode = generateJsonLd(exportedData, activeDomain);
+      const zipLlmsCode = generateLlmsTxt(exportedData, activeDomain);
       const zipProfileJsonCode = JSON.stringify({
         version: "3.0",
         fechaExportacion: new Date().toISOString(),
@@ -249,6 +252,7 @@ export default function CodePanel({ data, onUpdateData }: CodePanelProps) {
       zip.file("manifest.json", zipManifestCode);
       zip.file("service-worker.js", zipSwCode);
       zip.file("schema-physician-faq.json", zipJsonldCode);
+      zip.file("llms.txt", zipLlmsCode);
       zip.file("config-perfil.json", zipProfileJsonCode);
 
       // Archivo HTML de verificación Google Search Console (si se configuró)

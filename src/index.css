@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Keyframe animación Latido / Heartbeat Suave y Sutil */
 @keyframes heartbeat {
   0%, 80%, 100% {
@@ -149,104 +151,304 @@
 }
 
 /* 
- * TEMA OSCURO PARA LA INTERFAZ DEL GENERADOR
- * Asegura la ergonomía visual en largas sesiones de edición
+ * TEMA OSCURO PARA LA INTERFAZ DEL GENERADOR & GESTOR DE CLIENTES
+ * Ergonomía visual con contraste estricto WCAG AA (texto legible y sin artefactos)
  */
-.dark body {
+html.dark {
+  color-scheme: dark;
+}
+
+html.dark body,
+body.dark {
   background-color: #020617;
-  color: #e2e8f0;
+  color: #f1f5f9;
 }
 
+html.dark #app-root-container,
 .dark #app-root-container {
-  background-color: #020617 !important;
-  color: #e2e8f0 !important;
+  background-color: #020617;
+  color: #f1f5f9;
 }
 
+/* CABECERA PRINCIPAL */
+html.dark #app-main-header,
 .dark #app-main-header {
   background-color: #0f172a !important;
   border-color: #1e293b !important;
 }
 
-.dark #medical-form-panel,
-.dark #workspace-tabs-container,
-.dark #client-manager-modal-content,
-.dark #ai-modal-content,
-.dark #intake-modal-content,
-.dark .editor-card {
+/* ENTORNO DEL FORMULARIO Y GESTOR (EXCLUYENDO EL PREVIEW DEL CLIENTE) */
+html.dark #editor-section input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]),
+html.dark #editor-section select,
+html.dark #editor-section textarea,
+html.dark #client-manager-page input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]),
+html.dark #client-manager-page select,
+html.dark #client-manager-page textarea,
+html.dark .fixed input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]),
+html.dark .fixed select,
+html.dark .fixed textarea,
+.dark #editor-section input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]),
+.dark #editor-section select,
+.dark #editor-section textarea,
+.dark #client-manager-page input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]),
+.dark #client-manager-page select,
+.dark #client-manager-page textarea,
+.dark .fixed input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]),
+.dark .fixed select,
+.dark .fixed textarea {
   background-color: #0f172a !important;
-  border-color: #1e293b !important;
-  color: #f1f5f9 !important;
-}
-
-.dark input[type="text"],
-.dark input[type="url"],
-.dark input[type="number"],
-.dark input[type="email"],
-.dark input[type="tel"],
-.dark input[type="search"],
-.dark select,
-.dark textarea {
-  background-color: #1e293b !important;
   color: #f8fafc !important;
   border-color: #334155 !important;
 }
 
-.dark input:focus,
-.dark select:focus,
-.dark textarea:focus {
+html.dark #editor-section input:focus,
+html.dark #editor-section select:focus,
+html.dark #editor-section textarea:focus,
+html.dark #client-manager-page input:focus,
+html.dark #client-manager-page select:focus,
+html.dark #client-manager-page textarea:focus,
+.dark #editor-section input:focus,
+.dark #editor-section select:focus,
+.dark #editor-section textarea:focus,
+.dark #client-manager-page input:focus,
+.dark #client-manager-page select:focus,
+.dark #client-manager-page textarea:focus {
   border-color: #3b82f6 !important;
-  box-shadow: 0 0 0 1px #3b82f6 !important;
+  box-shadow: 0 0 0 1.5px #3b82f6 !important;
 }
 
-.dark input::placeholder,
-.dark textarea::placeholder {
+html.dark #editor-section input::placeholder,
+html.dark #editor-section textarea::placeholder,
+html.dark #client-manager-page input::placeholder,
+html.dark #client-manager-page textarea::placeholder,
+.dark #editor-section input::placeholder,
+.dark #editor-section textarea::placeholder,
+.dark #client-manager-page input::placeholder,
+.dark #client-manager-page textarea::placeholder {
   color: #64748b !important;
 }
 
-/* Modales y panles secundarios en tema oscuro */
-.dark .bg-white {
+/* TARJETAS Y CONTENEDORES PRINCIPALES DEL EDITOR, GESTOR Y MODALES */
+html.dark #editor-section,
+html.dark #editor-section .bg-white,
+html.dark #client-manager-page .bg-white,
+html.dark #client-manager-page footer,
+html.dark #workspace-tabs-container,
+html.dark .fixed .bg-white,
+.dark #editor-section,
+.dark #editor-section .bg-white,
+.dark #client-manager-page .bg-white,
+.dark #client-manager-page footer,
+.dark #workspace-tabs-container,
+.dark .fixed .bg-white {
   background-color: #0f172a !important;
-  color: #f1f5f9 !important;
-}
-
-.dark .bg-slate-50,
-.dark .bg-slate-50\/90,
-.dark .bg-slate-50\/50 {
-  background-color: #020617 !important;
-  color: #cbd5e1 !important;
-}
-
-.dark .bg-slate-100,
-.dark .bg-slate-100\/70,
-.dark .bg-slate-100\/80 {
-  background-color: #1e293b !important;
-  color: #cbd5e1 !important;
-}
-
-.dark .border-slate-200,
-.dark .border-slate-200\/90,
-.dark .border-slate-200\/80,
-.dark .border-slate-100 {
   border-color: #1e293b !important;
-}
-
-.dark .text-slate-900 {
   color: #f8fafc !important;
 }
 
-.dark .text-slate-800 {
+/* SUB-SUPERFICIES SUAVES */
+html.dark #editor-section [class*="bg-slate-50"],
+html.dark #client-manager-page [class*="bg-slate-50"],
+html.dark .fixed [class*="bg-slate-50"],
+.dark #editor-section [class*="bg-slate-50"],
+.dark #client-manager-page [class*="bg-slate-50"],
+.dark .fixed [class*="bg-slate-50"] {
+  background-color: #0b1120 !important;
+  border-color: #1e293b !important;
+}
+
+html.dark #editor-section [class*="bg-slate-100"],
+html.dark #client-manager-page [class*="bg-slate-100"],
+html.dark .fixed [class*="bg-slate-100"],
+.dark #editor-section [class*="bg-slate-100"],
+.dark #client-manager-page [class*="bg-slate-100"],
+.dark .fixed [class*="bg-slate-100"] {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+/* LEGIBILIDAD DE TIPOGRAFÍA EN MODO OSCURO (SCOPED AL EDITOR, GESTOR Y MODALES, NUNCA AL PREVIEW) */
+html.dark #editor-section .text-slate-900,
+html.dark #client-manager-page .text-slate-900,
+html.dark #app-main-header .text-slate-900,
+html.dark .fixed .text-slate-900,
+.dark #editor-section .text-slate-900,
+.dark #client-manager-page .text-slate-900,
+.dark #app-main-header .text-slate-900,
+.dark .fixed .text-slate-900 {
+  color: #f8fafc !important;
+}
+
+html.dark #editor-section .text-slate-800,
+html.dark #client-manager-page .text-slate-800,
+html.dark #app-main-header .text-slate-800,
+html.dark .fixed .text-slate-800,
+.dark #editor-section .text-slate-800,
+.dark #client-manager-page .text-slate-800,
+.dark #app-main-header .text-slate-800,
+.dark .fixed .text-slate-800 {
   color: #f1f5f9 !important;
 }
 
-.dark .text-slate-700 {
+html.dark #editor-section .text-slate-700,
+html.dark #client-manager-page .text-slate-700,
+html.dark #app-main-header .text-slate-700,
+html.dark .fixed .text-slate-700,
+.dark #editor-section .text-slate-700,
+.dark #client-manager-page .text-slate-700,
+.dark #app-main-header .text-slate-700,
+.dark .fixed .text-slate-700 {
   color: #cbd5e1 !important;
 }
 
-.dark .text-slate-600,
-.dark .text-slate-500 {
+html.dark #editor-section .text-slate-600,
+html.dark #client-manager-page .text-slate-600,
+html.dark #app-main-header .text-slate-600,
+html.dark .fixed .text-slate-600,
+.dark #editor-section .text-slate-600,
+.dark #client-manager-page .text-slate-600,
+.dark #app-main-header .text-slate-600,
+.dark .fixed .text-slate-600 {
   color: #94a3b8 !important;
 }
 
-.dark .text-slate-400 {
+html.dark #editor-section .text-slate-500,
+html.dark #client-manager-page .text-slate-500,
+html.dark #app-main-header .text-slate-500,
+html.dark .fixed .text-slate-500,
+.dark #editor-section .text-slate-500,
+.dark #client-manager-page .text-slate-500,
+.dark #app-main-header .text-slate-500,
+.dark .fixed .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+html.dark #editor-section .text-slate-400,
+html.dark #client-manager-page .text-slate-400,
+html.dark #app-main-header .text-slate-400,
+html.dark .fixed .text-slate-400,
+.dark #editor-section .text-slate-400,
+.dark #client-manager-page .text-slate-400,
+.dark #app-main-header .text-slate-400,
+.dark .fixed .text-slate-400 {
   color: #64748b !important;
 }
+
+/* BORDES EN MODO OSCURO */
+html.dark #editor-section [class*="border-slate-200"],
+html.dark #editor-section [class*="border-slate-100"],
+html.dark #editor-section [class*="border-slate-300"],
+html.dark #client-manager-page [class*="border-slate-200"],
+html.dark #client-manager-page [class*="border-slate-100"],
+html.dark #client-manager-page [class*="border-slate-300"],
+html.dark .fixed [class*="border-slate-200"],
+html.dark .fixed [class*="border-slate-100"],
+html.dark .fixed [class*="border-slate-300"],
+.dark #editor-section [class*="border-slate-200"],
+.dark #editor-section [class*="border-slate-100"],
+.dark #editor-section [class*="border-slate-300"],
+.dark #client-manager-page [class*="border-slate-200"],
+.dark #client-manager-page [class*="border-slate-100"],
+.dark #client-manager-page [class*="border-slate-300"],
+.dark .fixed [class*="border-slate-200"],
+.dark .fixed [class*="border-slate-100"],
+.dark .fixed [class*="border-slate-300"] {
+  border-color: #1e293b !important;
+}
+
+/* ARMONIZACIÓN DE INSIGNIAS Y BADGES TINTADOS (FONDO + TEXTO COHERENTE) */
+html.dark #editor-section [class*="bg-blue-50"],
+html.dark #client-manager-page [class*="bg-blue-50"],
+html.dark .fixed [class*="bg-blue-50"],
+.dark #editor-section [class*="bg-blue-50"],
+.dark #client-manager-page [class*="bg-blue-50"],
+.dark .fixed [class*="bg-blue-50"] {
+  background-color: rgba(30, 58, 138, 0.3) !important;
+  border-color: rgba(59, 130, 246, 0.4) !important;
+}
+html.dark #editor-section [class*="bg-blue-50"] .text-blue-700,
+html.dark #editor-section [class*="bg-blue-50"] .text-blue-800,
+html.dark #editor-section [class*="bg-blue-50"] .text-blue-900,
+html.dark #client-manager-page [class*="bg-blue-50"] .text-blue-700,
+html.dark #client-manager-page [class*="bg-blue-50"] .text-blue-800,
+html.dark #client-manager-page [class*="bg-blue-50"] .text-blue-900,
+html.dark .fixed [class*="bg-blue-50"] .text-blue-700,
+html.dark .fixed [class*="bg-blue-50"] .text-blue-800,
+html.dark .fixed [class*="bg-blue-50"] .text-blue-900,
+.dark #editor-section [class*="bg-blue-50"] .text-blue-700,
+.dark #editor-section [class*="bg-blue-50"] .text-blue-800,
+.dark #editor-section [class*="bg-blue-50"] .text-blue-900,
+.dark #client-manager-page [class*="bg-blue-50"] .text-blue-700,
+.dark #client-manager-page [class*="bg-blue-50"] .text-blue-800,
+.dark #client-manager-page [class*="bg-blue-50"] .text-blue-900,
+.dark .fixed [class*="bg-blue-50"] .text-blue-700,
+.dark .fixed [class*="bg-blue-50"] .text-blue-800,
+.dark .fixed [class*="bg-blue-50"] .text-blue-900 {
+  color: #93c5fd !important;
+}
+
+html.dark #editor-section [class*="bg-emerald-50"],
+html.dark #client-manager-page [class*="bg-emerald-50"],
+html.dark .fixed [class*="bg-emerald-50"],
+.dark #editor-section [class*="bg-emerald-50"],
+.dark #client-manager-page [class*="bg-emerald-50"],
+.dark .fixed [class*="bg-emerald-50"] {
+  background-color: rgba(6, 78, 59, 0.3) !important;
+  border-color: rgba(16, 185, 129, 0.4) !important;
+}
+html.dark #editor-section [class*="bg-emerald-50"] .text-emerald-700,
+html.dark #editor-section [class*="bg-emerald-50"] .text-emerald-800,
+html.dark #editor-section [class*="bg-emerald-50"] .text-emerald-900,
+html.dark #client-manager-page [class*="bg-emerald-50"] .text-emerald-700,
+html.dark #client-manager-page [class*="bg-emerald-50"] .text-emerald-800,
+html.dark #client-manager-page [class*="bg-emerald-50"] .text-emerald-900,
+html.dark .fixed [class*="bg-emerald-50"] .text-emerald-700,
+html.dark .fixed [class*="bg-emerald-50"] .text-emerald-800,
+html.dark .fixed [class*="bg-emerald-50"] .text-emerald-900,
+.dark #editor-section [class*="bg-emerald-50"] .text-emerald-700,
+.dark #editor-section [class*="bg-emerald-50"] .text-emerald-800,
+.dark #editor-section [class*="bg-emerald-50"] .text-emerald-900,
+.dark #client-manager-page [class*="bg-emerald-50"] .text-emerald-700,
+.dark #client-manager-page [class*="bg-emerald-50"] .text-emerald-800,
+.dark #client-manager-page [class*="bg-emerald-50"] .text-emerald-900,
+.dark .fixed [class*="bg-emerald-50"] .text-emerald-700,
+.dark .fixed [class*="bg-emerald-50"] .text-emerald-800,
+.dark .fixed [class*="bg-emerald-50"] .text-emerald-900 {
+  color: #6ee7b7 !important;
+}
+
+html.dark #editor-section [class*="bg-amber-50"],
+html.dark #client-manager-page [class*="bg-amber-50"],
+html.dark .fixed [class*="bg-amber-50"],
+.dark #editor-section [class*="bg-amber-50"],
+.dark #client-manager-page [class*="bg-amber-50"],
+.dark .fixed [class*="bg-amber-50"] {
+  background-color: rgba(120, 53, 15, 0.3) !important;
+  border-color: rgba(245, 158, 11, 0.4) !important;
+}
+html.dark #editor-section [class*="bg-amber-50"] .text-amber-700,
+html.dark #editor-section [class*="bg-amber-50"] .text-amber-800,
+html.dark #editor-section [class*="bg-amber-50"] .text-amber-900,
+html.dark #client-manager-page [class*="bg-amber-50"] .text-amber-700,
+html.dark #client-manager-page [class*="bg-amber-50"] .text-amber-800,
+html.dark #client-manager-page [class*="bg-amber-50"] .text-amber-900,
+html.dark .fixed [class*="bg-amber-50"] .text-amber-700,
+html.dark .fixed [class*="bg-amber-50"] .text-amber-800,
+html.dark .fixed [class*="bg-amber-50"] .text-amber-900,
+.dark #editor-section [class*="bg-amber-50"] .text-amber-700,
+.dark #editor-section [class*="bg-amber-50"] .text-amber-800,
+.dark #editor-section [class*="bg-amber-50"] .text-amber-900,
+.dark #client-manager-page [class*="bg-amber-50"] .text-amber-700,
+.dark #client-manager-page [class*="bg-amber-50"] .text-amber-800,
+.dark #client-manager-page [class*="bg-amber-50"] .text-amber-900,
+.dark .fixed [class*="bg-amber-50"] .text-amber-700,
+.dark .fixed [class*="bg-amber-50"] .text-amber-800,
+.dark .fixed [class*="bg-amber-50"] .text-amber-900 {
+  color: #fcd34d !important;
+}
+
+/* PROTECCIÓN TOTAL DEL PREVIEW: EL LIENZO DEL DOCTOR MANTIENE SU DISEÑO ORIGINAL */
+#preview-viewport-wrapper {
+  color-scheme: light !important;
+}
+

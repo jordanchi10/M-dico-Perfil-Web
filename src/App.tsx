@@ -25,7 +25,6 @@ import {
   generateLlmsTxt,
   generateRobotsTxt,
   generateSitemapXml,
-  generateHtaccess,
   generateServicePageHtml,
   slugifyMedicalService,
   normalizeDomainUrl,
@@ -68,8 +67,11 @@ import {
   ClipboardList,
   QrCode,
   Sun,
-  Moon
+  Moon,
+  Cloud
 } from "lucide-react";
+import { auth, saveDoctorToCloud, formatFirestoreErrorMessage } from "./lib/firebase";
+import { onAuthStateChanged, User } from "firebase/auth";
 
 const LOCAL_STORAGE_KEY = "medical_landing_generator_state";
 
@@ -111,6 +113,22 @@ export default function App() {
   const [savedProfilesCount, setSavedProfilesCount] = useState<number>(0);
   const [quickSavedToast, setQuickSavedToast] = useState<string>("");
   const [mobileActiveTab, setMobileActiveTab] = useState<"editor" | "workspace">("editor");
+
+  // Estado de Firebase Cloud y sincronización automática
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [clientManagerInitialTab, setClientManagerInitialTab] = useState<"import" | "catalog" | "export" | "cloud">("catalog");
+  const [isFirestoreSyncing, setIsFirestoreSyncing] = useState<boolean>(false);
+  const [firestoreSyncSuccess, setFirestoreSyncSuccess] = useState<boolean>(false);
+  const [firestoreSyncError, setFirestoreSyncError] = useState<string | null>(null);
+  const [lastFirestoreSavedAt, setLastFirestoreSavedAt] = useState<Date | null>(null);
+
+  // Escuchar estado de Firebase Auth
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Estado del tema visual de la interfaz del generador (Claro / Oscuro para ergonomía visual)
   const [editorTheme, setEditorTheme] = useState<"light" | "dark">(() => {
@@ -161,6 +179,63 @@ export default function App() {
     setPreviewKey(Date.now());
   }, [medicalData]);
 
+  // Hook useEffect: detecta cambios en 'medicalData' y sincroniza automáticamente
+  // el perfil actual con la colección de Firestore cuando 'currentUser' esté definido,
+  // incluyendo un estado de carga y guardado exitoso.
+  useEffect(() => {
+    // Si el usuario no está logueado en Firebase, no sincronizar en la nube
+    if (!currentUser) {
+      setIsFirestoreSyncing(false);
+      setFirestoreSyncSuccess(false);
+      return;
+    }
+
+    // Estado de carga / sincronizando en progreso
+    setIsFirestoreSyncing(true);
+    setFirestoreSyncSuccess(false);
+    setFirestoreSyncError(null);
+
+    // Debounce de 1200ms para evitar escrituras excesivas durante la edición interactiva
+    const syncTimeout = setTimeout(async () => {
+      try {
+        let currentId = activeProfileId || getActiveProfileId();
+        if (!currentId) {
+          currentId = `profile-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+          setActiveProfileId(currentId);
+          setActiveProfileIdState(currentId);
+        }
+
+        // Persistir en el catálogo local y en la colección de Firestore
+        const savedProfile = saveProfile(medicalData, undefined, currentId);
+        await saveDoctorToCloud(currentUser.uid, currentUser.email || "", savedProfile);
+
+        // Actualizar estadísticas de perfiles
+        refreshProfileStats();
+
+        // Estado de guardado exitoso
+        setIsFirestoreSyncing(false);
+        setFirestoreSyncSuccess(true);
+        setLastFirestoreSavedAt(new Date());
+
+        // Restablecer el badge de éxito después de 3.5 segundos
+        const timer = setTimeout(() => {
+          setFirestoreSyncSuccess(false);
+        }, 3500);
+
+        return () => clearTimeout(timer);
+      } catch (err: any) {
+        console.error("Error al sincronizar automáticamente con Firestore:", err);
+        setIsFirestoreSyncing(false);
+        setFirestoreSyncSuccess(false);
+        setFirestoreSyncError(formatFirestoreErrorMessage(err));
+      }
+    }, 1200);
+
+    return () => {
+      clearTimeout(syncTimeout);
+    };
+  }, [medicalData, currentUser, activeProfileId]);
+
   const handleForceRefresh = () => {
     setPreviewKey(Date.now());
     if (typeof BroadcastChannel !== "undefined") {
@@ -176,22 +251,25 @@ export default function App() {
     setTimeout(() => setQuickSavedToast(""), 3000);
   };
 
-  // Favicon oficial de la plataforma Mediko (garantiza que siempre sea el logo oficial de la plataforma y NO el del médico)
+  // Favicon de corazón por defecto para la plataforma web
+  const defaultPlatformHeartFavicon = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23ff3b5c'/%3E%3Cstop offset='100%25' stop-color='%23e11d48'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath fill='url(%23g)' d='M16 28.5S4.5 21 2.2 14.3C-.4 7.6 4.3 2 10.3 2c3.5 0 5.7 2 5.7 2s2.2-2 5.7-2c6 0 10.7 5.6 8.1 12.3C27.5 21 16 28.5 16 28.5z'/%3E%3C/svg%3E";
+
+  // Actualizar favicon de la pestaña en tiempo real (con icono de corazón de la plataforma)
   useEffect(() => {
     try {
-      const officialFavicon = "/favicon.svg";
+      const activeFavicon = medicalData.pwaIconUrl || medicalData.faviconUrl || medicalData.logoUrl || defaultPlatformHeartFavicon;
       let link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
       if (!link) {
         link = document.createElement("link");
         link.rel = "icon";
-        link.type = "image/svg+xml";
         document.getElementsByTagName("head")[0].appendChild(link);
       }
-      link.href = officialFavicon;
+      link.type = activeFavicon.includes("svg") ? "image/svg+xml" : "image/x-icon";
+      link.href = activeFavicon;
     } catch (e) {
-      console.error("Error setting official platform favicon:", e);
+      console.error("Error updating browser favicon:", e);
     }
-  }, []);
+  }, [medicalData.pwaIconUrl, medicalData.faviconUrl, medicalData.logoUrl]);
 
   // Mantener actualizado el script JSON-LD (Schema.org Physician + FAQPage) en el <head> del documento
   useEffect(() => {
@@ -355,7 +433,6 @@ export default function App() {
       const llmsTxtCode = generateLlmsTxt(exportedData);
       const robotsTxtCode = generateRobotsTxt(exportedData, activeDomain);
       const sitemapXmlCode = generateSitemapXml(exportedData, activeDomain);
-      const htaccessCode = generateHtaccess(exportedData, activeDomain);
       const profileJsonCode = JSON.stringify({
         version: "3.0",
         tipoExportacion: "individual",
@@ -379,7 +456,6 @@ export default function App() {
       zip.file("llms.txt", llmsTxtCode);
       zip.file("robots.txt", robotsTxtCode);
       zip.file("sitemap.xml", sitemapXmlCode);
-      zip.file(".htaccess", htaccessCode);
       zip.file("config-perfil.json", profileJsonCode);
 
       // Archivo HTML de verificación Google Search Console (si se configuró)
@@ -418,7 +494,7 @@ Las imágenes están empaquetadas físicamente dentro de la carpeta local \`/img
 7. \`schema-physician-faq.json\`: Datos estructurados Schema.org listos para alimentar los motores de búsqueda de Google.
 8. \`sitemap.xml\`: Mapa del sitio XML con todas las URLs de servicios y páginas.
 9. \`robots.txt\`: Directivas de rastreo de motores de búsqueda.
-10. \`.htaccess\`: Configuración de compresión Gzip, tipos MIME, caché y redirección HTTPS para servidores Apache/LiteSpeed.
+10. \`llms.txt\`: Contexto semántico para buscadores y modelos de Inteligencia Artificial.
 11. \`config-perfil.json\`: Copia de respaldo de todos los datos para re-importar y editar este perfil médico en cualquier momento.
 
 ## 🚀 Instrucciones de Despliegue Directo:
@@ -472,26 +548,46 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Hosting
     ? medicalData.especialidad
     : "Especialidad Médica";
 
+  // Si la vista activa es el Gestor de Clientes Médicos (Página Independiente)
+  if (isClientManagerOpen) {
+    return (
+      <div id="app-root-container" className={`min-h-screen ${editorTheme === "dark" ? "dark bg-slate-950 text-slate-100" : "bg-slate-100 text-slate-800"} flex flex-col font-sans transition-colors duration-200`}>
+        <ClientManagerModal
+          isOpen={true}
+          onClose={() => {
+            setIsClientManagerOpen(false);
+            refreshProfileStats();
+          }}
+          currentData={medicalData}
+          onLoadProfile={handleLoadProfile}
+          initialTab={clientManagerInitialTab}
+          isFirestoreSyncing={isFirestoreSyncing}
+          firestoreSyncSuccess={firestoreSyncSuccess}
+        />
+      </div>
+    );
+  }
+
   return (
-    <div id="app-root-container" className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
+    <div id="app-root-container" className={`min-h-screen ${editorTheme === "dark" ? "dark bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-800"} flex flex-col font-sans transition-colors duration-200`}>
       
       {/* HEADER CLÍNICO */}
-      <header id="app-main-header" className="bg-white border-b border-slate-200/80 sticky top-0 z-50 shadow-sm shrink-0">
+      <header id="app-main-header" className="bg-white dark:bg-slate-900 border-b border-slate-200/80 dark:border-slate-800 sticky top-0 z-50 shadow-sm shrink-0 transition-colors duration-200">
         <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-10 h-16 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3.5 min-w-0">
             {/* LOGOTIPO OFICIAL MEDICO.EC */}
             <MedicoEcLogo className="h-9 shrink-0" />
 
-            <div className="h-7 w-px bg-slate-200 hidden md:block" />
+            <div className="h-7 w-px bg-slate-200 dark:bg-slate-800 hidden md:block" />
 
             <div className="min-w-0">
-              <h1 className="text-sm md:text-base font-extrabold text-slate-900 flex items-center gap-1.5 leading-tight truncate">
+              <h1 className="text-sm md:text-base font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-1.5 leading-tight truncate">
                 Creador de Consultorio Digital 3.0
                 <span className="text-[10px] font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 hidden md:inline-flex items-center gap-1">
                   🇪🇨 Exclusivo Ecuador
                 </span>
               </h1>
-              <p className="text-[10px] md:text-xs text-slate-500 truncate">
+              <p className="text-[10px] md:text-xs text-slate-500 dark:text-slate-400 truncate">
                 Configura, importa y exporta landing pages médicas para más de 100 especialistas en Ecuador.
               </p>
             </div>
@@ -530,8 +626,11 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Hosting
             {/* BOTÓN GESTOR DE CLIENTES & IMPORTADOR */}
             <button
               id="btn-open-client-manager"
-              onClick={() => setIsClientManagerOpen(true)}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs shadow-md shadow-slate-900/10 cursor-pointer transition-all hover:scale-105 border border-slate-700"
+              onClick={() => {
+                setClientManagerInitialTab("catalog");
+                setIsClientManagerOpen(true);
+              }}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white font-extrabold text-xs shadow-md shadow-slate-900/10 cursor-pointer transition-all hover:scale-105 border border-slate-700"
               title="Administrar biblioteca de clientes, importar archivos .json o restaurar backups"
             >
               <Users className="w-4 h-4 text-blue-400" />
@@ -543,6 +642,56 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Hosting
                 </span>
               )}
             </button>
+
+            {/* BOTÓN NUBE FIREBASE */}
+            <button
+              id="btn-open-firebase-cloud"
+              onClick={() => {
+                setClientManagerInitialTab("cloud");
+                setIsClientManagerOpen(true);
+              }}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-extrabold cursor-pointer transition-all hover:scale-105 border ${
+                currentUser
+                  ? "bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-600/70 shadow-xs"
+                  : "bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700"
+              }`}
+              title={
+                currentUser
+                  ? `Google Firebase Conectado (${currentUser.email}). Clic para gestionar tu nube.`
+                  : "Sincronizar y respaldar médicos en Google Firebase"
+              }
+            >
+              <Cloud className={`w-4 h-4 ${currentUser ? "text-amber-600 dark:text-amber-400" : "text-slate-500 dark:text-slate-400"}`} />
+              <span className="hidden lg:inline">
+                {currentUser ? "Nube Firebase" : "Nube Google"}
+              </span>
+              <span className="lg:hidden">Nube</span>
+              {currentUser && (
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              )}
+            </button>
+
+            {/* ESTADO EN VIVO DE SINCRONIZACIÓN AUTOMÁTICA CON FIRESTORE */}
+            {currentUser && isFirestoreSyncing && (
+              <div 
+                id="header-firestore-syncing"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-400 dark:border-amber-500/50 text-amber-900 dark:text-amber-200 text-xs font-black animate-pulse shadow-xs"
+                title="Sincronizando automáticamente perfil actual en Firestore..."
+              >
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-600 dark:text-amber-400" />
+                <span className="hidden md:inline">Sincronizando Firestore...</span>
+              </div>
+            )}
+            {currentUser && !isFirestoreSyncing && firestoreSyncSuccess && (
+              <div 
+                id="header-firestore-synced"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-400 dark:border-emerald-500/50 text-emerald-900 dark:text-emerald-200 text-xs font-black animate-in fade-in shadow-xs"
+                title={`Perfil médico sincronizado exitosamente con Firestore${lastFirestoreSavedAt ? ` (${lastFirestoreSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})` : ''}`}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span className="hidden md:inline">Guardado en Firestore</span>
+              </div>
+            )}
 
             {/* BOTÓN FORMULARIO DE TOMA DE DATOS PARA MÉDICOS */}
             <button
@@ -575,14 +724,14 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Hosting
               id="btn-toggle-editor-theme"
               type="button"
               onClick={() => setEditorTheme(prev => prev === "light" ? "dark" : "light")}
-              className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 transition-all hover:scale-105 cursor-pointer shrink-0 font-bold flex items-center justify-center"
+              className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition-all hover:scale-105 cursor-pointer shrink-0 font-bold flex items-center justify-center"
               title={editorTheme === "light" ? "Cambiar a Modo Oscuro" : "Cambiar a Modo Claro"}
               aria-label={editorTheme === "light" ? "Cambiar a Modo Oscuro" : "Cambiar a Modo Claro"}
             >
               {editorTheme === "light" ? (
                 <Moon className="w-4 h-4 text-slate-700" />
               ) : (
-                <Sun className="w-4 h-4 text-amber-500" />
+                <Sun className="w-4 h-4 text-amber-400" />
               )}
             </button>
 
@@ -599,15 +748,15 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Hosting
       )}
 
       {/* SELECTOR RESPONSIVO PARA MÓVIL Y TABLET (< lg) */}
-      <div className="lg:hidden sticky top-16 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 py-2 flex items-center justify-between gap-2 shadow-xs">
-        <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-xl w-full max-w-md mx-auto">
+      <div className="lg:hidden sticky top-16 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 py-2 flex items-center justify-between gap-2 shadow-xs">
+        <div className="grid grid-cols-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl w-full max-w-md mx-auto">
           <button
             type="button"
             onClick={() => setMobileActiveTab("editor")}
             className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold transition-all ${
               mobileActiveTab === "editor"
-                ? "bg-white text-blue-700 shadow-xs"
-                : "text-slate-600 hover:text-slate-900"
+                ? "bg-white dark:bg-slate-700 text-blue-700 dark:text-blue-300 shadow-xs"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
             }`}
           >
             <UserCheck className="w-3.5 h-3.5" />
@@ -619,7 +768,7 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Hosting
             className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold transition-all ${
               mobileActiveTab === "workspace"
                 ? "bg-blue-600 text-white shadow-xs"
-                : "text-slate-600 hover:text-slate-900"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
             }`}
           >
             <Smartphone className="w-3.5 h-3.5" />
@@ -640,25 +789,25 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Hosting
           <div className="space-y-4">
             
             {/* TARJETA DE ESTADO DEL CLIENTE ACTUAL */}
-            <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-xs flex flex-col gap-3">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col gap-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3 min-w-0">
-                  <div className="p-2.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-200/70 shrink-0">
+                  <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200/70 dark:border-blue-800/60 shrink-0">
                     <UserCheck className="w-5 h-5" />
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200/60">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-md border border-blue-200/60 dark:border-blue-800/60">
                         {activeProfileId ? "Cliente en Catálogo" : "Borrador en Curso"}
                       </span>
-                      <span className="text-[11px] font-semibold text-slate-500">
+                      <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
                         {medicalData.ciudad || "Ecuador"}
                       </span>
                     </div>
-                    <h2 className="text-sm font-extrabold text-slate-900 mt-1 truncate" title={currentDoctorDisplay}>
+                    <h2 className="text-sm font-extrabold text-slate-900 dark:text-slate-100 mt-1 truncate" title={currentDoctorDisplay}>
                       {currentDoctorDisplay}
                     </h2>
-                    <p className="text-xs text-slate-500 truncate" title={currentSpecialtyDisplay}>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate" title={currentSpecialtyDisplay}>
                       {currentSpecialtyDisplay} • {medicalData.nombreClinicaGBP || "Consultorio"}
                     </p>
                   </div>
@@ -666,7 +815,7 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Hosting
               </div>
 
               {/* BARRA DE ACCIONES RÁPIDAS DE PERFIL */}
-              <div className="flex items-center justify-between border-t border-slate-100 pt-3 text-xs gap-2 flex-wrap">
+              <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-3 text-xs gap-2 flex-wrap">
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <button
                     onClick={handleQuickSaveCurrent}
@@ -690,7 +839,7 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Hosting
 
                 <button
                   onClick={handleResetData}
-                  className="flex items-center gap-1 px-2 py-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all text-xs font-semibold cursor-pointer"
+                  className="flex items-center gap-1 px-2 py-1.5 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-all text-xs font-semibold cursor-pointer"
                   title="Restablecer plantilla a valores por defecto"
                 >
                   <RotateCcw className="w-3 h-3" />
@@ -715,7 +864,7 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Hosting
         >
           
           {/* Selector de espacio de trabajo */}
-          <div id="workspace-tabs-container" className="flex items-center justify-between bg-white px-4 py-2.5 rounded-xl border border-slate-200 shadow-sm overflow-x-auto scrollbar-none gap-2 shrink-0">
+          <div id="workspace-tabs-container" className="flex items-center justify-between bg-white dark:bg-slate-900 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto scrollbar-none gap-2 shrink-0">
             <div className="flex items-center gap-1.5 whitespace-nowrap">
               <button
                 id="btn-workspace-preview"
@@ -723,7 +872,7 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Hosting
                 className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
                   rightTab === "preview"
                     ? "bg-blue-600 text-white shadow-sm"
-                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                    : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800"
                 }`}
               >
                 <Smartphone className="w-4 h-4" />
@@ -735,7 +884,7 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Hosting
                 className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
                   rightTab === "code"
                     ? "bg-blue-600 text-white shadow-sm"
-                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                    : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800"
                 }`}
               >
                 <Code className="w-4 h-4" />
@@ -747,7 +896,7 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Hosting
                 className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
                   rightTab === "audit"
                     ? "bg-blue-600 text-white shadow-sm"
-                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                    : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800"
                 }`}
               >
                 <ShieldCheck className="w-4 h-4" />
@@ -761,17 +910,17 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Hosting
                 id="btn-force-refresh-preview"
                 type="button"
                 onClick={handleForceRefresh}
-                className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 active:bg-blue-200 rounded-lg border border-blue-200 transition-all cursor-pointer shadow-2xs hover:scale-105"
+                className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 active:bg-blue-200 rounded-lg border border-blue-200 dark:border-blue-800 transition-all cursor-pointer shadow-2xs hover:scale-105"
                 title="Forzar re-renderizado inmediato de la vista previa"
               >
-                <RefreshCw className="w-3.5 h-3.5 text-blue-600" />
+                <RefreshCw className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                 <span>Refrescar</span>
               </button>
 
               {/* Badge de Sincronización en Vivo */}
               <div 
                 id="design-version-pill-btn"
-                className="flex items-center gap-1.5 text-[11px] font-extrabold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/80 shadow-2xs"
+                className="flex items-center gap-1.5 text-[11px] font-extrabold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-200/80 dark:border-emerald-800/80 shadow-2xs"
                 title="Cambios sincronizados en tiempo real"
               >
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -837,17 +986,6 @@ Sube estos archivos directamente al directorio raíz de tu hosting (e.g. Hosting
           </div>
         </div>
       </footer>
-
-      {/* Modal Gestor de Clientes & Importador Multi-Perfil */}
-      <ClientManagerModal
-        isOpen={isClientManagerOpen}
-        onClose={() => {
-          setIsClientManagerOpen(false);
-          refreshProfileStats();
-        }}
-        currentData={medicalData}
-        onLoadProfile={handleLoadProfile}
-      />
 
       {/* Modal Asistente de Ingesta Inteligente con IA */}
       <AiIngestionModal

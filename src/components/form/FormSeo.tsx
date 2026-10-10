@@ -2010,42 +2010,62 @@ ${extractGoogleVerificationCode(data.googleSiteVerification) ? `\n<!-- VERIFICAC
             )}
 
             {/* SECCIÓN VINCULADA: ENVÍO DEL SITEMAP XML */}
-            <div className="p-3.5 rounded-xl bg-gradient-to-r from-blue-50/60 to-indigo-50/60 border border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <FileCode className="w-4 h-4 text-blue-600 shrink-0" />
-                  <span className="text-xs font-bold text-slate-900">
-                    Paso siguiente: Enviar Sitemap XML a Google Search Console
-                  </span>
+            <div className="p-4 rounded-xl bg-gradient-to-r from-blue-50/70 via-indigo-50/50 to-slate-50 border border-blue-200/80 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <FileCode className="w-4 h-4 text-blue-600 shrink-0" />
+                    <span className="text-xs font-bold text-slate-900">
+                      Paso siguiente: Enviar Sitemap XML a Google Search Console
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      100% Compatible GSC
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 font-mono break-all">
+                    {sitemapGscUrl}
+                  </p>
                 </div>
-                <p className="text-[11px] text-slate-600 font-mono break-all">
-                  {sitemapGscUrl}
-                </p>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText("sitemap.xml");
+                      setCopiedGscSitemapUrl(true);
+                      setTimeout(() => setCopiedGscSitemapUrl(false), 2000);
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all border border-slate-200 shadow-2xs"
+                    title="Copia 'sitemap.xml' para pegarlo directamente en Google Search Console"
+                  >
+                    {copiedGscSitemapUrl ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                    <span>{copiedGscSitemapUrl ? "¡sitemap.xml Copiado!" : "Copiar 'sitemap.xml'"}</span>
+                  </button>
+
+                  <a
+                    href="https://search.google.com/search-console"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-xs"
+                  >
+                    <span>Abrir Search Console</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigator.clipboard.writeText(sitemapGscUrl);
-                    setCopiedGscSitemapUrl(true);
-                    setTimeout(() => setCopiedGscSitemapUrl(false), 2000);
-                  }}
-                  className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all border border-slate-200 shadow-2xs"
-                >
-                  {copiedGscSitemapUrl ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                  <span>{copiedGscSitemapUrl ? "¡URL Copiada!" : "Copiar URL Sitemap"}</span>
-                </button>
-
-                <a
-                  href="https://search.google.com/search-console"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-xs"
-                >
-                  <span>Abrir Search Console</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
+              {/* Guía Rápida de Envío en GSC */}
+              <div className="p-2.5 rounded-lg bg-white/80 border border-blue-100 text-[11px] text-slate-700 space-y-1">
+                <span className="font-bold text-blue-950 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  Instrucciones directas para Google Search Console:
+                </span>
+                <ol className="list-decimal list-inside space-y-0.5 pl-1 text-slate-600">
+                  <li>Inicia sesión en <strong>Google Search Console</strong> y selecciona la propiedad del médico.</li>
+                  <li>En el menú lateral izquierdo, haz clic en <strong>&quot;Sitemaps&quot; (Mapas del sitio)</strong>.</li>
+                  <li>En el campo <em>&quot;Añadir un nuevo sitemap&quot;</em>, escribe únicamente: <code className="bg-slate-100 text-blue-700 font-bold px-1.5 py-0.5 rounded font-mono">sitemap.xml</code> y pulsa <strong>&quot;Enviar&quot;</strong>.</li>
+                  <li>Google mostrará el estado en verde: <strong>&quot;Correcto&quot;</strong> e indexará de inmediato la portada, procedimientos y fotografías clínicas.</li>
+                </ol>
               </div>
             </div>
           </div>
@@ -2266,7 +2286,8 @@ ${extractGoogleVerificationCode(data.googleSiteVerification) ? `\n<!-- VERIFICAC
               <button
                 type="button"
                 onClick={() => {
-                  const sitemap = generateSitemapXml(data);
+                  const activeCleanDomain = normalizeDomainUrl(data.dominioWeb || primarySubdomains[0]);
+                  const sitemap = generateSitemapXml(data, activeCleanDomain);
                   navigator.clipboard.writeText(sitemap);
                   setCopiedSitemap(true);
                   setTimeout(() => setCopiedSitemap(false), 2000);
@@ -2277,8 +2298,8 @@ ${extractGoogleVerificationCode(data.googleSiteVerification) ? `\n<!-- VERIFICAC
                 {copiedSitemap ? "Copiado" : "Copiar"}
               </button>
             </div>
-            <pre className="p-2.5 rounded-lg bg-slate-900 text-slate-200 text-[10px] font-mono overflow-x-auto max-h-32">
-              {generateSitemapXml(data)}
+            <pre className="p-2.5 rounded-lg bg-slate-900 text-slate-200 text-[10px] font-mono overflow-x-auto max-h-36 whitespace-pre-wrap">
+              {generateSitemapXml(data, normalizeDomainUrl(data.dominioWeb || primarySubdomains[0]))}
             </pre>
           </div>
 

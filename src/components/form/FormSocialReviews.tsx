@@ -40,6 +40,7 @@ import {
   FileText
 } from "lucide-react";
 import { GbpPostExporterModal } from "../GbpPostExporterModal";
+import { formatSocialUrl } from "../../utils/generators";
 
 interface FormSocialReviewsProps {
   data: MedicalLandingData;
@@ -264,6 +265,10 @@ export function FormSocialReviews({
               type="text"
               value={data.instagramUrl || ""}
               onChange={(e) => updateField("instagramUrl", e.target.value)}
+              onBlur={(e) => {
+                const formatted = formatSocialUrl("instagram", e.target.value);
+                if (formatted && formatted !== e.target.value) updateField("instagramUrl", formatted);
+              }}
               placeholder="https://instagram.com/dr..."
               className="px-3 py-2 rounded-xl border border-slate-200 text-xs focus:border-pink-500 outline-none"
             />
@@ -279,6 +284,10 @@ export function FormSocialReviews({
               type="text"
               value={data.facebookUrl || ""}
               onChange={(e) => updateField("facebookUrl", e.target.value)}
+              onBlur={(e) => {
+                const formatted = formatSocialUrl("facebook", e.target.value);
+                if (formatted && formatted !== e.target.value) updateField("facebookUrl", formatted);
+              }}
               placeholder="https://facebook.com/..."
               className="px-3 py-2 rounded-xl border border-slate-200 text-xs focus:border-blue-500 outline-none"
             />
@@ -294,6 +303,10 @@ export function FormSocialReviews({
               type="text"
               value={data.tiktokUrl || ""}
               onChange={(e) => updateField("tiktokUrl", e.target.value)}
+              onBlur={(e) => {
+                const formatted = formatSocialUrl("tiktok", e.target.value);
+                if (formatted && formatted !== e.target.value) updateField("tiktokUrl", formatted);
+              }}
               placeholder="https://tiktok.com/@..."
               className="px-3 py-2 rounded-xl border border-slate-200 text-xs focus:border-slate-800 outline-none"
             />
@@ -309,6 +322,10 @@ export function FormSocialReviews({
               type="text"
               value={data.youtubeUrl || ""}
               onChange={(e) => updateField("youtubeUrl", e.target.value)}
+              onBlur={(e) => {
+                const formatted = formatSocialUrl("youtube", e.target.value);
+                if (formatted && formatted !== e.target.value) updateField("youtubeUrl", formatted);
+              }}
               placeholder="https://youtube.com/@..."
               className="px-3 py-2 rounded-xl border border-slate-200 text-xs focus:border-red-500 outline-none"
             />
@@ -324,6 +341,10 @@ export function FormSocialReviews({
               type="text"
               value={data.linkedinUrl || ""}
               onChange={(e) => updateField("linkedinUrl", e.target.value)}
+              onBlur={(e) => {
+                const formatted = formatSocialUrl("linkedin", e.target.value);
+                if (formatted && formatted !== e.target.value) updateField("linkedinUrl", formatted);
+              }}
               placeholder="https://linkedin.com/in/..."
               className="px-3 py-2 rounded-xl border border-slate-200 text-xs focus:border-blue-700 outline-none"
             />

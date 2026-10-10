@@ -31,6 +31,7 @@ import {
   Building2
 } from "lucide-react";
 import { compressAndConvertToWebP, formatBytes, CompressResult } from "../../utils/imageCompressor";
+import { formatSocialUrl } from "../../utils/generators";
 
 interface FormDoctorProfileProps {
   data: MedicalLandingData;
@@ -889,6 +890,12 @@ export function FormDoctorProfile({
               type="text"
               value={data.instagramUrl ?? ""}
               onChange={(e) => updateField("instagramUrl", e.target.value)}
+              onBlur={(e) => {
+                const formatted = formatSocialUrl("instagram", e.target.value);
+                if (formatted && formatted !== e.target.value) {
+                  updateField("instagramUrl", formatted);
+                }
+              }}
               placeholder="https://instagram.com/dr.medico.ec"
               className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
             />
@@ -901,6 +908,12 @@ export function FormDoctorProfile({
               type="text"
               value={data.facebookUrl ?? ""}
               onChange={(e) => updateField("facebookUrl", e.target.value)}
+              onBlur={(e) => {
+                const formatted = formatSocialUrl("facebook", e.target.value);
+                if (formatted && formatted !== e.target.value) {
+                  updateField("facebookUrl", formatted);
+                }
+              }}
               placeholder="https://facebook.com/drmedicoecuador"
               className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
             />
