@@ -281,6 +281,15 @@ export function validateAndNormalizeMedicalData(raw: any): MedicalLandingData {
     }));
   }
 
+  // 15. Saludo Personalizado & Popup de Bienvenida (deshabilitado por defecto)
+  const habilitarPopupBienvenida = typeof raw.habilitarPopupBienvenida === "boolean" ? raw.habilitarPopupBienvenida : false;
+  const popupBienvenidaIcono = typeof raw.popupBienvenidaIcono === "string" ? raw.popupBienvenidaIcono : (base.popupBienvenidaIcono || "😊");
+  const popupBienvenidaTitulo = typeof raw.popupBienvenidaTitulo === "string" ? raw.popupBienvenidaTitulo : (base.popupBienvenidaTitulo || "¡Bienvenido(a) a mi consulta!");
+  const popupBienvenidaSubtitulo = typeof raw.popupBienvenidaSubtitulo === "string" ? raw.popupBienvenidaSubtitulo : (base.popupBienvenidaSubtitulo || "Me encantaría conocerte. ¿Cuál es tu nombre para brindarte una mejor atención?");
+  const popupBienvenidaBoton = typeof raw.popupBienvenidaBoton === "string" ? raw.popupBienvenidaBoton : (base.popupBienvenidaBoton || "Comenzar recorrido");
+  const popupBienvenidaPlaceholder = typeof raw.popupBienvenidaPlaceholder === "string" ? raw.popupBienvenidaPlaceholder : (base.popupBienvenidaPlaceholder || "Ingresa tu nombre aquí...");
+  const franjaSaludoHeroTexto = typeof raw.franjaSaludoHeroTexto === "string" ? raw.franjaSaludoHeroTexto : (base.franjaSaludoHeroTexto || "¡Hola {nombre}, te muestro un poco de mi!");
+
   return {
     tipoEnfoqueLanding,
     nombreMedico,
@@ -376,7 +385,14 @@ export function validateAndNormalizeMedicalData(raw: any): MedicalLandingData {
     fotosConsultorio,
     ordenSecciones,
     designVersion,
-    guiasPacientes
+    guiasPacientes,
+    habilitarPopupBienvenida,
+    popupBienvenidaIcono,
+    popupBienvenidaTitulo,
+    popupBienvenidaSubtitulo,
+    popupBienvenidaBoton,
+    popupBienvenidaPlaceholder,
+    franjaSaludoHeroTexto
   };
 }
 

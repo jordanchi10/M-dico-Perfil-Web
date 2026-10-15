@@ -3370,7 +3370,7 @@ ${jsonLd}
   ` : ''}
 
   <!-- FRANJA DE SALUDO PERSONALIZADO BAJO EL HERO (SIN FONDO) -->
-  ${(data.habilitarPopupBienvenida ?? true) ? `
+  ${Boolean(data.habilitarPopupBienvenida) ? `
   <div id="franja-saludo-container" class="w-full py-4 sm:py-5 px-4 sm:px-8 text-center bg-transparent border-b border-slate-100">
     <style>
       @keyframes heartbeat4s {
@@ -4990,7 +4990,7 @@ ${jsonLd}
   </div>
 
   <!-- MODAL DE BIENVENIDA MINIMALISTA & SOLICITUD AMABLE DE NOMBRE AL INGRESAR -->
-  ${(data.habilitarPopupBienvenida ?? true) ? `
+  ${Boolean(data.habilitarPopupBienvenida) ? `
   <div id="welcome-popup-modal" class="fixed inset-0 bg-black/70 backdrop-blur-md z-[200] hidden items-center justify-center p-3 sm:p-4 overflow-y-auto" onclick="closeWelcomePopup(event)">
     <div class="bg-white rounded-3xl max-w-xs sm:max-w-md w-full p-5 sm:p-8 shadow-2xl border border-slate-100 relative text-center my-auto mx-auto transition-all duration-300 transform scale-95 opacity-0" id="welcome-popup-card" onclick="event.stopPropagation()">
       <!-- Botón Cerrar Minimalista -->
@@ -7054,6 +7054,8 @@ ${jsonLd}
       const input = document.getElementById('welcome-visitor-name-input');
       const franjaTexto = document.getElementById('franja-saludo-texto');
       const formNombre = document.getElementById('agenda-name') || document.getElementById('preview-booking-name');
+
+      if (!modal && !franjaTexto) return;
 
       function formatCapitalize(str) {
         if (!str) return '';

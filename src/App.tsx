@@ -91,6 +91,16 @@ export default function App() {
         ) {
           parsed.fotosConsultorio = parsed.fotosConsultorio.slice(0, 3);
         }
+
+        // Deshabilitar por defecto el Popup de Bienvenida según requerimiento (para habilitarlo manualmente)
+        const popupMigrated = localStorage.getItem("medical_landing_popup_bienvenida_default_v2");
+        if (!popupMigrated && parsed) {
+          parsed.habilitarPopupBienvenida = false;
+          localStorage.setItem("medical_landing_popup_bienvenida_default_v2", "true");
+        } else if (parsed && parsed.habilitarPopupBienvenida === undefined) {
+          parsed.habilitarPopupBienvenida = false;
+        }
+
         return parsed;
       }
     } catch (error) {

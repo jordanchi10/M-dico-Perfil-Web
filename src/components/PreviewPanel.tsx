@@ -847,7 +847,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
   const [bookingTime, setBookingTime] = useState<string>("10:30 AM");
   const [visitorName, setVisitorName] = useState<string>("Jordan");
   const [showWelcomePopup, setShowWelcomePopup] = useState<boolean>(() => {
-    return data.habilitarPopupBienvenida ?? true;
+    return Boolean(data.habilitarPopupBienvenida);
   });
   const [welcomeInputName, setWelcomeInputName] = useState<string>("Jordan");
   const [patientName, setPatientName] = useState<string>("Jordan");
@@ -884,6 +884,13 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
     }
     setShowWelcomePopup(false);
   };
+
+  // Sincronizar estado del popup si se desactiva en el panel de diseño
+  useEffect(() => {
+    if (!data.habilitarPopupBienvenida) {
+      setShowWelcomePopup(false);
+    }
+  }, [data.habilitarPopupBienvenida]);
 
   // Modal de confirmación de cita médica con resumen previo
   const [showBookingModal, setShowBookingModal] = useState<boolean>(false);
@@ -1327,7 +1334,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
             <Monitor className="w-4 h-4" />
             <span className="text-[11px] font-extrabold hidden sm:inline">Desktop</span>
           </button>
-          {(data.habilitarPopupBienvenida ?? true) && (
+          {Boolean(data.habilitarPopupBienvenida) && (
             <button
               id="btn-trigger-welcome-modal"
               type="button"
@@ -2478,7 +2485,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
         )}
 
         {/* FRANJA DE SALUDO PERSONALIZADO BAJO EL HERO (FONDO TRANSPARENTE) */}
-        {(data.habilitarPopupBienvenida ?? true) && (
+        {Boolean(data.habilitarPopupBienvenida) && (
           <div id="preview-franja-saludo" className="w-full py-4 sm:py-5 px-4 sm:px-6 text-center bg-transparent border-b border-slate-200/40 animate-in fade-in duration-500">
             <style>{`
               @keyframes heartbeat4s {
@@ -4228,7 +4235,7 @@ export default function PreviewPanel({ data, onOpenExternalPreview, onForceRefre
 
         {/* MODAL DE BIENVENIDA MINIMALISTA & SOLICITUD AMABLE DE NOMBRE */}
         <AnimatePresence>
-          {showWelcomePopup && (
+          {Boolean(data.habilitarPopupBienvenida) && showWelcomePopup && (
             <motion.div 
               id="preview-welcome-popup-overlay"
               initial={{ opacity: 0 }}

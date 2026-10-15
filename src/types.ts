@@ -1184,7 +1184,7 @@ export const defaultMedicalData: MedicalLandingData = {
       requiereRegistro: true
     }
   ],
-  habilitarPopupBienvenida: true,
+  habilitarPopupBienvenida: false,
   popupBienvenidaIcono: "😊",
   popupBienvenidaTitulo: "¡Bienvenido(a) a mi consulta!",
   popupBienvenidaSubtitulo: "Me encantaría conocerte. ¿Cuál es tu nombre para brindarte una mejor atención?",

@@ -1079,27 +1079,36 @@ export function FormDesign({
                 <Sparkles className="w-4 h-4 text-amber-500" />
                 Popup de Bienvenida Minimalista & Saludo al Paciente
               </label>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                😊 Cara Feliz 3D & Minimalista
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-colors ${
+                data.habilitarPopupBienvenida
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : "bg-slate-100 text-slate-600 border-slate-200"
+              }`}>
+                {data.habilitarPopupBienvenida ? "😊 Activado" : "Deshabilitado por defecto"}
               </span>
             </div>
             <p className="text-[11px] text-slate-500">
-              Modal ultra-limpio y minimalista con icono de cara feliz en 3D que solicita amablemente el nombre al visitante, muestra una franja sin fondo bajo el Hero y auto-completa el formulario de citas.
+              Modal ultra-limpio y minimalista con icono de cara feliz en 3D que solicita amablemente el nombre al visitante, muestra una franja sin fondo bajo el Hero y auto-completa el formulario de citas. Viene deshabilitado por defecto.
             </p>
           </div>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              id="toggle-popup-bienvenida"
-              checked={data.habilitarPopupBienvenida ?? true}
-              onChange={(e) => updateField("habilitarPopupBienvenida", e.target.checked)}
-              className="sr-only peer"
-            />
-            <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
-          </label>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-semibold text-slate-500 hidden sm:inline">
+              {data.habilitarPopupBienvenida ? "Habilitado" : "Habilitar"}
+            </span>
+            <label className="relative inline-flex items-center cursor-pointer" title={data.habilitarPopupBienvenida ? "Deshabilitar popup" : "Habilitar popup manualmente"}>
+              <input
+                type="checkbox"
+                id="toggle-popup-bienvenida"
+                checked={Boolean(data.habilitarPopupBienvenida)}
+                onChange={(e) => updateField("habilitarPopupBienvenida", e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+            </label>
+          </div>
         </div>
 
-        {(data.habilitarPopupBienvenida ?? true) && (
+        {Boolean(data.habilitarPopupBienvenida) && (
           <div className="space-y-3 pt-2 border-t border-slate-100 animate-in fade-in duration-200">
             {/* Selector de Icono 3D para el Popup y Franja */}
             <div className="space-y-1.5">

@@ -15,10 +15,29 @@ dotenv.config();
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  
+  // Parse command line arguments and environment variables
+  const args = process.argv.slice(2);
+  let customPort: number | undefined;
+  let customHost: string | undefined;
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--port" && args[i + 1]) {
+      customPort = Number(args[i + 1]);
+    }
+    if (args[i] === "--host" && args[i + 1]) {
+      customHost = args[i + 1];
+    }
+  }
+  const PORT = customPort || Number(process.env.PORT) || 3000;
+  const HOST = customHost || process.env.HOST || "0.0.0.0";
 
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+
+  // Health check endpoint
+  app.get("/api/health", (_req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
 
   // Initialize Gemini AI Client
   const ai = new GoogleGenAI({
@@ -2148,8 +2167,16 @@ INSTRUCCIÓN ESPECIAL PARA MÚLTIPLES FUENTES:
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on port ${PORT}`);
+  const server = app.listen(PORT, HOST, () => {
+    console.log(`Server running on http://${HOST}:${PORT}`);
+  });
+
+  server.on("error", (err: any) => {
+    if (err.code === "EADDRINUSE") {
+      console.error(`Port ${PORT} is already in use.`);
+    } else {
+      console.error("Server listen error:", err);
+    }
   });
 }
 
